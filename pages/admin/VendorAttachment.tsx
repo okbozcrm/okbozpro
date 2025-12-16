@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Car, Phone, Mail, Trash2, 
   Sparkles, MessageCircle, Send, User, MapPin, X, 
-  MoreVertical, Filter, RefreshCcw, ChevronDown, Building2
+  MoreVertical, Filter, RefreshCcw, ChevronDown, Building2,
+  Calendar, FileText, CheckSquare, Square, DollarSign, Save, Briefcase
 } from 'lucide-react';
-import AiAssistant from '../../components/AiAssistant'; // Import the refactored AI Assistant
+import AiAssistant from '../../components/AiAssistant';
 
 interface HistoryLog {
   id: number;
@@ -16,190 +17,269 @@ interface HistoryLog {
   outcome?: string;
 }
 
+// Expanded Vendor Interface to match the new form requirements
 interface Vendor {
   id: string;
-  ownerName: string;
-  phone: string;
-  email: string;
-  vehicleTypes: string[]; // e.g., ['Sedan', 'SUV']
+  ownerId?: string; // ID of the Corporate/Admin who owns this record
+  franchiseName?: string; // Display name of the owner
+  
+  // --- Form Fields ---
+  employeeId?: string; // Employee Name (ID ref)
+  employeeName?: string; // Snapshot of name
+  category?: string;
+  subCategory?: string;
+  callCategory?: string;
+  vehicleType: string;
+  vehicleTypeOther?: string; // If 'Other' is selected
+  source?: string;
+  phone: string; // Contact Number
+  callStatus?: string;
+  ownerName: string; // Rider Name
+  city: string; // Location
+  riderStatus?: string;
+  followUpStatus?: string;
+  followUpDate?: string;
+  documentReceived?: string;
+  documentStatus: string[]; // Array of checked docs
+  attachmentStatus?: string;
+  recharge99?: string;
+  topup100?: string;
+  topup50?: string;
+  remarks?: string;
+  
+  // --- Legacy / Computed Fields ---
+  email?: string;
+  vehicleTypes: string[]; // Computed from vehicleType for compatibility
   fleetSize: number;
   status: 'Active' | 'Inactive' | 'Pending';
-  city: string;
   history: HistoryLog[];
-  franchiseName?: string; // For Admin View
 }
 
 const CITY_OPTIONS = ['Coimbatore', 'Trichy', 'Salem', 'Madurai', 'Chennai'];
-const VEHICLE_TYPE_OPTIONS = ['Sedan', 'SUV', 'Hatchback', 'Van', 'Truck', 'Auto'];
-
-const MOCK_VENDORS: Vendor[] = [];
+const VEHICLE_TYPE_OPTIONS = ['Cab', 'Load Xpress', 'Passenger Auto', 'Bike Taxi', 'Other'];
+const DOCUMENT_OPTIONS = ['Aadhaar Card', 'Driving License', 'RC Book', 'Insurance', 'Vehicle Permit', 'Full Document Received'];
 
 const VendorAttachment = () => {
   // Determine Session Context
-  const getSessionKey = () => {
-    const sessionId = localStorage.getItem('app_session_id') || 'admin';
-    return sessionId === 'admin' ? 'vendor_data' : `vendor_data_${sessionId}`;
-  };
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
 
-  const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
+  // --- 1. Load Reference Data (Corporates & Employees) ---
+  const [corporates, setCorporates] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
 
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
+  useEffect(() => {
+      // Load Corporates (For Super Admin Dropdown)
+      const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+      setCorporates(corps);
+
+      // Load Employees (Aggregated based on role)
+      let staff: any[] = [];
+      if (isSuperAdmin) {
+          const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+          staff = [...adminStaff];
+          corps.forEach((c: any) => {
+              const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
+              staff = [...staff, ...cStaff];
+          });
+      } else {
+          const key = `staff_data_${sessionId}`;
+          staff = JSON.parse(localStorage.getItem(key) || '[]');
+      }
+      setEmployees(staff.filter((s: any) => s.status === 'Active'));
+
+      // Load Branches
+      let allBranches: any[] = [];
+      if (isSuperAdmin) {
+          const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
+          allBranches = [...adminB];
+          corps.forEach((c: any) => {
+              const cB = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+              allBranches = [...allBranches, ...cB];
+          });
+      } else {
+          const key = `branches_data_${sessionId}`;
+          allBranches = JSON.parse(localStorage.getItem(key) || '[]');
+      }
+      setBranches(allBranches);
+
+  }, [isSuperAdmin, sessionId]);
+
+  // --- 2. Load Vendors (Aggregated View for Admin, Scoped for Corp) ---
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+
+  const loadVendors = () => {
+    let allVendors: Vendor[] = [];
+    
     if (isSuperAdmin) {
-        // --- SUPER ADMIN AGGREGATION ---
-        let allVendors: Vendor[] = [];
-        
-        // 1. Admin Data
+        // Admin Data
         const adminData = localStorage.getItem('vendor_data');
         if (adminData) {
             try { 
                 const parsed = JSON.parse(adminData);
-                allVendors = [...allVendors, ...parsed.map((v: any) => ({...v, franchiseName: 'Head Office'}))];
+                allVendors = [...allVendors, ...parsed.map((v: any) => ({...v, ownerId: 'admin', franchiseName: 'Head Office'}))];
             } catch (e) {}
-        } else {
-            allVendors = [...allVendors, ...MOCK_VENDORS.map(v => ({...v, franchiseName: 'Head Office'}))];
         }
-
-        // 2. Corporate Data
-        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporates.forEach((corp: any) => {
+        // Corporate Data
+        const corporatesList = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corporatesList.forEach((corp: any) => {
             const cData = localStorage.getItem(`vendor_data_${corp.email}`);
             if (cData) {
                 try {
                     const parsed = JSON.parse(cData);
-                    const tagged = parsed.map((v: any) => ({...v, franchiseName: corp.companyName}));
+                    const tagged = parsed.map((v: any) => ({...v, ownerId: corp.email, franchiseName: corp.companyName}));
                     allVendors = [...allVendors, ...tagged];
                 } catch (e) {}
             }
         });
-        return allVendors;
     } else {
-        const key = getSessionKey();
+        // Single Corporate View
+        const key = `vendor_data_${sessionId}`;
         const saved = localStorage.getItem(key);
-        if (saved) return JSON.parse(saved);
-        return [];
+        if (saved) {
+            try {
+                allVendors = JSON.parse(saved).map((v: any) => ({...v, ownerId: sessionId, franchiseName: 'My Franchise'}));
+            } catch (e) {}
+        }
     }
-  });
+    setVendors(allVendors);
+  };
 
-  // Save to persistent storage (Only for current session context)
   useEffect(() => {
-    if (!isSuperAdmin) {
-        const key = getSessionKey();
-        localStorage.setItem(key, JSON.stringify(vendors));
-    } else {
-        // For Super Admin, only save Head Office vendors back to main storage to avoid duplication/overwrite issues
-        const headOfficeVendors = vendors.filter(v => v.franchiseName === 'Head Office');
-        localStorage.setItem('vendor_data', JSON.stringify(headOfficeVendors));
-    }
-  }, [vendors, isSuperAdmin]);
+      loadVendors();
+      // Listen for storage changes to keep in sync if multiple tabs open
+      window.addEventListener('storage', loadVendors);
+      return () => window.removeEventListener('storage', loadVendors);
+  }, [isSuperAdmin, sessionId]);
 
+
+  // --- UI State ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   
-  // Filter States
+  // Filters
   const [cityFilter, setCityFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [vehicleFilter, setVehicleFilter] = useState('All');
-  
-  // AI & Logs State
-  const [aiMessage, setAiMessage] = useState('');
-  const [newLogMessage, setNewLogMessage] = useState('');
-  const [logType, setLogType] = useState<'Note' | 'Call'>('Note');
-  const [callOutcome, setCallOutcome] = useState('Connected');
-  
-  // Add Vendor Form State
-  const [formData, setFormData] = useState({
-    ownerName: '',
-    phone: '',
-    email: '',
-    vehicleTypes: '',
-    fleetSize: '',
-    city: 'Coimbatore',
-    status: 'Pending'
-  });
+  const [categoryFilter, setCategoryFilter] = useState('All'); // NEW FILTER
+  const [ownerFilter, setOwnerFilter] = useState('All'); // NEW: For Super Admin to filter by franchise
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  // --- Form State ---
+  const initialFormState = {
+    ownerId: isSuperAdmin ? 'admin' : sessionId, // Default owner
+    employeeId: '',
+    category: '',
+    subCategory: '', 
+    callCategory: '',
+    vehicleType: '',
+    vehicleTypeOther: '',
+    source: '',
+    phone: '',
+    callStatus: '',
+    ownerName: '', 
+    city: '', 
+    riderStatus: '',
+    followUpStatus: '',
+    followUpDate: '',
+    documentReceived: '',
+    documentStatus: [] as string[],
+    attachmentStatus: '',
+    recharge99: '',
+    topup100: '',
+    topup50: '', 
+    remarks: ''
+  };
+  const [formData, setFormData] = useState(initialFormState);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newVendor: Vendor = {
-      id: `V${Date.now()}`,
-      ownerName: formData.ownerName,
-      phone: formData.phone,
-      email: formData.email,
-      vehicleTypes: formData.vehicleTypes.split(',').map(s => s.trim()),
-      fleetSize: parseInt(formData.fleetSize) || 0,
-      status: formData.status as any,
-      city: formData.city,
-      history: [],
-      franchiseName: isSuperAdmin ? 'Head Office' : undefined
-    };
-    setVendors([newVendor, ...vendors]);
-    setIsModalOpen(false);
-    setFormData({
-      ownerName: '', phone: '', email: '', 
-      vehicleTypes: '', fleetSize: '', city: 'Coimbatore', status: 'Pending'
+  const handleCheckboxChange = (doc: string) => {
+    setFormData(prev => {
+        const current = prev.documentStatus;
+        if (current.includes(doc)) {
+            return { ...prev, documentStatus: current.filter(d => d !== doc) };
+        } else {
+            return { ...prev, documentStatus: [...current, doc] };
+        }
     });
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  // --- Save Logic (With strict separation) ---
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.ownerName || !formData.phone) {
+        alert("Rider Name and Phone Number are required.");
+        return;
+    }
+
+    const employeeName = employees.find(e => e.id === formData.employeeId)?.name || 'Unknown';
+    const finalVehicleType = formData.vehicleType === 'Other' ? formData.vehicleTypeOther : formData.vehicleType;
+
+    // Determine target storage key
+    const targetOwnerId = formData.ownerId; 
+    const storageKey = targetOwnerId === 'admin' ? 'vendor_data' : `vendor_data_${targetOwnerId}`;
+
+    // Load existing data for that specific owner
+    let existingData: Vendor[] = [];
+    try {
+        existingData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } catch(e) {}
+
+    const newVendor: Vendor = {
+      id: `V${Date.now()}`,
+      ...formData,
+      employeeName,
+      email: '', 
+      vehicleTypes: [finalVehicleType || 'Unknown'],
+      fleetSize: 1,
+      status: formData.attachmentStatus === 'Yes' ? 'Active' : 'Pending',
+      history: [],
+      // These are transient in memory but stored implicitly by key
+      ownerId: targetOwnerId, 
+      franchiseName: targetOwnerId === 'admin' ? 'Head Office' : corporates.find(c => c.email === targetOwnerId)?.companyName
+    };
+
+    // Save to specific storage
+    const updatedData = [newVendor, ...existingData];
+    localStorage.setItem(storageKey, JSON.stringify(updatedData));
+
+    // Update local state immediately without waiting for reload
+    setVendors(prev => [newVendor, ...prev]);
+    
+    setIsModalOpen(false);
+    setFormData(initialFormState);
+    alert("Vendor added successfully!");
+  };
+
+  const handleDelete = (id: string, vendor: Vendor, e: React.MouseEvent) => {
     e.stopPropagation();
     if(window.confirm('Are you sure you want to delete this vendor?')) {
-        setVendors(vendors.filter(v => v.id !== id));
-        if (selectedVendor?.id === id) setSelectedVendor(null);
+        // Identify where this vendor lives
+        const targetOwnerId = vendor.ownerId || 'admin';
+        const storageKey = targetOwnerId === 'admin' ? 'vendor_data' : `vendor_data_${targetOwnerId}`;
+        
+        try {
+            const currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const updatedData = currentData.filter((v: any) => v.id !== id);
+            localStorage.setItem(storageKey, JSON.stringify(updatedData));
+            
+            // Update UI
+            setVendors(prev => prev.filter(v => v.id !== id));
+            if (selectedVendor?.id === id) setSelectedVendor(null);
+        } catch(err) {
+            console.error("Delete failed", err);
+        }
     }
   };
 
   // Interaction Handlers
-  const handleCall = (phone: string) => {
-    window.location.href = `tel:${phone}`;
-  };
-
-  const handleWhatsApp = (phone: string) => {
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const text = aiMessage ? `&text=${encodeURIComponent(aiMessage)}` : '';
-    window.open(`https://wa.me/${cleanPhone}?${text}`, '_blank');
-  };
-
-  const handleEmail = (email: string) => {
-    const body = aiMessage ? `&body=${encodeURIComponent(aiMessage)}` : '';
-    window.location.href = `mailto:${email}?${body}`;
-  };
-
-  const handleAiGen = (type: 'Availability' | 'Payment') => {
-    if (!selectedVendor) return;
-    
-    if (type === 'Availability') {
-        setAiMessage(`Hi ${selectedVendor.ownerName},\n\nWe have a high demand for ${selectedVendor.vehicleTypes[0] || 'vehicles'} this weekend in ${selectedVendor.city}. Do you have any additional units available for deployment?\n\nLet us know.`);
-    } else {
-        setAiMessage(`Hi ${selectedVendor.ownerName},\n\nThis is regarding the payment for the last cycle. The invoice has been processed and you should receive the amount within 24 hours.\n\nThanks for your partnership.`);
-    }
-  };
-
-  const handleAddLog = () => {
-    if (!selectedVendor || !newLogMessage.trim()) return;
-
-    const newLog: HistoryLog = {
-        id: Date.now(),
-        type: logType,
-        message: newLogMessage,
-        date: new Date().toLocaleString(),
-        outcome: logType === 'Call' ? 'Connected' : undefined,
-        duration: logType === 'Call' ? '0s' : undefined
-    };
-
-    const updatedVendor = {
-        ...selectedVendor,
-        history: [newLog, ...selectedVendor.history]
-    };
-
-    setVendors(prev => prev.map(v => v.id === updatedVendor.id ? updatedVendor : v));
-    setSelectedVendor(updatedVendor);
-    
-    setNewLogMessage('');
-  };
+  const handleCall = (phone: string) => window.location.href = `tel:${phone}`;
+  const handleWhatsApp = (phone: string) => window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank');
 
   const filteredVendors = vendors.filter(v => {
     const matchesSearch = v.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -207,29 +287,28 @@ const VendorAttachment = () => {
     
     const matchesCity = cityFilter === 'All' || v.city === cityFilter;
     const matchesStatus = statusFilter === 'All' || v.status === statusFilter;
+    const matchesCategory = categoryFilter === 'All' || v.category === categoryFilter; // New Filter Logic
     
     const matchesVehicle = vehicleFilter === 'All' || 
         v.vehicleTypes.some(vt => vt.toLowerCase().includes(vehicleFilter.toLowerCase()));
 
-    return matchesSearch && matchesCity && matchesStatus && matchesVehicle;
-  });
+    // Admin specific owner filter
+    const matchesOwner = ownerFilter === 'All' || v.ownerId === ownerFilter;
 
-  const aiSystemInstruction = `You are an AI assistant for vendor management at MY BUDDY. 
-  Your task is to help the user with questions about vendors, their fleet, cities they operate in, 
-  and common issues related to taxi services. Keep your responses concise and helpful. 
-  The current vendor being viewed is ${selectedVendor?.ownerName || 'a vendor'}.`;
+    return matchesSearch && matchesCity && matchesStatus && matchesVehicle && matchesCategory && matchesOwner;
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-           <h2 className="text-2xl font-bold text-gray-800">Vendor Attachment (Taxi)</h2>
+           <h2 className="text-2xl font-bold text-gray-800">Vendor Attachment</h2>
            <p className="text-gray-500">
-              {isSuperAdmin ? "View all vendors attached across franchises" : "Manage external taxi vendors and fleet partners"}
+              {isSuperAdmin ? "View all attached vendors across franchises" : "Onboard and manage vehicle vendors"}
            </p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { setFormData(initialFormState); setIsModalOpen(true); }}
           className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -249,64 +328,35 @@ const VendorAttachment = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
          </div>
-         <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
-            <div className="relative min-w-[140px]">
-                <select 
-                    value={cityFilter}
-                    onChange={(e) => setCityFilter(e.target.value)}
-                    className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-full cursor-pointer"
-                >
-                    <option value="All">All Cities</option>
-                    {CITY_OPTIONS.map(city => (
-                        <option key={city} value={city}>{city}</option>
-                    ))}
+         <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 items-center">
+            {isSuperAdmin && (
+                <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
+                    <option value="All">All Franchises</option>
+                    <option value="admin">Head Office</option>
+                    {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-            </div>
-
-            <div className="relative min-w-[140px]">
-                <select 
-                    value={vehicleFilter}
-                    onChange={(e) => setVehicleFilter(e.target.value)}
-                    className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-full cursor-pointer"
-                >
-                    <option value="All">All Vehicles</option>
-                    {VEHICLE_TYPE_OPTIONS.map(v => (
-                        <option key={v} value={v}>{v}</option>
-                    ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-            </div>
-
-            <div className="relative min-w-[140px]">
-                <select 
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full appearance-none bg-white border border-gray-200 text-gray-700 py-2 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-full cursor-pointer"
-                >
-                    <option value="All">All Status</option>
-                    <option value="Active">Active</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Inactive">Inactive</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-            </div>
-            
-            {(cityFilter !== 'All' || statusFilter !== 'All' || vehicleFilter !== 'All' || searchTerm) && (
-               <button 
-                  onClick={() => { setCityFilter('All'); setStatusFilter('All'); setVehicleFilter('All'); setSearchTerm(''); }}
-                  className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
-                  title="Reset Filters"
-               >
-                  <RefreshCcw className="w-4 h-4" />
-               </button>
             )}
+            <div className="h-6 w-px bg-gray-200 mx-1"></div>
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
+                <option value="All">All Categories</option>
+                <option value="Telecalling">Telecalling</option>
+                <option value="Office Visit">Office Visit</option>
+                <option value="Field Visit">Field Visit</option>
+            </select>
+            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
+                <option value="All">All Cities</option>
+                {CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={vehicleFilter} onChange={(e) => setVehicleFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
+                <option value="All">All Vehicles</option>
+                {VEHICLE_TYPE_OPTIONS.filter(v => v !== 'Other').map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Pending">Pending</option>
+                <option value="Inactive">Inactive</option>
+            </select>
          </div>
       </div>
 
@@ -316,8 +366,15 @@ const VendorAttachment = () => {
             <div 
                 key={vendor.id} 
                 onClick={() => setSelectedVendor(vendor)}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all cursor-pointer group"
+                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all cursor-pointer group relative"
             >
+                {isSuperAdmin && vendor.franchiseName && (
+                    <div className="absolute top-3 right-3 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1">
+                        <Building2 className="w-3 h-3" />
+                        {vendor.franchiseName}
+                    </div>
+                )}
+
                 <div className="p-6">
                    <div className="flex justify-between items-start mb-4">
                       <div className="p-3 bg-blue-50 rounded-lg">
@@ -337,28 +394,23 @@ const VendorAttachment = () => {
                       <MapPin className="w-3.5 h-3.5" /> {vendor.city}
                    </p>
 
-                   {isSuperAdmin && vendor.franchiseName && (
-                      <div className="mb-3 inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-semibold border border-indigo-100">
-                          <Building2 className="w-3 h-3" />
-                          {vendor.franchiseName}
-                      </div>
-                   )}
-                   
                    <div className="space-y-2 border-t border-gray-50 pt-3">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                          <Phone className="w-4 h-4 text-gray-400" /> {vendor.phone}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                         <Mail className="w-4 h-4 text-gray-400" /> {vendor.email}
+                         <Car className="w-4 h-4 text-gray-400" /> {vendor.vehicleTypes.join(', ')}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                         <Car className="w-4 h-4 text-gray-400" /> {vendor.fleetSize} Vehicles
-                      </div>
+                      {vendor.category && (
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Briefcase className="w-4 h-4 text-gray-400" /> {vendor.category}
+                          </div>
+                      )}
                    </div>
                 </div>
                 <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex justify-between items-center">
                    <span className="text-sm font-medium text-emerald-600 group-hover:underline">View Details</span>
-                   <button onClick={(e) => handleDelete(vendor.id, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
+                   <button onClick={(e) => handleDelete(vendor.id, vendor, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
                       <Trash2 className="w-4 h-4" />
                    </button>
                 </div>
@@ -367,271 +419,357 @@ const VendorAttachment = () => {
 
          {filteredVendors.length === 0 && (
              <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-                 {searchTerm || cityFilter !== 'All' || statusFilter !== 'All' || vehicleFilter !== 'All'
-                    ? "No vendors match your filters." 
-                    : "No vendors found. Add a new vendor to get started."}
+                 No vendors found. Add a new vendor to get started.
              </div>
          )}
       </div>
 
-      {/* Add Vendor Modal */}
+      {/* Add Vendor Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                 <h3 className="font-bold text-gray-800">Attach New Vendor</h3>
+           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Car className="w-5 h-5 text-emerald-600" /> Vendor Attachment Form
+                 </h3>
                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
                  </button>
               </div>
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              
+              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                  
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Owner Name</label>
-                       <input required name="ownerName" value={formData.ownerName} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="e.g. Rajesh Kumar" />
-                    </div>
-                    <div className="col-span-2">
-                       <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                       <select 
-                          name="city" 
-                          value={formData.city} 
-                          onChange={handleInputChange} 
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-emerald-500"
-                        >
-                          {CITY_OPTIONS.map(city => (
-                            <option key={city} value={city}>{city}</option>
-                          ))}
-                       </select>
+                 {/* 1. Agent / Category Info */}
+                 <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    
+                    {/* Super Admin: Assign To Field */}
+                    {isSuperAdmin && (
+                        <div className="bg-white p-3 rounded-lg border border-blue-200 mb-2">
+                            <label className="block text-xs font-bold text-blue-700 uppercase mb-1">Assign Vendor To</label>
+                            <select 
+                                name="ownerId" 
+                                value={formData.ownerId} 
+                                onChange={handleInputChange} 
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="admin">Head Office</option>
+                                {corporates.map((c: any) => (
+                                    <option key={c.email} value={c.email}>{c.companyName} ({c.city})</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Employee Name <span className="text-red-500">*</span></label>
+                            <select 
+                                name="employeeId" 
+                                value={formData.employeeId} 
+                                onChange={handleInputChange} 
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+                                required
+                            >
+                                <option value="">Choose Employee</option>
+                                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                            <select name="category" value={formData.category} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Telecalling</option>
+                                <option>Office Visit</option>
+                                <option>Field Visit</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub Category</label>
+                            <select name="subCategory" value={formData.subCategory} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Inbound</option>
+                                <option>Outbound</option>
+                                <option>Walk-in</option>
+                                <option>Scheduled</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Category</label>
+                            <select name="callCategory" value={formData.callCategory} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>New Call</option>
+                                <option>Follow Call</option>
+                                <option>Top up Call</option>
+                                <option>Document Call</option>
+                                <option>Demo</option>
+                            </select>
+                        </div>
                     </div>
                  </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                       <input required name="phone" value={formData.phone} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="+91..." />
-                    </div>
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                       <input required name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Email" />
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Fleet Size</label>
-                       <input required type="number" name="fleetSize" value={formData.fleetSize} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0" />
-                    </div>
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                       <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-emerald-500">
-                          <option>Active</option>
-                          <option>Pending</option>
-                          <option>Inactive</option>
-                       </select>
-                    </div>
-                 </div>
+
+                 {/* 2. Vendor & Vehicle Details */}
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Types</label>
-                    <input name="vehicleTypes" value={formData.vehicleTypes} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="e.g. Sedan, SUV, Van (Comma separated)" />
+                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Vendor & Vehicle Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Vehicle Type <span className="text-red-500">*</span></label>
+                            <select name="vehicleType" value={formData.vehicleType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                {VEHICLE_TYPE_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                            {formData.vehicleType === 'Other' && (
+                                <input name="vehicleTypeOther" value={formData.vehicleTypeOther} onChange={handleInputChange} placeholder="Specify Other" className="w-full mt-2 p-2 border border-gray-300 rounded-lg text-sm" />
+                            )}
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Source <span className="text-red-500">*</span></label>
+                            <select name="source" value={formData.source} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Exist Driver</option>
+                                <option>Social Media</option>
+                                <option>Driver Reference</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contact Number <span className="text-red-500">*</span></label>
+                            <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="10-digit number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Status</label>
+                            <select name="callStatus" value={formData.callStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Connected</option>
+                                <option>Not Picked</option>
+                                <option>Busy</option>
+                                <option>Switch Off</option>
+                                <option>Wrong Number</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Name <span className="text-red-500">*</span></label>
+                            <input name="ownerName" value={formData.ownerName} onChange={handleInputChange} placeholder="Name" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Location</label>
+                            <select name="city" value={formData.city} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                {branches.length > 0 ? branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>) : CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Status</label>
+                            <select name="riderStatus" value={formData.riderStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Owner</option>
+                                <option>Driver</option>
+                                <option>Owner cum Driver</option>
+                                <option>Acting Driver</option>
+                                <option>Load</option>
+                            </select>
+                        </div>
+                    </div>
                  </div>
-                 
-                 <div className="pt-4">
-                    <button type="submit" className="w-full bg-emerald-500 text-white py-2 rounded-lg font-medium hover:bg-emerald-600 transition-colors shadow-sm">Attach Vendor</button>
+
+                 {/* 3. Follow-up Details */}
+                 <div>
+                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Follow-up</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Followup Status <span className="text-red-500">*</span></label>
+                            <select name="followUpStatus" value={formData.followUpStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" required>
+                                <option value="">Choose</option>
+                                <option>Need to call back</option>
+                                <option>No need to call back</option>
+                                <option>Ready to attach</option>
+                                <option>Already attached</option>
+                                <option>Right now Attach</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Follow Back Date</label>
+                            <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" />
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* 4. Documents */}
+                 <div>
+                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Documents</h4>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Document Received</label>
+                                <select name="documentReceived" value={formData.documentReceived} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                    <option value="">Choose</option>
+                                    <option>Yes</option>
+                                    <option>No</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Attachment Status</label>
+                                <select name="attachmentStatus" value={formData.attachmentStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                    <option value="">Choose</option>
+                                    <option>Yes</option>
+                                    <option>No</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Document Status</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {DOCUMENT_OPTIONS.map(doc => (
+                                    <label key={doc} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                        <div 
+                                            onClick={() => handleCheckboxChange(doc)}
+                                            className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${formData.documentStatus.includes(doc) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-400 bg-white'}`}
+                                        >
+                                            {formData.documentStatus.includes(doc) && <CheckSquare className="w-3 h-3" />}
+                                        </div>
+                                        {doc}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* 5. Payments */}
+                 <div>
+                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Payments & Recharge</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Recharge 99</label>
+                            <select name="recharge99" value={formData.recharge99} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Done</option>
+                                <option>Pending</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Topup 100</label>
+                            <select name="topup100" value={formData.topup100} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose</option>
+                                <option>Done</option>
+                                <option>Pending</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Top up 50</label>
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                <div 
+                                    onClick={() => setFormData(prev => ({...prev, topup50: prev.topup50 === 'done' ? '' : 'done'}))}
+                                    className={`w-4 h-4 rounded-full border flex items-center justify-center ${formData.topup50 === 'done' ? 'border-emerald-500' : 'border-gray-400'}`}
+                                >
+                                    {formData.topup50 === 'done' && <div className="w-2 h-2 rounded-full bg-emerald-500"></div>}
+                                </div>
+                                done
+                            </label>
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* 6. Remarks */}
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks <span className="text-red-500">*</span></label>
+                    <textarea 
+                        name="remarks"
+                        rows={3}
+                        value={formData.remarks}
+                        onChange={handleInputChange}
+                        placeholder="Your answer"
+                        className="w-full p-3 border-b-2 border-gray-300 bg-gray-50 focus:border-emerald-500 focus:bg-white transition-colors outline-none resize-none text-sm"
+                        required
+                    />
+                 </div>
+
+                 <div className="pt-4 flex justify-between items-center border-t border-gray-100">
+                    <button type="button" onClick={() => setFormData(initialFormState)} className="text-emerald-600 font-medium text-sm hover:underline">Clear form</button>
+                    <button type="submit" className="bg-emerald-600 text-white px-8 py-2.5 rounded-lg font-bold shadow-md hover:bg-emerald-700 transition-colors">Submit</button>
                  </div>
               </form>
            </div>
         </div>
       )}
 
-      {/* Vendor Detail Modal (CRM Style) */}
+      {/* Detail Modal */}
       {selectedVendor && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-               {/* Modal Header */}
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
                <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50 rounded-t-2xl">
-                  <div className="flex gap-4">
-                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">
-                        {selectedVendor.ownerName.charAt(0)}
-                     </div>
-                     <div>
-                        <h3 className="text-xl font-bold text-gray-900">{selectedVendor.ownerName}</h3>
-                        <p className="text-sm text-gray-500">{selectedVendor.city} • {selectedVendor.fleetSize} Vehicles</p>
-                     </div>
+                  <div>
+                     <h3 className="text-xl font-bold text-gray-900">{selectedVendor.ownerName}</h3>
+                     <p className="text-sm text-gray-500">{selectedVendor.vehicleTypes.join(', ')} • {selectedVendor.city}</p>
                   </div>
-                  <button onClick={() => { setSelectedVendor(null); setAiMessage(''); setNewLogMessage(''); }} className="p-1 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                  <button onClick={() => setSelectedVendor(null)} className="p-1 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
                      <X className="w-5 h-5" />
                   </button>
                </div>
-
-               {/* Modal Body */}
-               <div className="flex-1 overflow-y-auto p-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                       {/* Left Column: Contact Details, AI Assistant & Actions */}
-                       <div className="space-y-6">
-                          {/* Contact Details */}
-                          <div className="space-y-4">
-                             <h4 className="font-bold text-gray-800 flex items-center gap-2 border-b border-gray-100 pb-2">
-                                <User className="w-4 h-4 text-gray-400" /> Contact Info
-                             </h4>
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-3 text-sm">
-                                   <Phone className="w-4 h-4 text-gray-400" />
-                                   <a href={`tel:${selectedVendor.phone}`} className="text-blue-600 hover:underline">{selectedVendor.phone}</a>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm">
-                                   <Mail className="w-4 h-4 text-gray-400" />
-                                   <a href={`mailto:${selectedVendor.email}`} className="text-blue-600 hover:underline">{selectedVendor.email}</a>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm text-gray-600">
-                                   <Car className="w-4 h-4 text-gray-400" />
-                                   {selectedVendor.vehicleTypes.join(', ')}
-                                </div>
-                             </div>
-                          </div>
-
-                          {/* AI Smart Assistant - Refactored Component */}
-                          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100 shadow-sm">
-                             <h4 className="font-bold text-indigo-900 flex items-center gap-2 mb-3 text-sm">
-                                <Sparkles className="w-4 h-4 text-indigo-600" /> AI Smart Assistant
-                             </h4>
-                             <div className="flex gap-2 mb-3">
-                                <button 
-                                  onClick={() => handleAiGen('Availability')}
-                                  className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-50 transition-colors shadow-sm flex-1"
-                                >
-                                  Ask Availability
-                                </button>
-                                <button 
-                                  onClick={() => handleAiGen('Payment')}
-                                  className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-50 transition-colors shadow-sm flex-1"
-                                >
-                                  Payment Update
-                                </button>
-                             </div>
-                             <div className="bg-white p-3 rounded-lg border border-indigo-100 text-xs text-gray-600 min-h-[80px] whitespace-pre-wrap leading-relaxed">
-                                {aiMessage || <span className="text-gray-400 italic">Select a context above to generate a smart message using AI. This message will be pre-filled when you click WhatsApp or Email below.</span>}
-                             </div>
-                          </div>
-                          <div className="relative">
-                            <AiAssistant
-                              systemInstruction={aiSystemInstruction}
-                              initialMessage={`Hello! How can I assist you with ${selectedVendor.ownerName} today?`}
-                              triggerButtonLabel="Ask Vendor AI"
-                              isOpenInitially={false} // Always start closed in this context
-                            />
-                            <p className="text-xs text-gray-500 text-center mt-2">Click the button above to chat with the AI.</p>
-                          </div>
-
-
-                          {/* Quick Actions */}
-                          <div className="flex gap-2">
-                             <button 
-                               onClick={() => handleCall(selectedVendor.phone)}
-                               className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
-                             >
-                                <Phone className="w-3 h-3" /> Call
-                             </button>
-                             <button 
-                               onClick={() => handleWhatsApp(selectedVendor.phone)}
-                               className="flex-1 bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
-                             >
-                                <MessageCircle className="w-3 h-3" /> WhatsApp
-                             </button>
-                             <button 
-                               onClick={() => handleEmail(selectedVendor.email)}
-                               className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
-                             >
-                                <Mail className="w-3 h-3" /> Email
-                             </button>
-                          </div>
+               <div className="p-6 overflow-y-auto space-y-6">
+                   <div className="grid grid-cols-2 gap-4 text-sm">
+                       <div>
+                           <p className="text-gray-500 text-xs uppercase font-bold">Contact</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.phone}</p>
                        </div>
-
-                       {/* Right Column: Log & History */}
-                       <div className="space-y-6">
-                          {/* Manual Log Entry */}
-                          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Add Note / Log Call</h4>
-                             <div className="flex gap-2 mb-3">
-                                <button 
-                                  onClick={() => setLogType('Note')}
-                                  className={`flex-1 text-xs font-medium py-1.5 rounded-md border ${logType === 'Note' ? 'bg-white border-gray-300 text-gray-800 shadow-sm' : 'border-transparent text-gray-500 hover:bg-gray-100'}`}
-                                >
-                                  Note
-                                </button>
-                                <button 
-                                  onClick={() => setLogType('Call')}
-                                  className={`flex-1 text-xs font-medium py-1.5 rounded-md border ${logType === 'Call' ? 'bg-white border-gray-300 text-gray-800 shadow-sm' : 'border-transparent text-gray-500 hover:bg-gray-100'}`}
-                                >
-                                  Call Log
-                                </button>
-                             </div>
-                             
-                             {logType === 'Call' && (
-                                <div className="flex gap-2 mb-3">
-                                   {['Connected', 'Missed', 'Voicemail'].map(outcome => (
-                                      <button
-                                          key={outcome}
-                                          onClick={() => setCallOutcome(outcome)}
-                                          className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${callOutcome === outcome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200'}`}
-                                      >
-                                          {outcome}
-                                      </button>
-                                   ))}
-                                </div>
-                             )}
-
-                             <div className="relative">
-                                <textarea 
-                                  value={newLogMessage}
-                                  onChange={(e) => setNewLogMessage(e.target.value)}
-                                  placeholder={logType === 'Call' ? "Call summary..." : "Add a note..."}
-                                  className="w-full p-3 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[80px]"
-                                />
-                                <button 
-                                  onClick={handleAddLog}
-                                  disabled={!newLogMessage.trim()}
-                                  className="absolute bottom-2 right-2 p-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <Send className="w-4 h-4" />
-                                </button>
-                             </div>
-                          </div>
-
-                          {/* Activity History */}
-                          <div>
-                              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Activity History</h4>
-                              <div className="space-y-6 pl-2">
-                                  {selectedVendor.history.length === 0 ? (
-                                      <p className="text-xs text-gray-400 italic">No history available.</p>
-                                  ) : (
-                                      selectedVendor.history.map((log, idx) => (
-                                          <div key={log.id} className={`relative pl-6 border-l-2 ${idx === selectedVendor.history.length - 1 ? 'border-transparent' : 'border-gray-200'}`}>
-                                              <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-white shadow-sm ${
-                                                  log.type === 'Call' ? 'bg-emerald-500' : 
-                                                  log.type === 'Note' ? 'bg-blue-500' : 'bg-gray-400'
-                                              }`}></div>
-                                              <p className="text-xs text-gray-400 mb-1">{log.date}</p>
-                                              <h5 className="text-sm font-bold text-gray-800 uppercase flex items-center gap-2">
-                                                {log.type === 'Call' ? 'OUTGOING CALL' : log.type.toUpperCase()}
-                                                {log.outcome && (
-                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                                                        log.outcome === 'Missed' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                    }`}>
-                                                        {log.outcome}
-                                                    </span>
-                                                )}
-                                              </h5>
-                                              <p className="text-sm text-gray-600 mt-1 leading-relaxed">{log.message}</p>
-                                          </div>
-                                      ))
-                                  )}
-                              </div>
-                          </div>
+                       <div>
+                           <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.status}</p>
                        </div>
-                    </div>
+                       <div>
+                           <p className="text-gray-500 text-xs uppercase font-bold">Follow Up</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.followUpStatus || '-'} ({selectedVendor.followUpDate || '-'})</p>
+                       </div>
+                       <div>
+                           <p className="text-gray-500 text-xs uppercase font-bold">Attached By</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.employeeName || '-'}</p>
+                       </div>
+                       {isSuperAdmin && selectedVendor.franchiseName && (
+                           <div className="col-span-2 mt-2 pt-2 border-t border-gray-100">
+                               <p className="text-indigo-600 text-xs uppercase font-bold flex items-center gap-1">
+                                   <Building2 className="w-3 h-3"/> {selectedVendor.franchiseName}
+                               </p>
+                           </div>
+                       )}
+                   </div>
+                   
+                   <div>
+                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Documents</p>
+                       <div className="flex flex-wrap gap-2">
+                           {selectedVendor.documentStatus && selectedVendor.documentStatus.length > 0 ? (
+                               selectedVendor.documentStatus.map(doc => (
+                                   <span key={doc} className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded border border-green-200">{doc}</span>
+                               ))
+                           ) : <span className="text-gray-400 text-xs italic">No docs checked</span>}
+                       </div>
+                   </div>
+
+                   <div>
+                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Payments</p>
+                       <div className="flex gap-4 text-sm">
+                           <span className={selectedVendor.recharge99 === 'Done' ? 'text-green-600 font-bold' : 'text-gray-600'}>Recharge 99: {selectedVendor.recharge99 || '-'}</span>
+                           <span className={selectedVendor.topup100 === 'Done' ? 'text-green-600 font-bold' : 'text-gray-600'}>Topup 100: {selectedVendor.topup100 || '-'}</span>
+                       </div>
+                   </div>
+
+                   <div>
+                       <p className="text-gray-500 text-xs uppercase font-bold mb-1">Remarks</p>
+                       <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{selectedVendor.remarks || 'No remarks.'}</p>
+                   </div>
+
+                   <div className="flex gap-3 pt-4 border-t border-gray-100">
+                       <button onClick={() => handleCall(selectedVendor.phone)} className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors">Call</button>
+                       <button onClick={() => handleWhatsApp(selectedVendor.phone)} className="flex-1 bg-green-50 text-green-700 py-2 rounded-lg font-bold text-sm hover:bg-green-100 transition-colors">WhatsApp</button>
+                   </div>
                </div>
             </div>
          </div>
       )}
+
+      {/* Boz Chat (AI Assistant) */}
+      <AiAssistant 
+        systemInstruction="You are Boz Chat, an AI assistant for managing vehicle vendor attachments. Help users categorize vendors, suggest follow-up strategies, and summarize vendor details."
+        initialMessage="Hi, I'm Boz Chat! Need help categorizing a vendor or planning a follow-up?"
+        triggerButtonLabel="Boz Chat"
+      />
     </div>
   );
 };
