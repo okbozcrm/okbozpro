@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Maximize, Crosshair, Loader2, AlertTriangle, Building, Trash2, Settings, Building2, Pencil, X, QrCode, Download, ExternalLink, Filter } from 'lucide-react';
-import { Branch } from '../../types';
+import { Branch } from '../types';
 import { useNavigate } from 'react-router-dom';
-import Autocomplete from '../../components/Autocomplete';
-import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
+import Autocomplete from './Autocomplete';
+import { HARDCODED_MAPS_API_KEY } from '../services/cloudService';
 
 const BranchForm: React.FC = () => {
   const navigate = useNavigate();
