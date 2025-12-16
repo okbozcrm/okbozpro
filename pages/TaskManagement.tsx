@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Calendar, User, Clock, CheckCircle, AlertCircle, 
   Trash2, Search, Filter, MoreHorizontal, X, SlidersHorizontal, 
-  Pencil, Building2, Save, BarChart3, List
+  Pencil, Building2, Save, BarChart3, List, CalendarDays
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';
@@ -22,7 +22,8 @@ interface Task {
   corporateName?: string; // Display name
   status: 'Todo' | 'In Progress' | 'Review' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
-  dueDate: string;
+  startDate: string; // Changed from single dueDate
+  endDate: string;   // Added endDate
   createdAt: string;
 }
 
@@ -99,29 +100,63 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     title: '',
     description: '',
     corporateId: 'admin',
+    branchName: '', // Added branch filtering
     assignedTo: '',
     priority: 'Medium',
-    dueDate: '',
+    startDate: '',
+    endDate: '',
     status: 'Todo'
   });
 
-  const availableStaff = useMemo(() => {
-    if (formData.corporateId === 'admin') {
-        return allStaff.filter(s => s.corporateId === 'admin');
-    }
-    return allStaff.filter(s => s.corporateId === formData.corporateId);
+  // Calculate available branches based on selected corporate
+  const availableBranches = useMemo(() => {
+      // Logic to extract unique branches from staff or branches_data would go here
+      // For now, simplified mock logic or extraction from staff
+      const staffInCorp = allStaff.filter(s => 
+          formData.corporateId === 'admin' ? s.corporateId === 'admin' : s.corporateId === formData.corporateId
+      );
+      const branches = Array.from(new Set(staffInCorp.map(s => s.branch).filter(Boolean)));
+      return branches;
   }, [allStaff, formData.corporateId]);
+
+  const availableStaff = useMemo(() => {
+    let filtered = allStaff;
+    
+    // Filter by Corporate
+    if (formData.corporateId === 'admin') {
+        filtered = filtered.filter(s => s.corporateId === 'admin');
+    } else {
+        filtered = filtered.filter(s => s.corporateId === formData.corporateId);
+    }
+
+    // Filter by Branch (if selected)
+    if (formData.branchName) {
+        filtered = filtered.filter(s => s.branch === formData.branchName);
+    }
+
+    return filtered;
+  }, [allStaff, formData.corporateId, formData.branchName]);
 
   // --- Handlers ---
 
   const resetForm = () => {
+    // Set default dates
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Format to YYYY-MM-DDTHH:mm for datetime-local input
+    const formatDateTime = (date: Date) => date.toISOString().slice(0, 16);
+
     setFormData({
       title: '',
       description: '',
       corporateId: 'admin',
+      branchName: '',
       assignedTo: '',
       priority: 'Medium',
-      dueDate: '',
+      startDate: formatDateTime(now),
+      endDate: formatDateTime(tomorrow),
       status: 'Todo'
     });
     setEditingTask(null);
@@ -154,9 +189,11 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       title: task.title,
       description: task.description,
       corporateId: task.corporateId || 'admin',
+      branchName: '', // Could be inferred from assigned staff if needed
       assignedTo: task.assignedTo,
       priority: task.priority,
-      dueDate: task.dueDate,
+      startDate: task.startDate,
+      endDate: task.endDate,
       status: task.status
     });
     setIsModalOpen(true);
@@ -185,7 +222,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         corporateId: formData.corporateId,
         corporateName: corpName,
         priority: formData.priority as any,
-        dueDate: formData.dueDate,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
         status: formData.status as any
       } : t);
       setTasks(updatedTasks);
@@ -200,7 +238,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         corporateName: corpName,
         status: 'Todo',
         priority: formData.priority as any,
-        dueDate: formData.dueDate,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
         createdAt: new Date().toISOString()
       };
       setTasks([newTask, ...tasks]);
@@ -210,7 +249,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
           sendSystemNotification({
               type: 'task_assigned',
               title: `New Task: ${newTask.title}`,
-              message: `You have been assigned a new task due on ${newTask.dueDate}.`,
+              message: `You have been assigned a new task.`,
               targetRoles: [UserRole.EMPLOYEE],
               employeeId: formData.assignedTo, // Target specific employee
               link: `/user/tasks`
@@ -366,6 +405,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                         <div className="p-3 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
                         {colTasks.map(task => {
                             const assignee = getStaffDetails(task.assignedTo);
+                            const startDate = new Date(task.startDate);
+                            const endDate = new Date(task.endDate);
                             return (
                             <div key={task.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all group relative">
                                 {/* Header Badges */}
@@ -404,8 +445,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                 <div className="flex items-center gap-2">
                                     <img src={assignee.avatar || `https://ui-avatars.com/api/?name=${assignee.name}`} alt="" className="w-6 h-6 rounded-full" title={assignee.name} />
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] text-gray-400">Due Date</span>
-                                        <span className="text-xs font-medium text-gray-600">{task.dueDate}</span>
+                                        <span className="text-[10px] text-gray-400">Due</span>
+                                        <span className="text-xs font-medium text-gray-600">{endDate.toLocaleDateString()}</span>
                                     </div>
                                 </div>
                                 
@@ -509,86 +550,128 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       {/* Edit/Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                 <h3 className="font-bold text-gray-800">{editingTask ? 'Edit Task' : 'Create New Task'}</h3>
+           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                 <h3 className="font-bold text-gray-800 text-lg">{editingTask ? 'Edit Task' : 'Create New Task'}</h3>
                  <button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
               </div>
-              <form onSubmit={handleSaveTask} className="p-6 space-y-4">
+              <form onSubmit={handleSaveTask} className="p-6 space-y-5">
+                 
+                 {/* 1. Title Input */}
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Task title" />
+                    <input 
+                      required 
+                      type="text" 
+                      value={formData.title} 
+                      onChange={(e) => setFormData({...formData, title: e.target.value})} 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800 placeholder-gray-400" 
+                      placeholder="Task Title" 
+                    />
+                 </div>
+
+                 {/* 2. Description Input */}
+                 <div>
+                    <textarea 
+                      rows={4} 
+                      value={formData.description} 
+                      onChange={(e) => setFormData({...formData, description: e.target.value})} 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-gray-800 placeholder-gray-400 resize-none" 
+                      placeholder="Description"
+                    />
                  </div>
                  
-                 {/* Corporate Selection (Only for Super Admin) */}
+                 {/* 3. Row: Head Office & All Branches */}
                  {isSuperAdmin && (
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Corporate / Branch</label>
-                       <select 
-                          value={formData.corporateId}
-                          onChange={(e) => setFormData({...formData, corporateId: e.target.value, assignedTo: ''})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                       >
-                          <option value="admin">Head Office</option>
-                          {corporates.map(c => (
-                             <option key={c.email} value={c.email}>{c.companyName} ({c.city})</option>
-                          ))}
-                       </select>
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                           <select 
+                              value={formData.corporateId}
+                              onChange={(e) => setFormData({...formData, corporateId: e.target.value, branchName: '', assignedTo: ''})}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-gray-700"
+                           >
+                              <option value="admin">Head Office</option>
+                              {corporates.map(c => (
+                                 <option key={c.email} value={c.email}>{c.companyName}</option>
+                              ))}
+                           </select>
+                        </div>
+                        <div className="flex-1">
+                           <select
+                              value={formData.branchName}
+                              onChange={(e) => setFormData({...formData, branchName: e.target.value, assignedTo: ''})}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-gray-700"
+                           >
+                              <option value="">All Branches</option>
+                              {availableBranches.map((b: string) => (
+                                  <option key={b} value={b}>{b}</option>
+                              ))}
+                           </select>
+                        </div>
                     </div>
                  )}
 
+                 {/* 4. Assign To */}
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
                     <select 
                        required 
                        value={formData.assignedTo}
                        onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
-                       disabled={role === UserRole.EMPLOYEE} // Disable if employee, as they assign to self
-                       className={`w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white ${role === UserRole.EMPLOYEE ? 'bg-gray-50 text-gray-500' : ''}`}
+                       disabled={role === UserRole.EMPLOYEE} 
+                       className={`w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-gray-700 ${role === UserRole.EMPLOYEE ? 'bg-gray-50 text-gray-500' : ''}`}
                     >
-                       <option value="">Select Staff</option>
+                       <option value="">Assign To...</option>
                        {availableStaff.map(s => (
                           <option key={s.id} value={s.id}>{s.name} - {s.role}</option>
                        ))}
                     </select>
-                    {role === UserRole.EMPLOYEE && <p className="text-xs text-emerald-600 mt-1">Auto-assigned to self</p>}
                  </div>
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                       <select value={formData.priority} onChange={(e) => setFormData({...formData, priority: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white">
-                          <option>Low</option>
-                          <option>Medium</option>
-                          <option>High</option>
-                       </select>
+                 {/* 5. Row: Start Date & Time | End Date & Time */}
+                 <div className="flex gap-4">
+                    <div className="flex-1">
+                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">START DATE & TIME</label>
+                       <input 
+                          type="datetime-local" 
+                          required 
+                          value={formData.startDate} 
+                          onChange={(e) => setFormData({...formData, startDate: e.target.value})} 
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-gray-700" 
+                       />
                     </div>
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                       <input required type="date" value={formData.dueDate} onChange={(e) => setFormData({...formData, dueDate: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none" />
+                    <div className="flex-1">
+                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">END DATE & TIME</label>
+                       <input 
+                          type="datetime-local" 
+                          required 
+                          value={formData.endDate} 
+                          onChange={(e) => setFormData({...formData, endDate: e.target.value})} 
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-gray-700" 
+                       />
                     </div>
                  </div>
 
-                 {editingTask && (
-                    <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                       <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white">
-                          <option value="Todo">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Review">Review</option>
-                          <option value="Done">Done</option>
-                       </select>
-                    </div>
-                 )}
-
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea rows={3} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none resize-none" />
+                 {/* 6. Row: Priority Buttons (Segmented) */}
+                 <div className="flex gap-0 border border-gray-300 rounded-lg overflow-hidden">
+                    {['Low', 'Medium', 'High'].map((p) => (
+                       <button
+                          type="button"
+                          key={p}
+                          onClick={() => setFormData({...formData, priority: p as any})}
+                          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                             formData.priority === p 
+                               ? 'bg-slate-800 text-white' 
+                               : 'bg-white text-gray-600 hover:bg-gray-50 border-r border-gray-200 last:border-r-0'
+                          }`}
+                       >
+                          {p}
+                       </button>
+                    ))}
                  </div>
 
+                 {/* 7. Footer: Create Task Button */}
                  <div className="pt-2">
-                    <button type="submit" className="w-full bg-emerald-500 text-white py-2.5 rounded-lg font-bold hover:bg-emerald-600 transition-colors shadow-md flex items-center justify-center gap-2">
-                       <Save className="w-4 h-4" /> {editingTask ? 'Save Changes' : 'Create Task'}
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-3.5 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-md text-lg">
+                       {editingTask ? 'Save Changes' : 'Create Task'}
                     </button>
                  </div>
               </form>

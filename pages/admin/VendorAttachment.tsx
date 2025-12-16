@@ -5,7 +5,7 @@ import {
   Sparkles, MessageCircle, Send, User, MapPin, X, 
   MoreVertical, Filter, RefreshCcw, ChevronDown, Building2,
   Calendar, FileText, CheckSquare, Square, DollarSign, Save, Briefcase,
-  Users, CheckCircle, Clock, PhoneCall
+  Users, CheckCircle, Clock, PhoneCall, List, Edit, Truck, Activity
 } from 'lucide-react';
 import AiAssistant from '../../components/AiAssistant';
 
@@ -42,6 +42,7 @@ interface Vendor {
   followUpDate?: string;
   documentReceived?: string;
   documentStatus: string[]; // Array of checked docs
+  existingDocuments?: string; // NEW: To capture "Exist Document" during enquiry
   attachmentStatus?: string;
   recharge99?: string;
   topup100?: string;
@@ -64,6 +65,9 @@ const VendorAttachment = () => {
   // Determine Session Context
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
+
+  // --- Tabs State ---
+  const [activeTab, setActiveTab] = useState<'Enquiries' | 'List'>('Enquiries');
 
   // --- 1. Load Reference Data (Corporates & Employees) ---
   const [corporates, setCorporates] = useState<any[]>([]);
@@ -144,7 +148,8 @@ const VendorAttachment = () => {
             } catch (e) {}
         }
     }
-    setVendors(allVendors);
+    // Sort by newness
+    setVendors(allVendors.reverse());
   };
 
   useEffect(() => {
@@ -159,6 +164,7 @@ const VendorAttachment = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   // Filters
   const [cityFilter, setCityFilter] = useState('All');
@@ -186,13 +192,17 @@ const VendorAttachment = () => {
     followUpDate: '',
     documentReceived: '',
     documentStatus: [] as string[],
+    existingDocuments: '', // New field
     attachmentStatus: '',
     recharge99: '',
     topup100: '',
     topup50: '', 
-    remarks: ''
+    remarks: '',
+    status: 'Pending' as 'Active' | 'Inactive' | 'Pending',
+    fleetSize: 1
   };
   const [formData, setFormData] = useState(initialFormState);
+  const [formMode, setFormMode] = useState<'Enquiry' | 'Full'>('Full'); // Which form to show in modal
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -218,7 +228,7 @@ const VendorAttachment = () => {
         return;
     }
 
-    const employeeName = employees.find(e => e.id === formData.employeeId)?.name || 'Unknown';
+    const employeeName = employees.find(e => e.id === formData.employeeId)?.name || (formMode === 'Enquiry' ? 'Web Enquiry' : 'Unknown');
     const finalVehicleType = formData.vehicleType === 'Other' ? formData.vehicleTypeOther : formData.vehicleType;
 
     // Determine target storage key
@@ -231,30 +241,47 @@ const VendorAttachment = () => {
         existingData = JSON.parse(localStorage.getItem(storageKey) || '[]');
     } catch(e) {}
 
-    const newVendor: Vendor = {
-      id: `V${Date.now()}`,
+    const vendorData: Vendor = {
+      id: editingId || `V${Date.now()}`,
       ...formData,
       employeeName,
-      email: '', 
+      // If form mode is enquiry, we explicitly set what we have, otherwise use form data
+      email: formData.email || '', 
+      fleetSize: Number(formData.fleetSize) || 1,
       vehicleTypes: [finalVehicleType || 'Unknown'],
-      fleetSize: 1,
-      status: formData.attachmentStatus === 'Yes' ? 'Active' : 'Pending',
+      status: formData.status, // Use status from form (Enquiry has specific selector)
       history: [],
       // These are transient in memory but stored implicitly by key
       ownerId: targetOwnerId, 
       franchiseName: targetOwnerId === 'admin' ? 'Head Office' : corporates.find(c => c.email === targetOwnerId)?.companyName
     };
 
+    let updatedData: Vendor[];
+    if (editingId) {
+        // Preserve history from existing record
+        const existingRecord = existingData.find(v => v.id === editingId);
+        if (existingRecord) {
+            vendorData.history = existingRecord.history;
+        }
+        updatedData = existingData.map(v => v.id === editingId ? vendorData : v);
+    } else {
+        updatedData = [vendorData, ...existingData];
+    }
+
     // Save to specific storage
-    const updatedData = [newVendor, ...existingData];
     localStorage.setItem(storageKey, JSON.stringify(updatedData));
 
     // Update local state immediately without waiting for reload
-    setVendors(prev => [newVendor, ...prev]);
+    if (editingId) {
+        setVendors(prev => prev.map(v => v.id === editingId ? vendorData : v));
+    } else {
+        setVendors(prev => [vendorData, ...prev]);
+    }
     
     setIsModalOpen(false);
+    setEditingId(null);
     setFormData(initialFormState);
-    alert("Vendor added successfully!");
+    alert(formMode === 'Enquiry' ? "Enquiry saved! Moved to Vendor List." : (editingId ? "Vendor updated successfully!" : "Vendor added successfully!"));
   };
 
   const handleDelete = (id: string, vendor: Vendor, e: React.MouseEvent) => {
@@ -284,7 +311,8 @@ const VendorAttachment = () => {
 
   const filteredVendors = vendors.filter(v => {
     const matchesSearch = v.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          v.city.toLowerCase().includes(searchTerm.toLowerCase());
+                          v.city.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          v.phone.includes(searchTerm);
     
     const matchesCity = cityFilter === 'All' || v.city === cityFilter;
     const matchesStatus = statusFilter === 'All' || v.status === statusFilter;
@@ -299,216 +327,285 @@ const VendorAttachment = () => {
     return matchesSearch && matchesCity && matchesStatus && matchesVehicle && matchesCategory && matchesOwner;
   });
 
-  // --- Statistics Calculation ---
+  // Calculate Dashboard Metrics
   const stats = useMemo(() => {
-      // Calculate based on the currently viewable vendors (filtered by role but NOT by search/filter inputs)
-      // This gives an overview of the "whole" accessible dataset
-      
-      const total = vendors.length;
-      const active = vendors.filter(v => v.status === 'Active').length;
-      const pending = vendors.filter(v => v.status === 'Pending').length;
-      const telecalling = vendors.filter(v => v.category === 'Telecalling').length;
-      const fieldVisit = vendors.filter(v => v.category === 'Field Visit').length;
-
-      return { total, active, pending, telecalling, fieldVisit };
+      return {
+          total: vendors.length,
+          active: vendors.filter(v => v.status === 'Active').length,
+          pending: vendors.filter(v => v.status === 'Pending').length,
+          fleet: vendors.reduce((acc, v) => acc + (v.fleetSize || 0), 0)
+      };
   }, [vendors]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+    <div className="space-y-6 h-[calc(100vh-6rem)] flex flex-col">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
         <div>
-           <h2 className="text-2xl font-bold text-gray-800">Vendor Attachment</h2>
+           <h2 className="text-2xl font-bold text-gray-800">Vendor Management</h2>
            <p className="text-gray-500">
-              {isSuperAdmin ? "View all attached vendors across franchises" : "Onboard and manage vehicle vendors"}
+              {isSuperAdmin ? "View all attached vendors & enquiries across franchises" : "Manage vehicle vendors and enquiries"}
            </p>
         </div>
-        <button 
-          onClick={() => { setFormData(initialFormState); setIsModalOpen(true); }}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Vendor
-        </button>
-      </div>
-
-      {/* --- Dashboard Buttons (Statistics Cards) --- */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('All'); setCategoryFilter('All');}}>
-              <div className="flex justify-between items-start">
-                  <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Vendors</p>
-                      <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.total}</h3>
-                  </div>
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                      <Users className="w-5 h-5" />
-                  </div>
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('Active'); setCategoryFilter('All');}}>
-              <div className="flex justify-between items-start">
-                  <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active</p>
-                      <h3 className="text-2xl font-bold text-emerald-600 mt-1">{stats.active}</h3>
-                  </div>
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                      <CheckCircle className="w-5 h-5" />
-                  </div>
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('Pending'); setCategoryFilter('All');}}>
-              <div className="flex justify-between items-start">
-                  <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending</p>
-                      <h3 className="text-2xl font-bold text-orange-600 mt-1">{stats.pending}</h3>
-                  </div>
-                  <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                      <Clock className="w-5 h-5" />
-                  </div>
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setCategoryFilter('Telecalling'); setStatusFilter('All');}}>
-              <div className="flex justify-between items-start">
-                  <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Telecalling</p>
-                      <h3 className="text-2xl font-bold text-purple-600 mt-1">{stats.telecalling}</h3>
-                  </div>
-                  <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                      <PhoneCall className="w-5 h-5" />
-                  </div>
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setCategoryFilter('Field Visit'); setStatusFilter('All');}}>
-              <div className="flex justify-between items-start">
-                  <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Field Visits</p>
-                      <h3 className="text-2xl font-bold text-indigo-600 mt-1">{stats.fieldVisit}</h3>
-                  </div>
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                      <MapPin className="w-5 h-5" />
-                  </div>
-              </div>
-          </div>
-      </div>
-
-      {/* Search & Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
-         <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Search by owner name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-         </div>
-         <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 items-center">
-            {isSuperAdmin && (
-                <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
-                    <option value="All">All Franchises</option>
-                    <option value="admin">Head Office</option>
-                    {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
-                </select>
-            )}
-            <div className="h-6 w-px bg-gray-200 mx-1"></div>
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
-                <option value="All">All Categories</option>
-                <option value="Telecalling">Telecalling</option>
-                <option value="Office Visit">Office Visit</option>
-                <option value="Field Visit">Field Visit</option>
-            </select>
-            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
-                <option value="All">All Cities</option>
-                {CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={vehicleFilter} onChange={(e) => setVehicleFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
-                <option value="All">All Vehicles</option>
-                {VEHICLE_TYPE_OPTIONS.filter(v => v !== 'Other').map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none">
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Pending">Pending</option>
-                <option value="Inactive">Inactive</option>
-            </select>
-         </div>
-      </div>
-
-      {/* Vendors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         {filteredVendors.map(vendor => (
-            <div 
-                key={vendor.id} 
-                onClick={() => setSelectedVendor(vendor)}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all cursor-pointer group relative"
+        
+        {/* Tab Switcher */}
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button 
+                onClick={() => setActiveTab('Enquiries')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'Enquiries' ? 'bg-white shadow text-emerald-600' : 'text-gray-600 hover:text-gray-900'}`}
             >
-                {isSuperAdmin && vendor.franchiseName && (
-                    <div className="absolute top-3 right-3 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1">
-                        <Building2 className="w-3 h-3" />
-                        {vendor.franchiseName}
-                    </div>
-                )}
-
-                <div className="p-6">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                         <Car className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
-                         vendor.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' :
-                         vendor.status === 'Pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                         'bg-gray-50 text-gray-600 border-gray-200'
-                      }`}>
-                         {vendor.status}
-                      </span>
-                   </div>
-                   
-                   <h3 className="text-lg font-bold text-gray-900 mb-1">{vendor.ownerName}</h3>
-                   <p className="text-sm text-gray-500 mb-4 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" /> {vendor.city}
-                   </p>
-
-                   <div className="space-y-2 border-t border-gray-50 pt-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                         <Phone className="w-4 h-4 text-gray-400" /> {vendor.phone}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                         <Car className="w-4 h-4 text-gray-400" /> {vendor.vehicleTypes.join(', ')}
-                      </div>
-                      {vendor.category && (
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <Briefcase className="w-4 h-4 text-gray-400" /> {vendor.category}
-                          </div>
-                      )}
-                   </div>
-                </div>
-                <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex justify-between items-center">
-                   <span className="text-sm font-medium text-emerald-600 group-hover:underline">View Details</span>
-                   <button onClick={(e) => handleDelete(vendor.id, vendor, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
-                      <Trash2 className="w-4 h-4" />
-                   </button>
-                </div>
-            </div>
-         ))}
-
-         {filteredVendors.length === 0 && (
-             <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-                 No vendors found. Add a new vendor to get started.
-             </div>
-         )}
+                <FileText className="w-4 h-4" /> Enquiries
+            </button>
+            <button 
+                onClick={() => setActiveTab('List')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'List' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+                <List className="w-4 h-4" /> Vendor List
+            </button>
+        </div>
       </div>
 
-      {/* Add Vendor Form Modal */}
+      {/* DASHBOARD STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2 shrink-0 animate-in fade-in slide-in-from-top-4">
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 rounded-full bg-blue-50 text-blue-600">
+                  <Users className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase">Total Vendors</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{stats.total}</h3>
+              </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 rounded-full bg-emerald-50 text-emerald-600">
+                  <CheckCircle className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase">Active</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{stats.active}</h3>
+              </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 rounded-full bg-orange-50 text-orange-600">
+                  <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase">Pending</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{stats.pending}</h3>
+              </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 rounded-full bg-purple-50 text-purple-600">
+                  <Truck className="w-6 h-6" />
+              </div>
+              <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase">Fleet Size</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{stats.fleet}</h3>
+              </div>
+          </div>
+      </div>
+
+      {/* --- CONTENT AREA --- */}
+      
+      {/* 1. VENDOR ENQUIRIES TAB */}
+      {activeTab === 'Enquiries' && (
+          <div className="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-500" /> Recent Enquiries
+                  </h3>
+                  <button 
+                    onClick={() => { setFormData(initialFormState); setFormMode('Enquiry'); setIsModalOpen(true); }}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Add Enquiry
+                  </button>
+              </div>
+              
+              <div className="flex-1 overflow-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200 sticky top-0 z-10">
+                          <tr>
+                              <th className="px-6 py-4">Vendor Name</th>
+                              <th className="px-6 py-4">City</th>
+                              <th className="px-6 py-4">Phone</th>
+                              <th className="px-6 py-4">Vehicle</th>
+                              <th className="px-6 py-4">Fleet</th>
+                              <th className="px-6 py-4">Status</th>
+                              <th className="px-6 py-4">Documents</th>
+                              <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                          {/* Filter logic reused but presentation simplified for enquiries */}
+                          {filteredVendors.map(vendor => (
+                              <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-gray-900">{vendor.ownerName}</td>
+                                  <td className="px-6 py-4 text-gray-600">{vendor.city}</td>
+                                  <td className="px-6 py-4 text-gray-600">{vendor.phone}</td>
+                                  <td className="px-6 py-4 text-gray-600">
+                                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                          {vendor.vehicleTypes.join(', ')}
+                                      </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600 font-mono">{vendor.fleetSize}</td>
+                                  <td className="px-6 py-4">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                          vendor.status === 'Active' ? 'bg-green-100 text-green-700' :
+                                          vendor.status === 'Pending' ? 'bg-orange-100 text-orange-700' :
+                                          'bg-red-100 text-red-700'
+                                      }`}>
+                                          {vendor.status}
+                                      </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-xs text-gray-500 max-w-xs truncate" title={vendor.existingDocuments}>
+                                      {vendor.existingDocuments || '-'}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                      <div className="flex justify-end gap-2">
+                                          <button 
+                                              onClick={() => { setSelectedVendor(vendor); }} 
+                                              className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-medium"
+                                          >
+                                              Details
+                                          </button>
+                                          <button 
+                                              onClick={() => {
+                                                  setFormData({
+                                                      ...initialFormState, // Reset then overwrite
+                                                      ...vendor,
+                                                      vehicleType: vendor.vehicleTypes[0] || '',
+                                                  });
+                                                  setEditingId(vendor.id); 
+                                                  setFormMode('Full');
+                                                  setIsModalOpen(true);
+                                              }}
+                                              className="text-gray-500 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                                              title="Edit Full Info"
+                                          >
+                                              <Edit className="w-4 h-4" />
+                                          </button>
+                                      </div>
+                                  </td>
+                              </tr>
+                          ))}
+                          {filteredVendors.length === 0 && (
+                              <tr>
+                                  <td colSpan={8} className="py-12 text-center text-gray-400">
+                                      No enquiries found.
+                                  </td>
+                              </tr>
+                          )}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
+
+      {/* 2. VENDOR LIST TAB (Existing Full View) */}
+      {activeTab === 'List' && (
+          <div className="space-y-6 animate-in fade-in">
+              {/* Search & Filter Bar */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
+                 <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input 
+                      type="text" 
+                      placeholder="Search by owner name..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                 </div>
+                 <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 items-center">
+                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                    <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none cursor-pointer">
+                        <option value="All">All Cities</option>
+                        {CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none cursor-pointer">
+                        <option value="All">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                    <button 
+                        onClick={() => { setFormData(initialFormState); setFormMode('Full'); setIsModalOpen(true); }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm"
+                    >
+                        <Plus className="w-4 h-4" /> Add Full Vendor
+                    </button>
+                 </div>
+              </div>
+
+              {/* Vendors Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {filteredVendors.map(vendor => (
+                    <div 
+                        key={vendor.id} 
+                        onClick={() => setSelectedVendor(vendor)}
+                        className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group relative"
+                    >
+                        {isSuperAdmin && vendor.franchiseName && (
+                            <div className="absolute top-3 right-3 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1">
+                                <Building2 className="w-3 h-3" />
+                                {vendor.franchiseName}
+                            </div>
+                        )}
+
+                        <div className="p-6">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                                 <Car className="w-6 h-6 text-blue-600" />
+                              </div>
+                              <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
+                                 vendor.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' :
+                                 vendor.status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                 'bg-red-50 text-red-600 border-red-200'
+                              }`}>
+                                 {vendor.status}
+                              </span>
+                           </div>
+                           
+                           <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{vendor.ownerName}</h3>
+                           <p className="text-sm text-gray-500 mb-4 flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5" /> {vendor.city}
+                           </p>
+
+                           <div className="space-y-2 border-t border-gray-50 pt-3">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                 <Phone className="w-4 h-4 text-gray-400" /> {vendor.phone}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                 <Car className="w-4 h-4 text-gray-400" /> {vendor.vehicleTypes.join(', ')} • <strong>{vendor.fleetSize}</strong> Vehicle(s)
+                              </div>
+                           </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex justify-between items-center group-hover:bg-blue-50/30 transition-colors">
+                           <span className="text-sm font-medium text-emerald-600 group-hover:underline">View Details</span>
+                           <button onClick={(e) => handleDelete(vendor.id, vendor, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
+                              <Trash2 className="w-4 h-4" />
+                           </button>
+                        </div>
+                    </div>
+                 ))}
+
+                 {filteredVendors.length === 0 && (
+                     <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+                         No vendors found. Add a new vendor to get started.
+                     </div>
+                 )}
+              </div>
+          </div>
+      )}
+
+      {/* Add Vendor / Enquiry Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
               <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Car className="w-5 h-5 text-emerald-600" /> Vendor Attachment Form
+                    {formMode === 'Enquiry' ? <FileText className="w-5 h-5 text-emerald-600" /> : <Car className="w-5 h-5 text-emerald-600" />}
+                    {formMode === 'Enquiry' ? 'New Vendor Enquiry' : 'Full Vendor Attachment Form'}
                  </h3>
                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
@@ -517,78 +614,27 @@ const VendorAttachment = () => {
               
               <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                  
-                 {/* 1. Agent / Category Info */}
-                 <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    
-                    {/* Super Admin: Assign To Field */}
-                    {isSuperAdmin && (
-                        <div className="bg-white p-3 rounded-lg border border-blue-200 mb-2">
-                            <label className="block text-xs font-bold text-blue-700 uppercase mb-1">Assign Vendor To</label>
-                            <select 
-                                name="ownerId" 
-                                value={formData.ownerId} 
-                                onChange={handleInputChange} 
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="admin">Head Office</option>
-                                {corporates.map((c: any) => (
-                                    <option key={c.email} value={c.email}>{c.companyName} ({c.city})</option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {/* Vendor and Vehicle Details Section (For Both Modes) */}
+                 <div className="bg-white border border-gray-200 rounded-xl p-4">
+                     <h4 className="font-bold text-gray-700 mb-4 border-b pb-2 text-sm flex items-center gap-2">
+                         <Car className="w-4 h-4 text-emerald-600" /> Vendor and Vehicle Details
+                     </h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Employee Name <span className="text-red-500">*</span></label>
-                            <select 
-                                name="employeeId" 
-                                value={formData.employeeId} 
-                                onChange={handleInputChange} 
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-emerald-500"
-                                required
-                            >
-                                <option value="">Choose Employee</option>
-                                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                            </select>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name <span className="text-red-500">*</span></label>
+                            <input name="ownerName" value={formData.ownerName} onChange={handleInputChange} placeholder="Vendor Name" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                            <select name="category" value={formData.category} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Telecalling</option>
-                                <option>Office Visit</option>
-                                <option>Field Visit</option>
-                            </select>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone Number <span className="text-red-500">*</span></label>
+                            <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="10-digit number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub Category</label>
-                            <select name="subCategory" value={formData.subCategory} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Inbound</option>
-                                <option>Outbound</option>
-                                <option>Walk-in</option>
-                                <option>Scheduled</option>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">City <span className="text-red-500">*</span></label>
+                            <select name="city" value={formData.city} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="">Choose City</option>
+                                {branches.length > 0 ? branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>) : CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Category</label>
-                            <select name="callCategory" value={formData.callCategory} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>New Call</option>
-                                <option>Follow Call</option>
-                                <option>Top up Call</option>
-                                <option>Document Call</option>
-                                <option>Demo</option>
-                            </select>
-                        </div>
-                    </div>
-                 </div>
-
-                 {/* 2. Vendor & Vehicle Details */}
-                 <div>
-                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Vendor & Vehicle Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Vehicle Type <span className="text-red-500">*</span></label>
                             <select name="vehicleType" value={formData.vehicleType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
@@ -609,10 +655,6 @@ const VendorAttachment = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contact Number <span className="text-red-500">*</span></label>
-                            <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="10-digit number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" required />
-                        </div>
-                        <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Status</label>
                             <select name="callStatus" value={formData.callStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
                                 <option value="">Choose</option>
@@ -623,19 +665,8 @@ const VendorAttachment = () => {
                                 <option>Wrong Number</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Name <span className="text-red-500">*</span></label>
-                            <input name="ownerName" value={formData.ownerName} onChange={handleInputChange} placeholder="Name" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Location</label>
-                            <select name="city" value={formData.city} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                {branches.length > 0 ? branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>) : CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Status</label>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Status <span className="text-red-500">*</span></label>
                             <select name="riderStatus" value={formData.riderStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
                                 <option value="">Choose</option>
                                 <option>Owner</option>
@@ -645,118 +676,194 @@ const VendorAttachment = () => {
                                 <option>Load</option>
                             </select>
                         </div>
-                    </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                            <select name="status" value={formData.status} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                <option value="Pending">Pending</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fleet Size</label>
+                            <input type="number" name="fleetSize" value={formData.fleetSize} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" min="1" />
+                        </div>
+                        
+                        {/* Fields ONLY visible in Full Mode */}
+                        {formMode === 'Full' && (
+                            <>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Existing Documents</label>
+                                    <input name="existingDocuments" value={formData.existingDocuments} onChange={handleInputChange} placeholder="e.g. RC, Insurance, License (comma separated)" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
+                                    <input name="email" value={formData.email} onChange={handleInputChange} placeholder="Email" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                                </div>
+                            </>
+                        )}
+                     </div>
                  </div>
 
-                 {/* 3. Follow-up Details */}
-                 <div>
-                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Follow-up</h4>
+                 {/* Follow-up & Docs (Available for both modes as requested) */}
+                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Follow-up & Docs</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Followup Status <span className="text-red-500">*</span></label>
-                            <select name="followUpStatus" value={formData.followUpStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" required>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Followup Status</label>
+                            <select name="followUpStatus" value={formData.followUpStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
                                 <option value="">Choose</option>
                                 <option>Need to call back</option>
-                                <option>No need to call back</option>
                                 <option>Ready to attach</option>
                                 <option>Already attached</option>
-                                <option>Right now Attach</option>
                             </select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Follow Back Date</label>
                             <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" />
                         </div>
-                    </div>
-                 </div>
-
-                 {/* 4. Documents */}
-                 <div>
-                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Documents</h4>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Document Received</label>
-                                <select name="documentReceived" value={formData.documentReceived} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                    <option value="">Choose</option>
-                                    <option>Yes</option>
-                                    <option>No</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Attachment Status</label>
-                                <select name="attachmentStatus" value={formData.attachmentStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                    <option value="">Choose</option>
-                                    <option>Yes</option>
-                                    <option>No</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Document Status</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {DOCUMENT_OPTIONS.map(doc => (
-                                    <label key={doc} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                                        <div 
-                                            onClick={() => handleCheckboxChange(doc)}
-                                            className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${formData.documentStatus.includes(doc) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-400 bg-white'}`}
-                                        >
-                                            {formData.documentStatus.includes(doc) && <CheckSquare className="w-3 h-3" />}
-                                        </div>
-                                        {doc}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                 </div>
-
-                 {/* 5. Payments */}
-                 <div>
-                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1">Payments & Recharge</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Recharge 99</label>
-                            <select name="recharge99" value={formData.recharge99} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Done</option>
-                                <option>Pending</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Topup 100</label>
-                            <select name="topup100" value={formData.topup100} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Done</option>
-                                <option>Pending</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Top up 50</label>
-                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                                <div 
-                                    onClick={() => setFormData(prev => ({...prev, topup50: prev.topup50 === 'done' ? '' : 'done'}))}
-                                    className={`w-4 h-4 rounded-full border flex items-center justify-center ${formData.topup50 === 'done' ? 'border-emerald-500' : 'border-gray-400'}`}
-                                >
-                                    {formData.topup50 === 'done' && <div className="w-2 h-2 rounded-full bg-emerald-500"></div>}
+                        
+                        {/* Checkboxes ONLY visible in Full Mode */}
+                        {formMode === 'Full' && (
+                            <div className="col-span-2">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Documents Collected</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {DOCUMENT_OPTIONS.map(doc => (
+                                        <label key={doc} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                            <div 
+                                                onClick={() => handleCheckboxChange(doc)}
+                                                className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${formData.documentStatus.includes(doc) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-400 bg-white'}`}
+                                            >
+                                                {formData.documentStatus.includes(doc) && <CheckSquare className="w-3 h-3" />}
+                                            </div>
+                                            {doc}
+                                        </label>
+                                    ))}
                                 </div>
-                                done
-                            </label>
-                        </div>
+                            </div>
+                        )}
                     </div>
                  </div>
 
-                 {/* 6. Remarks */}
+                 {/* 2. Full Form Extras (Only if mode is Full) */}
+                 {formMode === 'Full' && (
+                     <>
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Administrative & Classification</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {isSuperAdmin && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign To (Franchise)</label>
+                                        <select 
+                                            name="ownerId" 
+                                            value={formData.ownerId} 
+                                            onChange={handleInputChange} 
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                        >
+                                            <option value="admin">Head Office</option>
+                                            {corporates.map((c: any) => (
+                                                <option key={c.email} value={c.email}>{c.companyName}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Employee Name <span className="text-red-500">*</span></label>
+                                    <select 
+                                        name="employeeId" 
+                                        value={formData.employeeId} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                    >
+                                        <option value="">Choose Employee</option>
+                                        {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                                    <select 
+                                        name="category" 
+                                        value={formData.category} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                    >
+                                        <option value="">Choose</option>
+                                        <option>Telecalling</option>
+                                        <option>Office Visit</option>
+                                        <option>Field Visit</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub Category</label>
+                                    <select 
+                                        name="subCategory" 
+                                        value={formData.subCategory} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                    >
+                                        <option value="">Choose</option>
+                                        <option>Inbound</option>
+                                        <option>Outbound</option>
+                                        <option>Walk-in</option>
+                                        <option>Schedule</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Category</label>
+                                    <select 
+                                        name="callCategory" 
+                                        value={formData.callCategory} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                    >
+                                        <option value="">Choose</option>
+                                        <option>New Call</option>
+                                        <option>Follow-up Call</option>
+                                        <option>Top-up Call</option>
+                                        <option>Document Call</option>
+                                        <option>Demo</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Payments</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Recharge 99</label>
+                                    <select name="recharge99" value={formData.recharge99} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                        <option value="">Choose</option>
+                                        <option>Done</option>
+                                        <option>Pending</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Topup 100</label>
+                                    <select name="topup100" value={formData.topup100} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
+                                        <option value="">Choose</option>
+                                        <option>Done</option>
+                                        <option>Pending</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                     </>
+                 )}
+
+                 {/* Remarks (Common) */}
                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks</label>
                     <textarea 
                         name="remarks"
-                        rows={3}
+                        rows={2}
                         value={formData.remarks}
                         onChange={handleInputChange}
-                        placeholder="Your answer"
+                        placeholder="Additional notes..."
                         className="w-full p-3 border-b-2 border-gray-300 bg-gray-50 focus:border-emerald-500 focus:bg-white transition-colors outline-none resize-none text-sm"
-                        required
                     />
                  </div>
 
@@ -778,27 +885,53 @@ const VendorAttachment = () => {
                      <h3 className="text-xl font-bold text-gray-900">{selectedVendor.ownerName}</h3>
                      <p className="text-sm text-gray-500">{selectedVendor.vehicleTypes.join(', ')} • {selectedVendor.city}</p>
                   </div>
-                  <button onClick={() => setSelectedVendor(null)} className="p-1 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
-                     <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                            setFormData({
+                                ...initialFormState, // Reset then overwrite
+                                ...selectedVendor,
+                                fleetSize: selectedVendor.fleetSize || 1,
+                                vehicleType: selectedVendor.vehicleTypes[0] || '',
+                                // Ensure nested arrays/objects are handled if any
+                            });
+                            setEditingId(selectedVendor.id); 
+                            setFormMode('Full');
+                            setIsModalOpen(true);
+                            setSelectedVendor(null);
+                        }}
+                        className="p-2 hover:bg-blue-100 text-blue-600 rounded-full transition-colors"
+                        title="Edit Full Details"
+                      >
+                          <Edit className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => setSelectedVendor(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                         <X className="w-5 h-5" />
+                      </button>
+                  </div>
                </div>
                <div className="p-6 overflow-y-auto space-y-6">
                    <div className="grid grid-cols-2 gap-4 text-sm">
                        <div>
                            <p className="text-gray-500 text-xs uppercase font-bold">Contact</p>
                            <p className="font-medium text-gray-800">{selectedVendor.phone}</p>
+                           {selectedVendor.email && <p className="text-xs text-gray-600">{selectedVendor.email}</p>}
                        </div>
                        <div>
                            <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
                            <p className="font-medium text-gray-800">{selectedVendor.status}</p>
                        </div>
                        <div>
-                           <p className="text-gray-500 text-xs uppercase font-bold">Follow Up</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.followUpStatus || '-'} ({selectedVendor.followUpDate || '-'})</p>
+                           <p className="text-gray-500 text-xs uppercase font-bold">Fleet Size</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.fleetSize}</p>
                        </div>
                        <div>
                            <p className="text-gray-500 text-xs uppercase font-bold">Attached By</p>
                            <p className="font-medium text-gray-800">{selectedVendor.employeeName || '-'}</p>
+                       </div>
+                       <div className="col-span-2">
+                           <p className="text-gray-500 text-xs uppercase font-bold">Existing Docs</p>
+                           <p className="font-medium text-gray-800">{selectedVendor.existingDocuments || '-'}</p>
                        </div>
                        {isSuperAdmin && selectedVendor.franchiseName && (
                            <div className="col-span-2 mt-2 pt-2 border-t border-gray-100">
@@ -810,7 +943,7 @@ const VendorAttachment = () => {
                    </div>
                    
                    <div>
-                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Documents</p>
+                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Documents Collected</p>
                        <div className="flex flex-wrap gap-2">
                            {selectedVendor.documentStatus && selectedVendor.documentStatus.length > 0 ? (
                                selectedVendor.documentStatus.map(doc => (
