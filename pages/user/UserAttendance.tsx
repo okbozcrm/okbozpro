@@ -180,6 +180,40 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       }
   }, [selectedEmployee, selectedMonth]);
 
+  // --- Helper: Update Global Live Location ---
+  // This updates the shared `active_staff_locations` key used by the Admin Live Tracking page
+  const updateGlobalLiveLocation = (pos: GeolocationPosition) => {
+      if (!selectedEmployee) return;
+
+      // Determine owner ID (Corporate ID) for filtering on Admin side
+      // If employee object has an ownerId or franchiseId, use it. Otherwise, assume Admin or try to find it.
+      let ownerId = (selectedEmployee as any).owner || (selectedEmployee as any).franchiseId;
+      
+      // Fallback: If logged in as employee, check storage for saved corporate ID
+      if (!ownerId && !isAdmin) {
+          ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+      }
+      if (!ownerId) ownerId = 'admin';
+
+      const liveData = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+      
+      // Remove existing entry for this employee to update it
+      const filtered = liveData.filter((d: any) => d.id !== selectedEmployee.id);
+      
+      filtered.push({
+          id: selectedEmployee.id,
+          name: selectedEmployee.name,
+          role: selectedEmployee.role,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          lastUpdate: new Date().toLocaleTimeString(),
+          corporateId: ownerId,
+          status: 'Active'
+      });
+
+      localStorage.setItem('active_staff_locations', JSON.stringify(filtered));
+  };
+
   // --- Geolocation Logic ---
   const updateLocationAndCheckGeofence = () => {
       if (!navigator.geolocation) {
@@ -195,8 +229,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
               setLocationError(null);
               setIsLocating(false);
 
+              // 1. Update Global Tracking if enabled
+              if (selectedEmployee?.liveTracking) {
+                  updateGlobalLiveLocation(position);
+              }
+
+              // 2. Check Geofence
               if (selectedEmployee && selectedEmployee.branch) {
-                  // Find branch details
                   const branch = branches.find(b => b.name === selectedEmployee.branch);
                   
                   if (branch) {
@@ -210,7 +249,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                       const radius = parseInt(branch.radius) || 100; // Default 100m
                       setIsWithinGeofence(dist <= radius);
                   } else {
-                      // Branch not found, maybe remote?
                       setDistanceToBranch(null);
                       setIsWithinGeofence(false); 
                   }
@@ -223,7 +261,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
               else if (error.code === 2) msg = "Location unavailable.";
               else if (error.code === 3) msg = "Location request timed out.";
               setLocationError(msg);
-              // Log specific error message to avoid [object Object] output
               console.error("Geolocation Error:", error.message, `(Code: ${error.code})`);
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -236,15 +273,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       // We check location if:
       // 1. Live Tracking is ON
       // 2. OR Manual Punch is ON AND Mode is 'Branch' (Geofencing Required)
+      // 3. OR simply to provide coordinates for "Work from Anywhere" mode punches
       const needLocation = selectedEmployee && (
           selectedEmployee.liveTracking || 
           (config?.gpsGeofencing) || 
-          (config?.manualPunch && config.manualPunchMode === 'Branch')
+          (config?.manualPunch) // Always fetch location for manual punch to allow tagging
       );
 
       if (needLocation) {
           updateLocationAndCheckGeofence();
-          const interval = setInterval(updateLocationAndCheckGeofence, 30000);
+          const interval = setInterval(updateLocationAndCheckGeofence, 30000); // 30s Updates
           return () => clearInterval(interval);
       }
   }, [selectedEmployee, branches]);
@@ -264,16 +302,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       }
 
       // 2. Geofence Logic for Manual Punch
-      // If Mode is 'Anywhere', we allow punch regardless of location.
-      // If Mode is 'Branch', we enforce geofencing.
-      const isRemoteAllowed = config.manualPunchMode === 'Anywhere';
-      const isBranchRestricted = config.manualPunchMode === 'Branch' || config.gpsGeofencing; // Fallback to old flag if mode undefined
+      const isRemoteAllowed = config.manualPunchMode === 'Anywhere' || selectedEmployee.allowRemotePunch;
+      const isBranchRestricted = config.manualPunchMode === 'Branch' || config.gpsGeofencing;
 
-      if (isBranchRestricted && !isRemoteAllowed && !selectedEmployee.allowRemotePunch) {
+      if (isBranchRestricted && !isRemoteAllowed) {
           // If we haven't determined location yet or are outside
           if (!currentLocation || !isWithinGeofence) {
               updateLocationAndCheckGeofence();
-              // Immediate check state logic
+              // Immediate check state logic (might need UI feedback delay if locating)
+              if (!currentLocation) {
+                  alert("Locating... Please wait a moment and try again.");
+                  return;
+              }
               if (!isWithinGeofence) {
                   alert(`Restricted Mode: You are outside the branch radius (${distanceToBranch ? Math.round(distanceToBranch) : '?'}m). Please reach the office to punch in.`);
                   return;
@@ -333,9 +373,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
       saveAttendanceToStorage(updatedData);
       
-      // Log location if Live Tracking is on
-      if (selectedEmployee?.liveTracking && currentLocation) {
-          console.log(`[LiveTrack] ${selectedEmployee.name} punched ${type} at ${currentLocation.coords.latitude}, ${currentLocation.coords.longitude} via ${method}`);
+      // Update Live Tracking Data
+      if (type === 'In' && currentLocation) {
+          // Force update the live location map
+          updateGlobalLiveLocation(currentLocation);
+          console.log(`[LiveTrack] ${selectedEmployee?.name} punched IN. Location updated.`);
+      } else if (type === 'Out') {
+          // Optionally remove from live map on punch out
+          // const liveData = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+          // const filtered = liveData.filter((d: any) => d.id !== selectedEmployee?.id);
+          // localStorage.setItem('active_staff_locations', JSON.stringify(filtered));
       }
 
       alert(`Successfully Punched ${type} at ${timeString} via ${method}`);
@@ -429,11 +476,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const isPunchedOut = !!todayRecord?.checkOut;
 
   // Determine button disabled state
-  const isRemoteAllowed = selectedEmployee?.attendanceConfig?.manualPunchMode === 'Anywhere';
+  const isRemoteAllowed = selectedEmployee?.attendanceConfig?.manualPunchMode === 'Anywhere' || selectedEmployee?.allowRemotePunch;
   const isGeofencingRequired = selectedEmployee?.attendanceConfig?.gpsGeofencing || selectedEmployee?.attendanceConfig?.manualPunchMode === 'Branch';
   
   // Logic: Disable if (Geofencing Required AND Not Inside AND Not Remote Allowed) AND Not Punched In yet
-  const isPunchDisabled = isGeofencingRequired && !isWithinGeofence && !isRemoteAllowed && !selectedEmployee?.allowRemotePunch && !isPunchedIn;
+  // Also disable if currently Locating (loading)
+  const isPunchDisabled = isLocating || (isGeofencingRequired && !isWithinGeofence && !isRemoteAllowed && !isPunchedIn);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -531,7 +579,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                           </div>
                       )}
                       
-                      {/* Only show Geofence warnings if Geofencing is actually required */}
+                      {/* Geofence Status */}
                       {!locationError && isGeofencingRequired && (
                           <div className={`text-xs px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors ${
                               isWithinGeofence ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200 animate-pulse'

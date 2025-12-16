@@ -1,6 +1,6 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Loader2, Settings, ExternalLink } from 'lucide-react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { AlertTriangle, Loader2, Settings, ExternalLink, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 
@@ -18,17 +18,43 @@ const LiveTracking: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
+  const markersRef = useRef<any[]>([]); // Store marker instances to clear them later
   
   // Determine Session Context
-  const userRole = localStorage.getItem('user_role');
-  const isSuperAdminUser = userRole === 'ADMIN';
-  const isCorporateUser = userRole === 'CORPORATE';
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
 
   // Center of Coimbatore for default view
   const center = { lat: 11.0168, lng: 76.9558 };
 
-  // Staff Locations state - initialized as empty (no mock data)
+  // Staff Locations state
   const [staffLocations, setStaffLocations] = useState<any[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+
+  // Function to load live locations from shared storage
+  const loadLiveLocations = () => {
+      try {
+          const allActive = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+          
+          // Filter based on admin scope
+          const myStaff = allActive.filter((s: any) => {
+              if (isSuperAdmin) return true; // Super Admin sees everyone
+              return s.corporateId === sessionId; // Corporate sees their own
+          });
+
+          setStaffLocations(myStaff);
+          setLastRefreshed(new Date());
+      } catch (e) {
+          console.error("Error loading live locations", e);
+      }
+  };
+
+  // Initial Load and Polling
+  useEffect(() => {
+      loadLiveLocations();
+      const interval = setInterval(loadLiveLocations, 30000); // Auto-refresh every 30s
+      return () => clearInterval(interval);
+  }, [sessionId, isSuperAdmin]);
 
   useEffect(() => {
     // 1. Check global failure flag
@@ -93,55 +119,84 @@ const LiveTracking: React.FC = () => {
     };
   }, []);
 
-  // Initialize Map & Markers
+  // Initialize Map & Update Markers
   useEffect(() => {
-    if (mapError || !isMapReady || !mapRef.current || mapInstance || !window.google) return;
+    if (mapError || !isMapReady || !mapRef.current || !window.google) return;
 
-    try {
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: center,
-        zoom: 13,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-      });
-
-      setMapInstance(map);
-
-      // Add Markers (Only if staffLocations has data)
-      staffLocations.forEach(emp => {
-        const marker = new window.google.maps.Marker({
-          position: { lat: emp.lat, lng: emp.lng },
-          map: map,
-          title: emp.name,
-          label: {
-             text: emp.name.charAt(0),
-             color: 'white',
-             fontSize: '12px',
-             fontWeight: 'bold'
-          }
-        });
-
-        const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div style="padding: 5px;">
-                <h3 style="margin:0; font-weight:bold;">${emp.name}</h3>
-                <p style="margin:2px 0; font-size:12px; color:gray;">${emp.role}</p>
-                <p style="margin:0; font-size:10px;">Last seen: ${emp.lastUpdate}</p>
-              </div>
-            `
-        });
-
-        marker.addListener("click", () => {
-            infoWindow.open(map, marker);
-        });
-      });
-
-    } catch (e) {
-      console.error(e);
-      setMapError("Error initializing map.");
+    // Initialize Map Instance if not exists
+    if (!mapInstance) {
+        try {
+            const map = new window.google.maps.Map(mapRef.current, {
+                center: center,
+                zoom: 12,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: true,
+            });
+            setMapInstance(map);
+        } catch (e) {
+            console.error(e);
+            setMapError("Error initializing map.");
+            return;
+        }
     }
-  }, [isMapReady, mapError, staffLocations]);
+
+    // Update Markers whenever staffLocations changes
+    if (mapInstance) {
+        // Clear old markers
+        markersRef.current.forEach(marker => marker.setMap(null));
+        markersRef.current = [];
+
+        // Add new markers
+        staffLocations.forEach(emp => {
+            const marker = new window.google.maps.Marker({
+                position: { lat: emp.lat, lng: emp.lng },
+                map: mapInstance,
+                title: emp.name,
+                label: {
+                    text: emp.name.charAt(0),
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                }
+            });
+
+            const infoWindow = new window.google.maps.InfoWindow({
+                content: `
+                  <div style="padding: 5px; min-width: 150px;">
+                    <h3 style="margin:0; font-weight:bold; font-size:14px;">${emp.name}</h3>
+                    <p style="margin:2px 0; font-size:12px; color:gray;">${emp.role}</p>
+                    <div style="margin-top:5px; font-size:11px; display:flex; align-items:center; gap:4px;">
+                        <span style="width:8px; height:8px; background:#10b981; border-radius:50%;"></span>
+                        Active • Last seen: ${emp.lastUpdate}
+                    </div>
+                  </div>
+                `
+            });
+
+            marker.addListener("click", () => {
+                infoWindow.open(mapInstance, marker);
+            });
+
+            markersRef.current.push(marker);
+        });
+
+        // Fit bounds if there are markers
+        if (staffLocations.length > 0) {
+            const bounds = new window.google.maps.LatLngBounds();
+            staffLocations.forEach(emp => {
+                bounds.extend({ lat: emp.lat, lng: emp.lng });
+            });
+            mapInstance.fitBounds(bounds);
+            
+            // Prevent too much zoom if only one marker
+            if(staffLocations.length === 1 && mapInstance.getZoom() > 15) {
+                mapInstance.setZoom(15);
+            }
+        }
+    }
+
+  }, [isMapReady, mapError, staffLocations, mapInstance]);
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col space-y-4">
@@ -150,9 +205,20 @@ const LiveTracking: React.FC = () => {
            <h2 className="text-2xl font-bold text-gray-800">Live Staff Tracking</h2>
            <p className="text-gray-500">Real-time location of your field force</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
-           <span className={`w-2 h-2 rounded-full ${staffLocations.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`}></span>
-           {staffLocations.length > 0 ? 'Live Updating' : 'No active devices'}
+        <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400 hidden sm:inline">
+                Last updated: {lastRefreshed.toLocaleTimeString()}
+            </span>
+            <button 
+                onClick={loadLiveLocations}
+                className="flex items-center gap-2 text-sm bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 transition-colors shadow-sm"
+            >
+                <RefreshCw className="w-4 h-4 text-gray-600" /> Refresh
+            </button>
+            <div className="flex items-center gap-2 text-sm text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+                <span className={`w-2 h-2 rounded-full ${staffLocations.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`}></span>
+                {staffLocations.length > 0 ? `${staffLocations.length} Active` : 'No active devices'}
+            </div>
         </div>
       </div>
 
@@ -162,40 +228,32 @@ const LiveTracking: React.FC = () => {
               <div className="flex flex-col items-center gap-3 max-w-sm">
                 <AlertTriangle className="w-10 h-10 text-red-400" />
                 <h3 className="font-medium text-gray-900">Map Unavailable</h3>
-                {isCorporateUser ? (
-                    <p className="text-sm text-gray-600">
-                      Google Maps API Key is not configured correctly or billing is disabled. Please contact Super Admin.
-                    </p>
-                ) : (
-                    <>
-                        <p className="text-sm text-gray-600 font-medium">{mapError}</p>
-                        
-                        <div className="bg-amber-50 border border-amber-100 p-3 rounded text-xs text-amber-800 mt-2 text-left w-full">
-                               <strong>Troubleshooting:</strong>
-                               <ul className="list-disc list-inside mt-1 space-y-1">
-                                  <li>Go to Google Cloud Console</li>
-                                  <li className="font-bold">Enable "Billing" on the Project (Required)</li>
-                                  <li>Enable "Maps JavaScript API" & "Places API"</li>
-                               </ul>
-                        </div>
+                <p className="text-sm text-gray-600 font-medium">{mapError}</p>
+                
+                <div className="bg-amber-50 border border-amber-100 p-3 rounded text-xs text-amber-800 mt-2 text-left w-full">
+                       <strong>Troubleshooting:</strong>
+                       <ul className="list-disc list-inside mt-1 space-y-1">
+                          <li>Go to Google Cloud Console</li>
+                          <li className="font-bold">Enable "Billing" on the Project (Required)</li>
+                          <li>Enable "Maps JavaScript API" & "Places API"</li>
+                       </ul>
+                </div>
 
-                        <a 
-                          href="https://console.cloud.google.com/project/_/billing/enable"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 text-xs flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Enable Billing
-                        </a>
+                <a 
+                  href="https://console.cloud.google.com/project/_/billing/enable"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 text-xs flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" /> Enable Billing
+                </a>
 
-                        <button 
-                          onClick={() => navigate('/admin/settings')} 
-                          className="mt-2 text-xs flex items-center gap-1 bg-white border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <Settings className="w-3 h-3" /> Check Settings
-                        </button>
-                    </>
-                )}
+                <button 
+                  onClick={() => navigate('/admin/settings')} 
+                  className="mt-2 text-xs flex items-center gap-1 bg-white border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Settings className="w-3 h-3" /> Check Settings
+                </button>
               </div>
             </div>
          ) : (
@@ -212,16 +270,28 @@ const LiveTracking: React.FC = () => {
                
                {/* Overlay Legend */}
                {isMapReady && staffLocations.length > 0 && (
-                 <div className="absolute bottom-6 left-6 bg-white p-3 rounded-lg shadow-lg max-w-xs border border-gray-100 hidden md:block">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Active Staff</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                 <div className="absolute bottom-6 left-6 bg-white p-3 rounded-lg shadow-lg max-w-xs border border-gray-100 hidden md:block max-h-60 overflow-y-auto custom-scrollbar">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 sticky top-0 bg-white pb-1">Active Staff</h4>
+                    <div className="space-y-1">
                        {staffLocations.map((emp, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-sm gap-4 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                          <div 
+                            key={idx} 
+                            className="flex items-center justify-between text-sm gap-4 cursor-pointer hover:bg-gray-50 p-1.5 rounded transition-colors"
+                            onClick={() => {
+                                if (mapInstance) {
+                                    mapInstance.panTo({ lat: emp.lat, lng: emp.lng });
+                                    mapInstance.setZoom(16);
+                                }
+                            }}
+                          >
                              <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                <span className="font-medium text-gray-700">{emp.name}</span>
+                                <div className="flex flex-col">
+                                    <span className="font-medium text-gray-700 text-xs">{emp.name}</span>
+                                    <span className="text-[9px] text-gray-400">{emp.role}</span>
+                                </div>
                              </div>
-                             <span className="text-[10px] text-gray-400">{emp.lastUpdate}</span>
+                             <span className="text-[9px] text-gray-400">{emp.lastUpdate}</span>
                           </div>
                        ))}
                     </div>
