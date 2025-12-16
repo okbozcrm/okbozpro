@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>OK BOZ Admin</title>
+    <link rel="manifest" href="/manifest.json" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              gray: {
+                750: '#2d3748',
+                850: '#1a202c',
+                950: '#0d1117',
+              },
+              violet: {
+                850: '#2e1065', // Custom deep violet
+              }
+            },
+            animation: {
+              blob: "blob 7s infinite",
+            },
+            keyframes: {
+              blob: {
+                "0%": { transform: "translate(0px, 0px) scale(1)" },
+                "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+                "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+                "100%": { transform: "translate(0px, 0px) scale(1)" },
+              },
+            },
+          }
+        }
+      }
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      .dark ::-webkit-scrollbar-track {
+        background: #1f2937;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 3px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #4b5563;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #aaa;
+      }
+      /* Styles for @reach/combobox */
+      .rnc__combo-box-popover {
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        z-index: 50; /* Tailwind z-50 */
+      }
+      .rnc__combo-box-list {
+        padding: 0.5rem;
+        background-color: white;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .dark .rnc__combo-box-list {
+        background-color: #1f2937;
+        color: white;
+        border: 1px solid #374151;
+      }
+      .rnc__combo-box-option {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        font-size: 0.875rem; /* text-sm */
+        line-height: 1.25rem;
+        color: #374151; /* text-gray-700 */
+        border-radius: 0.375rem; /* rounded-md */
+      }
+      .dark .rnc__combo-box-option {
+        color: #e5e7eb;
+      }
+      .rnc__combo-box-option[data-highlighted] {
+        background-color: #f3f4f6; /* bg-gray-100 */
+        color: #1f2937; /* text-gray-900 */
+      }
+      .dark .rnc__combo-box-option[data-highlighted] {
+        background-color: #374151;
+        color: white;
+      }
+
+      /* NEW: CSS for blinking bell notification */
+      @keyframes blink-bell {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      .animate-blink-bell {
+        animation: blink-bell 1.5s infinite;
+      }
+
+      /* Animation Delays for Landing Page */
+      .animation-delay-2000 {
+        animation-delay: 2s;
+      }
+      .animation-delay-4000 {
+        animation-delay: 4s;
+      }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "use-places-autocomplete": "https://aistudiocdn.com/use-places-autocomplete@^4.0.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "express": "https://aistudiocdn.com/express@^5.1.0",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "@prisma/client": "https://aistudiocdn.com/@prisma/client@^7.0.1",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1",
+    "jspdf": "https://aistudiocdn.com/jspdf@^2.5.1"
+  }
+}
+</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+    <audio id="notification-sound" src="/notification.mp3" preload="auto"></audio>
+  </body>
+</html>
