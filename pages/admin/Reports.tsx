@@ -7,7 +7,7 @@ import {
 import { 
   Download, TrendingUp, DollarSign, 
   Briefcase, ArrowUpRight, Car, MapPin, Activity, CheckSquare, Users, Percent, Calendar, Clock, Filter, PieChart as PieChartIcon,
-  Share2, Mail, MessageCircle, FileText, Check, Loader2
+  Share2, Mail, MessageCircle, FileText, Check, Loader2, Truck, Wallet, ReceiptIndianRupee
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, CorporateAccount, Branch } from '../../types';
@@ -32,7 +32,7 @@ const Reports: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   // 1. Set 'Profit & Sharing' as default
-  const [activeTab, setActiveTab] = useState<'Profit & Sharing' | 'Financial' | 'Attendance' | 'Transport'>('Profit & Sharing');
+  const [activeTab, setActiveTab] = useState<'Profit & Sharing' | 'Financial' | 'Payroll' | 'Driver Payments' | 'Transport'>('Profit & Sharing');
   
   const [expenses, setExpenses] = useState<any[]>([]);
   const [payroll, setPayroll] = useState<any[]>([]); // This loads payroll_history
@@ -106,7 +106,7 @@ const Reports: React.FC = () => {
     loadData('leads_data', setLeads);
     loadData('staff_data', setStaff);
     loadData('trips_data', setTrips);
-    loadData('driver_payment_records', setDriverPayments); // Needs namespacing logic if split
+    loadData('driver_payment_records', setDriverPayments); 
     
     // Corporate accounts list is only relevant for Super Admin reports
     if (isSuperAdmin) {
@@ -169,6 +169,37 @@ const Reports: React.FC = () => {
       return { totalProfit, shares };
   }, [trips, expenses, corporates]);
 
+  // --- Derived Stats for Payroll Tab ---
+  const payrollStats = useMemo(() => {
+      const totalPayout = payroll.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+      const totalEmployeesPaid = payroll.reduce((sum, p) => sum + (p.employeeCount || 0), 0);
+      // Chart Data: Reverse to show oldest to newest if needed, or take last 6
+      const chartData = payroll
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map(p => ({
+              name: new Date(p.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              amount: p.totalAmount
+          }));
+      return { totalPayout, totalEmployeesPaid, chartData };
+  }, [payroll]);
+
+  // --- Derived Stats for Driver Payments Tab ---
+  const driverPaymentStats = useMemo(() => {
+      const totalPaid = driverPayments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (p.amount || 0), 0);
+      const pendingRequests = driverPayments.filter(p => p.status === 'Pending').length;
+      
+      // Chart Data: Group by type
+      const typeDataObj: Record<string, number> = {};
+      driverPayments.forEach(p => {
+          if (p.status === 'Paid') {
+              typeDataObj[p.type] = (typeDataObj[p.type] || 0) + p.amount;
+          }
+      });
+      const typeChartData = Object.keys(typeDataObj).map(key => ({ name: key, value: typeDataObj[key] }));
+
+      return { totalPaid, pendingRequests, typeChartData };
+  }, [driverPayments]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -178,12 +209,12 @@ const Reports: React.FC = () => {
               {isSuperAdmin ? "Comprehensive insights across all branches" : "Insights for your franchise"}
           </p>
         </div>
-        <div className="flex bg-gray-100 p-1 rounded-lg">
-            {['Profit & Sharing', 'Financial', 'Attendance', 'Transport'].map(tab => (
+        <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
+            {['Profit & Sharing', 'Financial', 'Payroll', 'Driver Payments', 'Transport'].map(tab => (
                 <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === tab ? 'bg-white shadow text-emerald-600' : 'text-gray-600 hover:text-gray-900'}`}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-emerald-600' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                     {tab}
                 </button>
@@ -201,7 +232,7 @@ const Reports: React.FC = () => {
 
       <div ref={reportRef} className="space-y-6 bg-transparent">
           {activeTab === 'Profit & Sharing' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in">
                   {/* Total Profit Card */}
                   <div className="lg:col-span-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                       <div className="relative z-10">
@@ -295,7 +326,7 @@ const Reports: React.FC = () => {
           )}
 
           {activeTab === 'Financial' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                           <p className="text-sm text-gray-500 mb-1">Total Income</p>
@@ -337,19 +368,94 @@ const Reports: React.FC = () => {
               </div>
           )}
 
-          {activeTab === 'Attendance' && (
-              <div className="bg-white p-12 text-center rounded-xl border border-gray-200 shadow-sm">
-                  <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-800">Attendance Reports</h3>
-                  <p className="text-gray-500 mt-2">Detailed attendance analytics will appear here.</p>
+          {activeTab === 'Payroll' && (
+              <div className="space-y-6 animate-in fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-gray-500 mb-1">Total Payroll Payout</p>
+                              <h3 className="text-3xl font-bold text-indigo-600">{formatCurrency(payrollStats.totalPayout)}</h3>
+                          </div>
+                          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                              <DollarSign className="w-8 h-8" />
+                          </div>
+                      </div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-gray-500 mb-1">Processed Batches</p>
+                              <h3 className="text-3xl font-bold text-gray-800">{payroll.length}</h3>
+                          </div>
+                          <div className="p-3 bg-gray-100 text-gray-600 rounded-lg">
+                              <FileText className="w-8 h-8" />
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-96">
+                      <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-indigo-500" /> Payroll History Trend
+                      </h3>
+                      <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={payrollStats.chartData}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                              <Legend />
+                              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 8 }} />
+                          </LineChart>
+                      </ResponsiveContainer>
+                  </div>
+              </div>
+          )}
+
+          {activeTab === 'Driver Payments' && (
+              <div className="space-y-6 animate-in fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-gray-500 mb-1">Total Driver Compensation</p>
+                              <h3 className="text-3xl font-bold text-emerald-600">{formatCurrency(driverPaymentStats.totalPaid)}</h3>
+                          </div>
+                          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                              <ReceiptIndianRupee className="w-8 h-8" />
+                          </div>
+                      </div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                          <div>
+                              <p className="text-sm text-gray-500 mb-1">Pending Requests</p>
+                              <h3 className="text-3xl font-bold text-orange-600">{driverPaymentStats.pendingRequests}</h3>
+                          </div>
+                          <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+                              <Clock className="w-8 h-8" />
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-96">
+                      <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                          <Truck className="w-5 h-5 text-emerald-500" /> Payment Breakdown by Type
+                      </h3>
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={driverPaymentStats.typeChartData} layout="vertical" margin={{ left: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                              <XAxis type="number" />
+                              <YAxis dataKey="name" type="category" width={100} />
+                              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                              <Legend />
+                              <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} barSize={40} />
+                          </BarChart>
+                      </ResponsiveContainer>
+                  </div>
               </div>
           )}
 
           {activeTab === 'Transport' && (
-              <div className="bg-white p-12 text-center rounded-xl border border-gray-200 shadow-sm">
+              <div className="bg-white p-12 text-center rounded-xl border border-gray-200 shadow-sm animate-in fade-in">
                   <Car className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-gray-800">Transport Reports</h3>
-                  <p className="text-gray-500 mt-2">Vehicle utilization and trip analytics will appear here.</p>
+                  <p className="text-gray-500 mt-2">Detailed vehicle utilization, trip analytics and mileage reports.</p>
+                  <p className="text-xs text-gray-400 mt-4">Coming in next update.</p>
               </div>
           )}
       </div>

@@ -4,9 +4,10 @@ import {
   Settings, Plus, Search, Filter, Download, 
   Truck, DollarSign, Calendar, CheckCircle, 
   AlertCircle, X, Save, ChevronDown, PieChart, Info, Building2,
-  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash
+  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCcw
 } from 'lucide-react';
 import { Employee, CorporateAccount } from '../../types';
+import AiAssistant from '../../components/AiAssistant';
 
 // --- Types ---
 
@@ -84,10 +85,19 @@ const DriverPayments: React.FC = () => {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false); // Wallet Modal
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
 
-  // Filters
+  // General Search
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
-  const [filterStatus, setFilterStatus] = useState('All');
+
+  // Wallet Specific Filters
+  const [walletFromDate, setWalletFromDate] = useState('');
+  const [walletToDate, setWalletToDate] = useState('');
+  const [walletStatus, setWalletStatus] = useState('All');
+  const [walletType, setWalletType] = useState('All');
+  const [walletCorpFilter, setWalletCorpFilter] = useState('All');
+
+  // Compensation Specific Filters
+  const [compDate, setCompDate] = useState(new Date().toISOString().split('T')[0]);
+  const [compStatus, setCompStatus] = useState('All');
   
   // Compensation Form State
   const [paymentType, setPaymentType] = useState<'Empty Km' | 'Promo Code' | 'Sticker'>('Empty Km');
@@ -157,13 +167,11 @@ const DriverPayments: React.FC = () => {
 
         // B. Wallet
         const adminWalletRaw = JSON.parse(localStorage.getItem('driver_wallet_data') || '[]');
-        // Ensure corporateId is set for Admin records
         const adminWallet = adminWalletRaw.map((t: any) => ({ ...t, corporateId: t.corporateId || 'admin' }));
         loadedWallet = [...adminWallet];
 
         corps.forEach((c: any) => {
             const cWalletRaw = JSON.parse(localStorage.getItem(`driver_wallet_data_${c.email}`) || '[]');
-            // Ensure corporateId is set for Franchise records
             const cWallet = cWalletRaw.map((t: any) => ({ ...t, corporateId: t.corporateId || c.email }));
             loadedWallet = [...loadedWallet, ...cWallet];
         });
@@ -377,34 +385,35 @@ const DriverPayments: React.FC = () => {
       if (!isSuperAdmin) return;
       if (!window.confirm("Approve this wallet request?")) return;
 
-      // Update State
       const updated = walletTransactions.map(t => t.id === id ? { ...t, status: 'Approved' as const } : t);
       setWalletTransactions(updated);
 
-      // Resolve Storage Key
-      const targetKey = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
-      
-      // Update Storage
-      const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+      const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
       const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Approved' } : t);
-      localStorage.setItem(targetKey, JSON.stringify(newStored));
+      localStorage.setItem(key, JSON.stringify(newStored));
   };
 
   const handleRejectWallet = (id: string, corporateId: string) => {
       if (!isSuperAdmin) return;
       if (!window.confirm("Reject this wallet request?")) return;
 
-      // Update State
       const updated = walletTransactions.map(t => t.id === id ? { ...t, status: 'Rejected' as const } : t);
       setWalletTransactions(updated);
 
-      // Resolve Storage Key
-      const targetKey = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
-
-      // Update Storage
-      const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+      const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
       const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Rejected' } : t);
-      localStorage.setItem(targetKey, JSON.stringify(newStored));
+      localStorage.setItem(key, JSON.stringify(newStored));
+  };
+
+  const resetWalletFilters = () => {
+      setSearchTerm('');
+      setWalletFromDate('');
+      setWalletToDate('');
+      setWalletStatus('All');
+      setWalletType('All');
+      setWalletCorpFilter('All');
   };
 
   // --- Computed Stats for Dashboard ---
@@ -430,16 +439,30 @@ const DriverPayments: React.FC = () => {
       const matchesSearch = t.driverName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.phone.includes(searchTerm) ||
                             t.orderId.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === 'All' || t.status === filterStatus;
-      const matchesCorp = isSuperAdmin ? true : t.corporateId === sessionId;
-      return matchesSearch && matchesStatus && matchesCorp;
+      
+      const matchesStatus = walletStatus === 'All' || t.status === walletStatus;
+      const matchesType = walletType === 'All' || t.type === walletType;
+      
+      let matchesCorp = true;
+      if (isSuperAdmin) {
+          matchesCorp = walletCorpFilter === 'All' || t.corporateId === walletCorpFilter || (walletCorpFilter === 'admin' && t.corporateId === 'admin');
+      } else {
+          matchesCorp = t.corporateId === sessionId;
+      }
+
+      let matchesDate = true;
+      if (walletFromDate) matchesDate = matchesDate && t.date >= walletFromDate;
+      if (walletToDate) matchesDate = matchesDate && t.date <= walletToDate;
+
+      return matchesSearch && matchesStatus && matchesType && matchesCorp && matchesDate;
   });
 
   const filteredPayments = payments.filter(p => {
       const matchesSearch = p.driverName.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm);
-      const matchesStatus = filterStatus === 'All' || p.status === filterStatus;
+      const matchesStatus = compStatus === 'All' || p.status === compStatus;
+      const matchesDate = !compDate || p.date === compDate;
       const matchesCorp = isSuperAdmin ? true : p.corporateId === sessionId;
-      return matchesSearch && matchesStatus && matchesCorp;
+      return matchesSearch && matchesStatus && matchesCorp && matchesDate;
   });
 
   return (
@@ -460,13 +483,13 @@ const DriverPayments: React.FC = () => {
             )}
             <div className="flex bg-gray-100 p-1 rounded-lg">
                 <button 
-                    onClick={() => setMainTab('Payments')}
+                    onClick={() => { setMainTab('Payments'); setSearchTerm(''); }}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${mainTab === 'Payments' ? 'bg-white shadow text-emerald-600' : 'text-gray-600'}`}
                 >
                     Compensations
                 </button>
                 <button 
-                    onClick={() => setMainTab('Wallet')}
+                    onClick={() => { setMainTab('Wallet'); setSearchTerm(''); }}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${mainTab === 'Wallet' ? 'bg-white shadow text-blue-600' : 'text-gray-600'}`}
                 >
                     <Wallet className="w-4 h-4" /> Wallet
@@ -515,35 +538,86 @@ const DriverPayments: React.FC = () => {
                   </div>
               </div>
 
+              {/* Advanced Filter Bar */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input 
+                          placeholder="Search Order ID / Driver / Phone..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 items-center">
+                      <div className="flex items-center gap-1 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-200">
+                          <span className="text-xs text-gray-500 font-bold px-1">Date:</span>
+                          <input 
+                              type="date" 
+                              value={walletFromDate} 
+                              onChange={(e) => setWalletFromDate(e.target.value)}
+                              className="text-xs border border-gray-300 rounded px-1 py-0.5 outline-none"
+                          />
+                          <span className="text-xs text-gray-400">-</span>
+                          <input 
+                              type="date" 
+                              value={walletToDate} 
+                              onChange={(e) => setWalletToDate(e.target.value)}
+                              className="text-xs border border-gray-300 rounded px-1 py-0.5 outline-none"
+                          />
+                      </div>
+
+                      <select 
+                          value={walletStatus}
+                          onChange={(e) => setWalletStatus(e.target.value)}
+                          className="px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none cursor-pointer"
+                      >
+                          <option value="All">All Status</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                      </select>
+
+                      <select 
+                          value={walletType}
+                          onChange={(e) => setWalletType(e.target.value)}
+                          className="px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none cursor-pointer"
+                      >
+                          <option value="All">All Types</option>
+                          <option value="Top-up">Top-up (Credit)</option>
+                          <option value="Deduct">Deduct (Debit)</option>
+                      </select>
+
+                      {isSuperAdmin && (
+                          <select 
+                              value={walletCorpFilter}
+                              onChange={(e) => setWalletCorpFilter(e.target.value)}
+                              className="px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none cursor-pointer max-w-[120px]"
+                          >
+                              <option value="All">All Corp</option>
+                              <option value="admin">Head Office</option>
+                              {corporates.map(c => (
+                                  <option key={c.email} value={c.email}>{c.companyName}</option>
+                              ))}
+                          </select>
+                      )}
+
+                      <button 
+                          onClick={resetWalletFilters}
+                          className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
+                          title="Reset Filters"
+                      >
+                          <RefreshCcw className="w-4 h-4" />
+                      </button>
+                  </div>
+              </div>
+
               {/* Transactions Table */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-200 flex flex-wrap gap-4 justify-between items-center bg-gray-50">
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2"><ArrowRightLeft className="w-4 h-4 text-blue-600"/> Transaction History</h3>
-                      <div className="flex gap-2">
-                          <div className="relative w-48">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input 
-                                  placeholder="Order ID / Driver..."
-                                  value={searchTerm}
-                                  onChange={(e) => setSearchTerm(e.target.value)}
-                                  className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                          </div>
-                          <select 
-                              value={filterStatus}
-                              onChange={(e) => setFilterStatus(e.target.value)}
-                              className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
-                          >
-                              <option value="All">All Status</option>
-                              <option value="Pending">Pending</option>
-                              <option value="Approved">Approved</option>
-                              <option value="Rejected">Rejected</option>
-                          </select>
-                      </div>
-                  </div>
                   <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm whitespace-nowrap">
-                          <thead className="bg-white text-gray-500 font-medium border-b border-gray-200">
+                          <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                               <tr>
                                   <th className="px-6 py-4">Date</th>
                                   <th className="px-6 py-4">Order ID</th>
@@ -742,6 +816,21 @@ const DriverPayments: React.FC = () => {
                                 >
                                     <Plus className="w-4 h-4" /> Log Payment
                                 </button>
+                                <input 
+                                    type="date"
+                                    value={compDate}
+                                    onChange={(e) => setCompDate(e.target.value)}
+                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                                />
+                                <select 
+                                    value={compStatus}
+                                    onChange={(e) => setCompStatus(e.target.value)}
+                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                                >
+                                    <option value="All">All Status</option>
+                                    <option value="Paid">Paid</option>
+                                    <option value="Pending">Pending</option>
+                                </select>
                                 <input 
                                     placeholder="Search..."
                                     value={searchTerm}
@@ -1110,6 +1199,14 @@ const DriverPayments: React.FC = () => {
            </div>
         </div>
       )}
+
+      {/* --- Boz Chat Assistant --- */}
+      <AiAssistant
+        systemInstruction="You are an AI assistant specialized in Driver Wallet & Finance management for OK BOZ. Help the admin analyze wallet trends, verify deduction logic, and summarize pending requests."
+        initialMessage="Hello! I can help you with wallet analysis or transaction queries."
+        triggerButtonLabel="Wallet AI"
+        chatPrompt="Summarize today's wallet activity." 
+      />
     </div>
   );
 };
