@@ -7,6 +7,7 @@ import {
   Pencil, Trash2, MessageCircle, Send, Loader2, FileText, Upload
 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
+import ContactDisplay from '../../components/ContactDisplay';
 
 interface Lead {
   id: string;
@@ -461,6 +462,15 @@ const Leads = () => {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
                      <IndianRupee className="w-4 h-4 text-gray-400" /> {lead.totalValue.toLocaleString()}
+                  </div>
+               </div>
+               
+               <div className="space-y-1 mb-4 border-t border-gray-50 pt-2">
+                  <div className="text-sm">
+                      <ContactDisplay type="phone" value={lead.phone || ''} />
+                  </div>
+                  <div className="text-sm">
+                      <ContactDisplay type="email" value={lead.email || ''} />
                   </div>
                </div>
 

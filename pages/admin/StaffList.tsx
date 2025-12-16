@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Search, Phone, Mail, X, User, Upload, FileText, CreditCard, Briefcase, Building, Calendar, Pencil, Trash2, Building2, Lock, Download, Navigation, Globe, MapPin, Eye, EyeOff, Smartphone, ScanLine, MousePointerClick, Heart, Home, AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode } from 'lucide-react'; 
 import { Employee, Branch } from '../../types';
+import ContactDisplay from '../../components/ContactDisplay';
 
 interface Shift {
     id: number;
@@ -745,11 +746,11 @@ const StaffList: React.FC = () => {
               <div className="space-y-2 pt-2 border-t border-gray-50">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Phone className="w-4 h-4 text-gray-400" />
-                  <span>{employee.phone || '+91 98765 43210'}</span>
+                  <ContactDisplay type="phone" value={employee.phone || ''} />
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="truncate">{employee.email || `${employee.name.toLowerCase().replace(/\s+/g, '.')}@okboz.com`}</span>
+                  <ContactDisplay type="email" value={employee.email || ''} className="truncate" />
                 </div>
                 {employee.branch && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">

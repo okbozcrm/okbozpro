@@ -22,7 +22,8 @@ import { TripBooking } from './pages/admin/TripBooking';
 import { CustomerCare } from './pages/admin/CustomerCare';
 import AutoDialer from './pages/admin/AutoDialer';
 import DriverPayments from './pages/admin/DriverPayments';
-import DataExport from './pages/admin/DataExport'; // NEW IMPORT
+import DataExport from './pages/admin/DataExport'; 
+import Messenger from './pages/admin/Messenger'; // NEW IMPORT
 import UserAttendance from './pages/user/UserAttendance';
 import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
@@ -164,6 +165,9 @@ const App: React.FC = () => {
                         {/* Data Export Route */}
                         <Route path="/admin/data-export" element={<DataExport />} />
                         
+                        {/* NEW: Chat Route */}
+                        <Route path="/admin/chat" element={<Messenger role={userRole} />} />
+
                         {/* Corporate Management & Settings - Only Super Admin */}
                         {userRole === UserRole.ADMIN && (
                           <>
@@ -189,6 +193,9 @@ const App: React.FC = () => {
                         <Route path="/user/apply-leave" element={<ApplyLeave />} />
                         <Route path="/user/profile" element={<UserProfile />} />
                         
+                        {/* NEW: Chat Route for Employee */}
+                        <Route path="/user/chat" element={<Messenger role={UserRole.EMPLOYEE} />} />
+
                         {/* Permitted Modules - Rendering Admin components for Employee */}
                         <Route path="/user/reports" element={<Reports />} />
                         <Route path="/user/trips" element={<TripBooking />} />

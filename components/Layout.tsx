@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, Sunrise, Sunset } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, Sunrise, Sunset, MessageSquareText } from 'lucide-react';
 import { UserRole, Enquiry, CorporateAccount, Employee } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -15,6 +15,7 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText }, // Added Boz Chat
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
   { id: 'auto-dialer', path: '/admin/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
@@ -34,7 +35,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'admin-finance', path: '/admin/admin-finance', label: 'Admin Finance', icon: ReceiptIndianRupee },
   { id: 'finance-and-expenses', path: '/admin/finance-and-expenses', label: 'Finance & Expenses', icon: CreditCard },
   { id: 'corporate', path: '/admin/corporate', label: 'Corporate', icon: Building2 },
-  { id: 'data-export', path: '/admin/data-export', label: 'Data & Backup', icon: Database }, // NEW LINK
+  { id: 'data-export', path: '/admin/data-export', label: 'Data & Backup', icon: Database }, 
   { id: 'settings', path: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -47,7 +48,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const { theme, setTheme } = useTheme();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   
-  const { notifications, unreadCount, markNotificationAsRead, markAllNotificationsAsRead } = useNotification();
+  const { notifications, unreadCount, markNotificationAsRead, markAllNotificationsAsRead, playAlarmSound } = useNotification();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   
@@ -64,6 +65,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [welcomeName, setWelcomeName] = useState('');
+
+  // Chat Notification State
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const prevChatCountRef = useRef(0);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -97,6 +102,37 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, [role]);
+
+  // --- CHAT NOTIFICATION POLLING ---
+  useEffect(() => {
+    const checkChatMessages = () => {
+        try {
+            const msgs = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
+            const sessionId = localStorage.getItem('app_session_id');
+            if (!sessionId) return;
+
+            // Count messages where I am receiver and read is false
+            const unread = msgs.filter((m: any) => m.receiverId === sessionId && !m.read).length;
+            
+            setChatUnreadCount(unread);
+
+            // Play sound if count INCREASED
+            if (unread > prevChatCountRef.current) {
+                playAlarmSound();
+            }
+            prevChatCountRef.current = unread;
+        } catch (e) {
+            console.error("Error polling chat", e);
+        }
+    };
+
+    // Initial check
+    checkChatMessages();
+
+    // Poll every 3 seconds
+    const interval = setInterval(checkChatMessages, 3000);
+    return () => clearInterval(interval);
+  }, [playAlarmSound]);
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
@@ -296,9 +332,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       // 1. All Admin links visible for Super Admin
       if (role === UserRole.ADMIN) return true;
 
-      // 2. Corporate Specific Links (Removed: 'auto-dialer', 'employee-settings', 'data-export')
+      // 2. Corporate Specific Links
       const corporateAllowed = [
-        'dashboard', 'reports', 'customer-care', 'trips', 'tracking',
+        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments'
       ];
@@ -313,6 +349,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     // Basic Links (Everyone)
     const baseLinks = [
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
+        { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText }, // Added for employee
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
@@ -340,9 +377,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
     });
 
-    // Add extra links before the profile/personal stuff
-    // Let's insert them after Vendors for better flow.
-    const insertIndex = 3; 
+    // Add extra links after core features
+    const insertIndex = 4; 
     const finalLinks = [...baseLinks];
     finalLinks.splice(insertIndex, 0, ...addedLinks);
 
@@ -428,11 +464,21 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                 <span className={`text-sm font-medium ${currentPath === link.path ? 'text-white' : ''}`}>
                   {link.label}
                 </span>
+                
+                {/* Chat Badge */}
+                {(link.id === 'chat' || link.id === 'chat-employee') && chatUnreadCount > 0 && (
+                  <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">
+                    {chatUnreadCount}
+                  </span>
+                )}
+
+                {/* Task Badge */}
                 {link.id === 'reception' && newTaskCount > 0 && (
                   <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
                     {newTaskCount}
                   </span>
                 )}
+                
                 {isEditingSidebar && (role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
                     <GripVertical className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-grab" />
                 )}

@@ -8,6 +8,7 @@ import {
   Users, CheckCircle, Clock, PhoneCall, List, Edit, Truck, Activity
 } from 'lucide-react';
 import AiAssistant from '../../components/AiAssistant';
+import ContactDisplay from '../../components/ContactDisplay';
 
 interface HistoryLog {
   id: number;
@@ -441,7 +442,9 @@ const VendorAttachment = () => {
                               <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
                                   <td className="px-6 py-4 font-bold text-gray-900">{vendor.ownerName}</td>
                                   <td className="px-6 py-4 text-gray-600">{vendor.city}</td>
-                                  <td className="px-6 py-4 text-gray-600">{vendor.phone}</td>
+                                  <td className="px-6 py-4 text-gray-600">
+                                      <ContactDisplay type="phone" value={vendor.phone} />
+                                  </td>
                                   <td className="px-6 py-4 text-gray-600">
                                       <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
                                           {vendor.vehicleTypes.join(', ')}
@@ -573,7 +576,8 @@ const VendorAttachment = () => {
 
                            <div className="space-y-2 border-t border-gray-50 pt-3">
                               <div className="flex items-center gap-2 text-sm text-gray-600">
-                                 <Phone className="w-4 h-4 text-gray-400" /> {vendor.phone}
+                                 <Phone className="w-4 h-4 text-gray-400" /> 
+                                 <span onClick={(e) => e.stopPropagation()}><ContactDisplay type="phone" value={vendor.phone} /></span>
                               </div>
                               <div className="flex items-center gap-2 text-sm text-gray-600">
                                  <Car className="w-4 h-4 text-gray-400" /> {vendor.vehicleTypes.join(', ')} • <strong>{vendor.fleetSize}</strong> Vehicle(s)
@@ -914,8 +918,8 @@ const VendorAttachment = () => {
                    <div className="grid grid-cols-2 gap-4 text-sm">
                        <div>
                            <p className="text-gray-500 text-xs uppercase font-bold">Contact</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.phone}</p>
-                           {selectedVendor.email && <p className="text-xs text-gray-600">{selectedVendor.email}</p>}
+                           <p className="font-medium text-gray-800"><ContactDisplay type="phone" value={selectedVendor.phone} /></p>
+                           {selectedVendor.email && <p className="text-xs text-gray-600"><ContactDisplay type="email" value={selectedVendor.email} /></p>}
                        </div>
                        <div>
                            <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
