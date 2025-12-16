@@ -4,7 +4,8 @@ import {
   Plus, Search, Car, Phone, Mail, Trash2, 
   Sparkles, MessageCircle, Send, User, MapPin, X, 
   MoreVertical, Filter, RefreshCcw, ChevronDown, Building2,
-  Calendar, FileText, CheckSquare, Square, DollarSign, Save, Briefcase
+  Calendar, FileText, CheckSquare, Square, DollarSign, Save, Briefcase,
+  Users, CheckCircle, Clock, PhoneCall
 } from 'lucide-react';
 import AiAssistant from '../../components/AiAssistant';
 
@@ -298,6 +299,20 @@ const VendorAttachment = () => {
     return matchesSearch && matchesCity && matchesStatus && matchesVehicle && matchesCategory && matchesOwner;
   });
 
+  // --- Statistics Calculation ---
+  const stats = useMemo(() => {
+      // Calculate based on the currently viewable vendors (filtered by role but NOT by search/filter inputs)
+      // This gives an overview of the "whole" accessible dataset
+      
+      const total = vendors.length;
+      const active = vendors.filter(v => v.status === 'Active').length;
+      const pending = vendors.filter(v => v.status === 'Pending').length;
+      const telecalling = vendors.filter(v => v.category === 'Telecalling').length;
+      const fieldVisit = vendors.filter(v => v.category === 'Field Visit').length;
+
+      return { total, active, pending, telecalling, fieldVisit };
+  }, [vendors]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -314,6 +329,69 @@ const VendorAttachment = () => {
           <Plus className="w-5 h-5" />
           Add Vendor
         </button>
+      </div>
+
+      {/* --- Dashboard Buttons (Statistics Cards) --- */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('All'); setCategoryFilter('All');}}>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Vendors</p>
+                      <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.total}</h3>
+                  </div>
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                      <Users className="w-5 h-5" />
+                  </div>
+              </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('Active'); setCategoryFilter('All');}}>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active</p>
+                      <h3 className="text-2xl font-bold text-emerald-600 mt-1">{stats.active}</h3>
+                  </div>
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                      <CheckCircle className="w-5 h-5" />
+                  </div>
+              </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setStatusFilter('Pending'); setCategoryFilter('All');}}>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending</p>
+                      <h3 className="text-2xl font-bold text-orange-600 mt-1">{stats.pending}</h3>
+                  </div>
+                  <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                      <Clock className="w-5 h-5" />
+                  </div>
+              </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setCategoryFilter('Telecalling'); setStatusFilter('All');}}>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Telecalling</p>
+                      <h3 className="text-2xl font-bold text-purple-600 mt-1">{stats.telecalling}</h3>
+                  </div>
+                  <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                      <PhoneCall className="w-5 h-5" />
+                  </div>
+              </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer" onClick={() => {setCategoryFilter('Field Visit'); setStatusFilter('All');}}>
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Field Visits</p>
+                      <h3 className="text-2xl font-bold text-indigo-600 mt-1">{stats.fieldVisit}</h3>
+                  </div>
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <MapPin className="w-5 h-5" />
+                  </div>
+              </div>
+          </div>
       </div>
 
       {/* Search & Filter Bar */}
