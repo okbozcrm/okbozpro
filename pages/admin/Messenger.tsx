@@ -461,22 +461,25 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                     <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-600" /> Boz Chat
                     </h2>
-                    <div className="flex gap-2">
-                        <button 
-                            onClick={() => setIsGroupModalOpen(true)}
-                            className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
-                            title="Create Group"
-                        >
-                            <Users className="w-4 h-4" />
-                        </button>
-                        <button 
-                            onClick={() => setIsSettingsModalOpen(true)}
-                            className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-                            title="Settings"
-                        >
-                            <Settings className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {/* Hide buttons for Employee */}
+                    {role !== UserRole.EMPLOYEE && (
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setIsGroupModalOpen(true)}
+                                className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
+                                title="Create Group"
+                            >
+                                <Users className="w-4 h-4" />
+                            </button>
+                            <button 
+                                onClick={() => setIsSettingsModalOpen(true)}
+                                className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                title="Settings"
+                            >
+                                <Settings className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
