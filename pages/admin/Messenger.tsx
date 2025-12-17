@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Search, User, MoreVertical, Phone, 
   Check, CheckCheck, MessageSquare, ChevronLeft, 
   Building2, Shield, Cloud, Minus, Circle, 
-  Paperclip, Mic, X, File, Image as ImageIcon, StopCircle, Download
+  Paperclip, Mic, X, File, Image as ImageIcon, StopCircle, Download,
+  Users, Plus, Settings, Trash2, Bell, CheckSquare, Square
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
@@ -11,12 +13,21 @@ import { MOCK_EMPLOYEES } from '../../constants';
 interface Message {
   id: string;
   senderId: string;
-  receiverId: string;
+  senderName?: string; // Added for Group Chat context
+  receiverId: string; // UserID or GroupID
   content: string;
   timestamp: string;
   read: boolean;
   type: 'text' | 'image' | 'file' | 'audio';
-  fileName?: string; // Optional filename for non-text types
+  fileName?: string;
+}
+
+interface ChatGroup {
+  id: string;
+  name: string;
+  members: string[]; // Array of User IDs
+  createdBy: string;
+  type: 'group';
 }
 
 interface Contact {
@@ -24,8 +35,8 @@ interface Contact {
   name: string;
   role: string;
   avatar?: string;
-  type: 'Admin' | 'Franchise' | 'Employee';
-  corporateId?: string; // To group/filter
+  type: 'Admin' | 'Franchise' | 'Employee' | 'Group'; // Added Group
+  corporateId?: string;
   online?: boolean;
   lastMessage?: string;
   lastMessageTime?: string;
@@ -42,6 +53,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   
   // --- State ---
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -51,6 +63,21 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
   // Animation states
   const [isMinimizing, setIsMinimizing] = useState(false);
+
+  // Modal States
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  // Group Creation Form
+  const [newGroupName, setNewGroupName] = useState('');
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
+
+  // Settings State
+  const [chatSettings, setChatSettings] = useState({
+      notifications: true,
+      enterToSend: true,
+      mediaAutoDownload: false
+  });
 
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -62,7 +89,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- 1. Load Contacts based on Role Permissions ---
+  // --- 1. Load Contacts & Groups ---
   useEffect(() => {
     let loadedContacts: Contact[] = [];
 
@@ -84,8 +111,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     const isOnline = () => Math.random() > 0.4; 
 
     // B. Build Contact List based on Role
-    
-    // 1. Super Admin: Sees Everyone
     if (isSuperAdmin) {
         // Add Corporates
         corps.forEach(c => {
@@ -109,76 +134,35 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 online: isOnline()
             });
         });
-    } 
-    // 2. Franchise Admin (Corporate): Sees Super Admin + Own Employees
-    else if (role === UserRole.CORPORATE) {
-        // Add Super Admin
-        loadedContacts.push({
-            id: 'admin',
-            name: 'Head Office',
-            role: 'Super Admin',
-            type: 'Admin',
-            corporateId: 'admin',
-            online: true // Admin usually online
-        });
-        // Add Own Employees
+    } else if (role === UserRole.CORPORATE) {
+        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', online: true });
         allStaff.filter(s => s.owner === sessionId).forEach(s => {
-            loadedContacts.push({
-                id: s.id,
-                name: s.name,
-                role: s.role,
-                type: 'Employee',
-                corporateId: sessionId,
-                online: isOnline()
-            });
+            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: sessionId, online: isOnline() });
         });
-    }
-    // 3. Employee: Sees Super Admin + Own Franchise Admin + (Optionally colleagues)
-    else if (role === UserRole.EMPLOYEE) {
-        // Find self to know owner
+    } else if (role === UserRole.EMPLOYEE) {
         const me = allStaff.find(s => s.id === sessionId) || MOCK_EMPLOYEES.find(e => e.id === sessionId);
         const myOwnerId = me?.owner || (me as any)?.corporateId || 'admin';
-
-        // Add Super Admin
-        loadedContacts.push({
-            id: 'admin',
-            name: 'Head Office',
-            role: 'Super Admin',
-            type: 'Admin',
-            corporateId: 'admin',
-            online: true
-        });
-
-        // Add My Franchise Admin (if not belonging to Head Office directly)
+        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', online: true });
         if (myOwnerId !== 'admin') {
             const myCorp = corps.find(c => c.email === myOwnerId);
             if (myCorp) {
-                loadedContacts.push({
-                    id: myCorp.email,
-                    name: myCorp.companyName,
-                    role: 'Franchise Admin',
-                    type: 'Franchise',
-                    corporateId: myCorp.email,
-                    online: isOnline()
-                });
+                loadedContacts.push({ id: myCorp.email, name: myCorp.companyName, role: 'Franchise Admin', type: 'Franchise', corporateId: myCorp.email, online: isOnline() });
             }
         }
-
-        // Add Colleagues (Optional, usually helpful)
         allStaff.filter(s => s.owner === myOwnerId && s.id !== sessionId).forEach(s => {
-            loadedContacts.push({
-                id: s.id,
-                name: s.name,
-                role: s.role,
-                type: 'Employee',
-                corporateId: myOwnerId,
-                online: isOnline()
-            });
+            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: myOwnerId, online: isOnline() });
         });
     }
 
     setContacts(loadedContacts);
-  }, [role, sessionId, isSuperAdmin]);
+
+    // C. Load Groups
+    const savedGroups = JSON.parse(localStorage.getItem('chat_groups_data') || '[]');
+    // Filter groups where I am a member
+    const myGroups = savedGroups.filter((g: ChatGroup) => g.members.includes(sessionId));
+    setGroups(myGroups);
+
+  }, [role, sessionId, isSuperAdmin, isGroupModalOpen]); // Reload when modal closes (new group)
 
   // --- 2. Load Messages & Sync ---
   useEffect(() => {
@@ -188,10 +172,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
               setMessages(JSON.parse(saved));
           }
       };
-      
       loadMessages();
-      
-      // Poll for new messages (Simulated real-time)
       const interval = setInterval(loadMessages, 3000);
       return () => clearInterval(interval);
   }, []);
@@ -201,7 +182,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       const updatedMessages = [...messages, newMsg];
       setMessages(updatedMessages);
       localStorage.setItem('internal_messages_data', JSON.stringify(updatedMessages));
-      // Scroll to bottom
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -210,9 +190,28 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       e.preventDefault();
       if (!inputText.trim() || !activeChatId) return;
 
+      // Get my name for group display
+      let myName = 'Me';
+      if(isSuperAdmin) myName = 'Admin';
+      else {
+          const me = contacts.find(c => c.id === sessionId); // Won't find self in contacts usually, but handled by role logic
+          // Quick fix to find my name
+          if (role === UserRole.CORPORATE) {
+             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+             const myCorp = corps.find((c:any) => c.email === sessionId);
+             if(myCorp) myName = myCorp.companyName;
+          } else {
+             // For employee
+             const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+             const found = adminStaff.find((s:any) => s.id === sessionId);
+             if(found) myName = found.name;
+          }
+      }
+
       const newMsg: Message = {
           id: Date.now().toString(),
           senderId: sessionId,
+          senderName: myName,
           receiverId: activeChatId,
           content: inputText,
           timestamp: new Date().toISOString(),
@@ -230,35 +229,70 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         setActiveChatId(null);
         setShowChatOnMobile(false);
         setIsMinimizing(false);
-      }, 300); // Wait for animation
+      }, 300);
   };
 
-  const handleResize = () => {
-      setIsMobileView(window.innerWidth < 768);
-  };
+  const handleResize = () => setIsMobileView(window.innerWidth < 768);
 
   useEffect(() => {
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- File Handling ---
+  // --- Group Logic ---
+  const handleCreateGroup = () => {
+      if (!newGroupName.trim() || selectedGroupMembers.length === 0) {
+          alert("Please enter a group name and select at least one member.");
+          return;
+      }
+
+      const newGroup: ChatGroup = {
+          id: `GRP-${Date.now()}`,
+          name: newGroupName,
+          members: [sessionId, ...selectedGroupMembers], // Auto-add self
+          createdBy: sessionId,
+          type: 'group'
+      };
+
+      const existingGroups = JSON.parse(localStorage.getItem('chat_groups_data') || '[]');
+      localStorage.setItem('chat_groups_data', JSON.stringify([...existingGroups, newGroup]));
+      
+      setGroups(prev => [...prev, newGroup]);
+      setIsGroupModalOpen(false);
+      setNewGroupName('');
+      setSelectedGroupMembers([]);
+      alert("Group created successfully!");
+  };
+
+  const toggleGroupMember = (id: string) => {
+      setSelectedGroupMembers(prev => 
+          prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+      );
+  };
+
+  // --- Settings Logic ---
+  const handleClearHistory = () => {
+      if(window.confirm("Delete ALL chat history? This cannot be undone.")) {
+          localStorage.removeItem('internal_messages_data');
+          setMessages([]);
+          alert("History cleared.");
+      }
+  };
+
+  // --- File & Voice --- (Existing code preserved)
   const handleFileSelect = () => fileInputRef.current?.click();
-  
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && activeChatId) {
         const file = e.target.files[0];
         const reader = new FileReader();
-        
         reader.onload = () => {
             const base64 = reader.result as string;
             const isImage = file.type.startsWith('image/');
-            
             const newMsg: Message = {
                 id: Date.now().toString(),
                 senderId: sessionId,
                 receiverId: activeChatId,
-                content: base64, // Store base64 data
+                content: base64,
                 fileName: file.name,
                 timestamp: new Date().toISOString(),
                 read: false,
@@ -268,24 +302,16 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         };
         reader.readAsDataURL(file);
     }
-    // Reset input
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // --- Voice Recording ---
   const startRecording = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunksRef.current.push(event.data);
-            }
-        };
-
+        mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
         mediaRecorder.onstop = () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
             const reader = new FileReader();
@@ -305,32 +331,20 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 }
             };
             reader.readAsDataURL(audioBlob);
-            
-            // Stop tracks
             stream.getTracks().forEach(track => track.stop());
         };
-
         mediaRecorder.start();
         setIsRecording(true);
         setRecordingDuration(0);
         timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
-    } catch (err) {
-        console.error("Error accessing microphone", err);
-        alert("Microphone access denied or not available. Please check browser permissions.");
-    }
+    } catch (err) { console.error(err); alert("Microphone access denied."); }
   };
 
   const stopRecording = (shouldSave: boolean) => {
     if (mediaRecorderRef.current && isRecording) {
-        if (shouldSave) {
-            mediaRecorderRef.current.stop(); // Triggers onstop which saves
-        } else {
-            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); // Just stop stream
-            // Clear ref to prevent saving logic if we added it manually differently, 
-            // but here onstop handles logic. For cancellation, we might need a flag or separate handler.
-            // Simplified: We rely on the fact that we won't call save logic if cancelled in a real-world scenario by detaching listener,
-            // but for this simple demo, we'll just let it 'stop' but we need to prevent the onstop logic from saving if cancelled.
-            // Hack fix for demo: assign onstop to null before stopping.
+        if (shouldSave) mediaRecorderRef.current.stop();
+        else {
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
             mediaRecorderRef.current.onstop = null;
             mediaRecorderRef.current.stop();
         }
@@ -345,57 +359,78 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-
   // --- Derived Data ---
-  const filteredContacts = contacts.filter(c => 
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      c.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  
+  // Combine Contacts and Groups for the sidebar list
+  const displayList = useMemo(() => {
+      const groupItems: Contact[] = groups.map(g => ({
+          id: g.id,
+          name: g.name,
+          role: 'Group',
+          type: 'Group',
+          online: true, // Groups always accessible
+          corporateId: 'mixed'
+      }));
 
-  // Enhance contacts with last message data
-  const enrichedContacts = filteredContacts.map(contact => {
-      // Find last message between me and contact
-      const chatMsgs = messages.filter(m => 
-          (m.senderId === sessionId && m.receiverId === contact.id) ||
-          (m.senderId === contact.id && m.receiverId === sessionId)
-      );
-      const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
-      const unread = chatMsgs.filter(m => m.senderId === contact.id && !m.read).length;
+      const allItems = [...groupItems, ...contacts];
 
-      let previewText = "Start a conversation";
-      if (lastMsg) {
-          if (lastMsg.type === 'text') previewText = lastMsg.content;
-          else if (lastMsg.type === 'image') previewText = '📷 Photo';
-          else if (lastMsg.type === 'audio') previewText = '🎤 Voice Message';
-          else if (lastMsg.type === 'file') previewText = '📎 File';
-      }
+      return allItems.filter(c => 
+          c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          c.role.toLowerCase().includes(searchTerm.toLowerCase())
+      ).map(contact => {
+          // Find last message
+          const chatMsgs = messages.filter(m => 
+              (m.receiverId === contact.id) || // Group Message
+              (m.senderId === sessionId && m.receiverId === contact.id) || // 1-on-1 sent
+              (m.senderId === contact.id && m.receiverId === sessionId) // 1-on-1 received
+          );
+          
+          // Sort by time
+          chatMsgs.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
+          const unread = chatMsgs.filter(m => m.senderId !== sessionId && !m.read && m.receiverId === sessionId).length; // Unread logic for 1-on-1 mostly
 
-      return {
-          ...contact,
-          lastMessage: previewText,
-          lastMessageTime: lastMsg?.timestamp,
-          unreadCount: unread
-      };
-  }).sort((a, b) => {
-      // Sort by recent message time
-      const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-      const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-      return timeB - timeA;
-  });
+          let previewText = "Start a conversation";
+          if (lastMsg) {
+              if (lastMsg.type === 'text') previewText = lastMsg.content;
+              else if (lastMsg.type === 'image') previewText = '📷 Photo';
+              else if (lastMsg.type === 'audio') previewText = '🎤 Voice Message';
+              else if (lastMsg.type === 'file') previewText = '📎 File';
+              
+              if(contact.type === 'Group' && lastMsg.senderName) {
+                  previewText = `${lastMsg.senderName}: ${previewText}`;
+              }
+          }
+
+          return {
+              ...contact,
+              lastMessage: previewText,
+              lastMessageTime: lastMsg?.timestamp,
+              unreadCount: unread
+          };
+      }).sort((a, b) => {
+          const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+          const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+          return timeB - timeA;
+      });
+  }, [contacts, groups, messages, searchTerm, sessionId]);
 
   const activeMessages = useMemo(() => {
       if (!activeChatId) return [];
+      
       const chat = messages.filter(m => 
-          (m.senderId === sessionId && m.receiverId === activeChatId) ||
-          (m.senderId === activeChatId && m.receiverId === sessionId)
+          (m.receiverId === activeChatId) || // Group Messages
+          (m.senderId === sessionId && m.receiverId === activeChatId) || // 1-on-1 Sent
+          (m.senderId === activeChatId && m.receiverId === sessionId) // 1-on-1 Received
       ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      // Mark as read when viewing
-      if (chat.some(m => m.receiverId === sessionId && !m.read)) {
+      // Mark as read logic (simplified)
+      if (chat.some(m => m.senderId !== sessionId && !m.read)) {
           const updatedAll = messages.map(m => 
-              (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true } : m
+             // Only mark 1-on-1 as read here to simplify group logic
+             (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true } : m
           );
-          // Defer save to avoid render loop
           setTimeout(() => {
              localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
              setMessages(updatedAll);
@@ -404,9 +439,8 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       return chat;
   }, [activeChatId, messages, sessionId]);
 
-  const activeContactProfile = contacts.find(c => c.id === activeChatId);
+  const activeContactProfile = displayList.find(c => c.id === activeChatId);
 
-  // Auto-scroll to bottom on new message in active chat
   useEffect(() => {
       scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages]);
@@ -423,14 +457,32 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         `}>
             {/* Header */}
             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2 mb-4">
-                    <MessageSquare className="w-5 h-5 text-emerald-600" /> Boz Chat
-                </h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-emerald-600" /> Boz Chat
+                    </h2>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setIsGroupModalOpen(true)}
+                            className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
+                            title="Create Group"
+                        >
+                            <Users className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setIsSettingsModalOpen(true)}
+                            className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                            title="Settings"
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input 
                         type="text" 
-                        placeholder="Search contacts..." 
+                        placeholder="Search..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -440,7 +492,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {enrichedContacts.map(contact => (
+                {displayList.map(contact => (
                     <div 
                         key={contact.id}
                         onClick={() => { setActiveChatId(contact.id); setShowChatOnMobile(true); setIsMinimizing(false); }}
@@ -450,19 +502,23 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                             <div className="flex items-center gap-3">
                                 <div className="relative">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ${
+                                        contact.type === 'Group' ? 'bg-orange-500' :
                                         contact.type === 'Admin' ? 'bg-slate-800' :
                                         contact.type === 'Franchise' ? 'bg-indigo-600' : 'bg-emerald-500'
                                     }`}>
+                                        {contact.type === 'Group' && <Users className="w-5 h-5" />}
                                         {contact.type === 'Admin' && <Shield className="w-5 h-5" />}
                                         {contact.type === 'Franchise' && <Building2 className="w-5 h-5" />}
                                         {contact.type === 'Employee' && <User className="w-5 h-5" />}
                                     </div>
-                                    {/* Online Indicator */}
-                                    <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${contact.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    {/* Online Indicator (Not for groups) */}
+                                    {contact.type !== 'Group' && (
+                                        <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${contact.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    )}
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-gray-900 text-sm">{contact.name}</h4>
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                                    <h4 className="font-bold text-gray-900 text-sm truncate max-w-[140px]">{contact.name}</h4>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${contact.type === 'Group' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
                                         {contact.role}
                                     </span>
                                 </div>
@@ -485,9 +541,9 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                         </div>
                     </div>
                 ))}
-                {enrichedContacts.length === 0 && (
+                {displayList.length === 0 && (
                     <div className="p-8 text-center text-gray-400 text-sm">
-                        No contacts found.
+                        No conversations found.
                     </div>
                 )}
             </div>
@@ -511,19 +567,29 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                             )}
                             <div className="relative">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                                    activeContactProfile.type === 'Group' ? 'bg-orange-500' :
                                     activeContactProfile.type === 'Admin' ? 'bg-slate-800' :
                                     activeContactProfile.type === 'Franchise' ? 'bg-indigo-600' : 'bg-emerald-500'
                                 }`}>
-                                    {activeContactProfile.name.charAt(0)}
+                                    {activeContactProfile.type === 'Group' ? <Users className="w-5 h-5"/> : activeContactProfile.name.charAt(0)}
                                 </div>
-                                <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${activeContactProfile.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                {activeContactProfile.type !== 'Group' && (
+                                    <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${activeContactProfile.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-bold text-gray-800 text-sm">{activeContactProfile.name}</h3>
-                                <p className="text-xs text-gray-500 flex items-center gap-1">
-                                    <Circle className={`w-2 h-2 fill-current ${activeContactProfile.online ? 'text-green-500' : 'text-gray-300'}`} /> 
-                                    {activeContactProfile.online ? 'Online' : 'Offline'}
-                                </p>
+                                {activeContactProfile.type !== 'Group' && (
+                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                        <Circle className={`w-2 h-2 fill-current ${activeContactProfile.online ? 'text-green-500' : 'text-gray-300'}`} /> 
+                                        {activeContactProfile.online ? 'Online' : 'Offline'}
+                                    </p>
+                                )}
+                                {activeContactProfile.type === 'Group' && (
+                                    <p className="text-xs text-gray-500">
+                                        {(groups.find(g => g.id === activeContactProfile.id)?.members.length || 0)} members
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2 text-gray-500">
@@ -549,6 +615,11 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         max-w-[75%] md:max-w-[60%] p-3 rounded-lg shadow-sm relative text-sm
                                         ${isMe ? 'bg-emerald-100 text-gray-800 rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none'}
                                     `}>
+                                        {/* Sender Name in Group Chat */}
+                                        {activeContactProfile.type === 'Group' && !isMe && msg.senderName && (
+                                            <p className="text-[10px] font-bold text-orange-600 mb-1">{msg.senderName}</p>
+                                        )}
+
                                         {/* Render Content Based on Type */}
                                         {msg.type === 'text' && (
                                             <p className="mb-1 leading-relaxed">{msg.content}</p>
@@ -617,6 +688,12 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         placeholder="Type a message..."
                                         value={inputText}
                                         onChange={(e) => setInputText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
+                                                e.preventDefault();
+                                                handleSendMessage(e);
+                                            }
+                                        }}
                                     />
                                     {/* Mic only shows if text is empty */}
                                     {!inputText && (
@@ -657,6 +734,103 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
             )}
         </div>
       </div>
+
+      {/* --- MODALS --- */}
+
+      {/* 1. Group Creation Modal */}
+      {isGroupModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200 flex flex-col max-h-[80vh]">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Users className="w-5 h-5 text-orange-500" /> Create New Group
+                      </h3>
+                      <button onClick={() => setIsGroupModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                  </div>
+                  <div className="p-6 flex-1 overflow-y-auto">
+                      <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+                          <input 
+                              type="text" 
+                              value={newGroupName} 
+                              onChange={(e) => setNewGroupName(e.target.value)}
+                              placeholder="e.g. Sales Team" 
+                              className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Select Members</label>
+                          <div className="space-y-2 border border-gray-100 rounded-lg p-2 max-h-60 overflow-y-auto bg-gray-50">
+                              {contacts.map(c => (
+                                  <div key={c.id} 
+                                      className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer ${selectedGroupMembers.includes(c.id) ? 'bg-blue-50 border border-blue-200' : 'hover:bg-white'}`}
+                                      onClick={() => toggleGroupMember(c.id)}
+                                  >
+                                      {selectedGroupMembers.includes(c.id) ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5 text-gray-400" />}
+                                      <div>
+                                          <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                                          <p className="text-xs text-gray-500">{c.role}</p>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+                  <div className="p-5 border-t border-gray-100 flex justify-end">
+                      <button 
+                          onClick={handleCreateGroup} 
+                          className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                      >
+                          Create Group
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* 2. Settings Modal */}
+      {isSettingsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Settings className="w-5 h-5 text-gray-600" /> Chat Settings
+                      </h3>
+                      <button onClick={() => setIsSettingsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Notifications</span>
+                          <button onClick={() => setChatSettings(s => ({...s, notifications: !s.notifications}))} className={`w-10 h-5 rounded-full relative transition-colors ${chatSettings.notifications ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                              <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${chatSettings.notifications ? 'left-6' : 'left-1'}`}></span>
+                          </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Enter to Send</span>
+                          <button onClick={() => setChatSettings(s => ({...s, enterToSend: !s.enterToSend}))} className={`w-10 h-5 rounded-full relative transition-colors ${chatSettings.enterToSend ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                              <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${chatSettings.enterToSend ? 'left-6' : 'left-1'}`}></span>
+                          </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Media Auto-Download</span>
+                          <button onClick={() => setChatSettings(s => ({...s, mediaAutoDownload: !s.mediaAutoDownload}))} className={`w-10 h-5 rounded-full relative transition-colors ${chatSettings.mediaAutoDownload ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                              <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${chatSettings.mediaAutoDownload ? 'left-6' : 'left-1'}`}></span>
+                          </button>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-gray-100">
+                          <button 
+                              onClick={handleClearHistory} 
+                              className="w-full flex items-center justify-center gap-2 text-red-600 bg-red-50 hover:bg-red-100 py-2 rounded-lg text-sm font-bold transition-colors"
+                          >
+                              <Trash2 className="w-4 h-4" /> Clear Chat History
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 };
