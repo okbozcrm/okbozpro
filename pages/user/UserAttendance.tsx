@@ -223,47 +223,71 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       
       setIsLocating(true);
 
+      const successHandler = (position: GeolocationPosition) => {
+          setCurrentLocation(position);
+          setLocationError(null);
+          setIsLocating(false);
+
+          // 1. Update Global Tracking if enabled
+          if (selectedEmployee?.liveTracking) {
+              updateGlobalLiveLocation(position);
+          }
+
+          // 2. Check Geofence
+          if (selectedEmployee && selectedEmployee.branch) {
+              const branch = branches.find(b => b.name === selectedEmployee.branch);
+              
+              if (branch) {
+                  const dist = calculateDistance(
+                      position.coords.latitude, 
+                      position.coords.longitude, 
+                      branch.lat, 
+                      branch.lng
+                  );
+                  setDistanceToBranch(dist);
+                  const radius = parseInt(branch.radius) || 100; // Default 100m
+                  setIsWithinGeofence(dist <= radius);
+              } else {
+                  setDistanceToBranch(null);
+                  setIsWithinGeofence(false); 
+              }
+          }
+      };
+
+      const errorHandler = (error: GeolocationPositionError) => {
+           // Fallback: If high accuracy fails (Code 2 or 3), try low accuracy
+           if (error.code === 2 || error.code === 3) {
+               console.warn("High accuracy geolocation failed. Retrying with low accuracy...");
+               navigator.geolocation.getCurrentPosition(
+                   successHandler,
+                   (secondError) => {
+                       setIsLocating(false);
+                       let msg = "Unable to retrieve location.";
+                       if (secondError.code === 1) msg = "Location permission denied. Please enable GPS.";
+                       else if (secondError.code === 2) msg = "Position unavailable. Ensure GPS/Wi-Fi is on.";
+                       else if (secondError.code === 3) msg = "Location request timed out.";
+                       setLocationError(msg);
+                       console.error("Geolocation Error (Fallback):", secondError.message, `(Code: ${secondError.code})`);
+                   },
+                   { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
+               );
+               return;
+           }
+
+          setIsLocating(false);
+          let msg = "Unable to retrieve location.";
+          if (error.code === 1) msg = "Location permission denied. Please enable GPS.";
+          else if (error.code === 2) msg = "Location unavailable.";
+          else if (error.code === 3) msg = "Location request timed out.";
+          setLocationError(msg);
+          console.error("Geolocation Error:", error.message, `(Code: ${error.code})`);
+      };
+
+      // Initial High Accuracy Attempt
       navigator.geolocation.getCurrentPosition(
-          (position) => {
-              setCurrentLocation(position);
-              setLocationError(null);
-              setIsLocating(false);
-
-              // 1. Update Global Tracking if enabled
-              if (selectedEmployee?.liveTracking) {
-                  updateGlobalLiveLocation(position);
-              }
-
-              // 2. Check Geofence
-              if (selectedEmployee && selectedEmployee.branch) {
-                  const branch = branches.find(b => b.name === selectedEmployee.branch);
-                  
-                  if (branch) {
-                      const dist = calculateDistance(
-                          position.coords.latitude, 
-                          position.coords.longitude, 
-                          branch.lat, 
-                          branch.lng
-                      );
-                      setDistanceToBranch(dist);
-                      const radius = parseInt(branch.radius) || 100; // Default 100m
-                      setIsWithinGeofence(dist <= radius);
-                  } else {
-                      setDistanceToBranch(null);
-                      setIsWithinGeofence(false); 
-                  }
-              }
-          },
-          (error) => {
-              setIsLocating(false);
-              let msg = "Unable to retrieve location.";
-              if (error.code === 1) msg = "Location permission denied. Please enable GPS.";
-              else if (error.code === 2) msg = "Location unavailable.";
-              else if (error.code === 3) msg = "Location request timed out.";
-              setLocationError(msg);
-              console.error("Geolocation Error:", error.message, `(Code: ${error.code})`);
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          successHandler,
+          errorHandler,
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
   };
 
