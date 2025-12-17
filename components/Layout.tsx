@@ -509,17 +509,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
              </div>
           )}
         </nav>
-
-        {/* User Profile Info */}
-        <div className="p-4 border-t border-gray-100 dark:border-gray-750 shrink-0">
-          <div className="flex items-center gap-3">
-            <UserCircle className="w-8 h-8 text-gray-400" />
-            <div>
-              <p className="text-sm font-semibold text-gray-800 dark:text-white">{userName}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{userSubtitle}</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Main Content Area */}
@@ -537,6 +526,18 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             <h1 className="text-lg font-semibold text-gray-800 dark:text-white">{sidebarLinks.find(link => currentPath.startsWith(link.path))?.label || 'Dashboard'}</h1>
           </div>
           <div className="flex items-center gap-2">
+            
+            {/* User Profile in Header */}
+            <div className="flex items-center gap-3 mr-1 pl-3 border-l border-gray-100 dark:border-gray-700 hidden sm:flex">
+                <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-white leading-tight">{userName}</p>
+                    <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{userSubtitle}</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300">
+                    <UserCircle className="w-5 h-5" />
+                </div>
+            </div>
+
             {/* Notification Button */}
             <div className="relative" ref={notificationRef}>
                 <button

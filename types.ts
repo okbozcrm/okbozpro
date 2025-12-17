@@ -39,6 +39,9 @@ export interface Employee {
   liveTracking?: boolean;
   allowRemotePunch?: boolean;
   
+  // Profile Management
+  profileEditCount?: number; // Tracks number of times employee edited profile
+
   // Personal Details
   gender?: string;
   bloodGroup?: string;
