@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   DollarSign, Save, RefreshCw, CheckCircle, X, Eye, CreditCard, 
   Banknote, Trash2, LayoutDashboard, TrendingUp, 
-  PieChart as PieChartIcon, ArrowUpRight, Wallet, TrendingDown, Settings, Search
+  PieChart as PieChartIcon, ArrowUpRight, Wallet, TrendingDown, Settings, Search, Printer, FileText, Download
 } from 'lucide-react';
 import { 
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis
@@ -258,12 +258,12 @@ const Payroll: React.FC = () => {
                           <ResponsiveContainer width="100%" height="100%">
                               <AreaChart data={dashboardStats.trendData}>
                                   <defs>
-                                      <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
+                                      <linearGradient id="colorAmt" x1="0" x2="0" y2="1">
                                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                                           <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                       </linearGradient>
                                   </defs>
-                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
                                   <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12}} />
                                   <Tooltip />
@@ -330,17 +330,25 @@ const Payroll: React.FC = () => {
                     </div>
                     <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" />
                 </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    <button onClick={handleAutoCalculate} disabled={isCalculating} className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
-                    <button onClick={() => {
-                        const entriesArray = Object.values(payrollData) as PayrollEntry[];
-                        const total = entriesArray.reduce((s: number, e: PayrollEntry) => s + calculateNetPay(e), 0);
-                        const [y, m] = selectedMonth.split('-');
-                        const date = new Date(parseInt(y), parseInt(m)-1, 1);
-                        const record = { id: `PAY-${Date.now()}`, name: `Payroll - ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, date: new Date().toISOString(), totalAmount: total, employeeCount: employees.length, data: payrollData };
-                        setHistory([record, ...history]);
-                        setActiveTab('History');
-                    }} className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg shadow-sm"><Save className="w-4 h-4" /> Save Batch</button>
+                <div className="flex items-center gap-6 w-full md:w-auto">
+                    {/* NEW: Total Payout Display matching image reference */}
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">TOTAL PAYOUT</span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">₹{dashboardStats.totalPayout.toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleAutoCalculate} disabled={isCalculating} className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
+                        <button onClick={() => {
+                            const entriesArray = Object.values(payrollData) as PayrollEntry[];
+                            const total = entriesArray.reduce((s: number, e: PayrollEntry) => s + calculateNetPay(e), 0);
+                            const [y, m] = selectedMonth.split('-');
+                            const date = new Date(parseInt(y), parseInt(m)-1, 1);
+                            const record: PayrollHistoryRecord = { id: `PAY-${Date.now()}`, name: `Payroll - ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, date: new Date().toISOString(), totalAmount: total, employeeCount: filteredEmployees.length, data: payrollData };
+                            setHistory([record, ...history]);
+                            setActiveTab('History');
+                        }} className="flex-1 sm:flex-none flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all transform active:scale-95"><Save className="w-4 h-4" /> Save</button>
+                    </div>
                 </div>
              </div>
         </div>
@@ -435,26 +443,120 @@ const Payroll: React.FC = () => {
                             <th className="px-6 py-4">Staff Count</th>
                             <th className="px-6 py-4 text-right">Total Amount</th>
                             <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {history.map(h => (
-                            <tr key={h.id}>
+                            <tr key={h.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4 font-bold text-gray-800">{h.name}</td>
                                 <td className="px-6 py-4 text-gray-600">{h.employeeCount} Members</td>
                                 <td className="px-6 py-4 text-right font-bold text-emerald-600">₹{h.totalAmount.toLocaleString()}</td>
                                 <td className="px-6 py-4 text-center"><span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Processed</span></td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <button 
+                                            onClick={() => setViewBatch(h)}
+                                            className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                                            title="View Detailed Ledger"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if(window.confirm('Delete this payroll archive?')) {
+                                                    const updated = history.filter(item => item.id !== h.id);
+                                                    setHistory(updated);
+                                                }
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                                            title="Delete Batch"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+            {history.length === 0 && (
+                <div className="p-12 text-center text-gray-400">
+                    <FileText className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                    <p>No payroll archives found.</p>
+                </div>
+            )}
         </div>
+      )}
+
+      {/* Detail Modal: Batch Ledger Breakdown */}
+      {viewBatch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+                  <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                      <div>
+                          <h3 className="text-xl font-bold text-gray-900">{viewBatch.name}</h3>
+                          <p className="text-sm text-gray-500">Full Ledger Breakdown • {viewBatch.employeeCount} Members</p>
+                      </div>
+                      <div className="flex gap-2">
+                          <button className="p-2 text-gray-400 hover:text-blue-600" title="Download CSV"><Download className="w-5 h-5"/></button>
+                          <button onClick={() => setViewBatch(null)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                      </div>
+                  </div>
+                  <div className="flex-1 overflow-auto">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                          <thead className="bg-gray-100 sticky top-0 font-bold text-gray-700 border-b">
+                              <tr>
+                                  <th className="px-6 py-4">Employee</th>
+                                  <th className="px-4 py-4 text-center">Days</th>
+                                  <th className="px-4 py-4">Basic + Allow.</th>
+                                  <th className="px-4 py-4">Bonus</th>
+                                  <th className="px-4 py-4 text-red-600">Deductions</th>
+                                  <th className="px-4 py-4 text-orange-600">Advances</th>
+                                  <th className="px-6 py-4 bg-gray-50 text-right">Net Payout</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                              {(Object.values(viewBatch.data) as PayrollEntry[]).map((entry) => {
+                                  const emp = employees.find(e => e.id === entry.employeeId);
+                                  return (
+                                      <tr key={entry.employeeId} className="hover:bg-gray-50">
+                                          <td className="px-6 py-4">
+                                              <div className="font-medium text-gray-900">{emp?.name || 'Unknown Employee'}</div>
+                                              <div className="text-xs text-gray-400">{emp?.role || entry.employeeId}</div>
+                                          </td>
+                                          <td className="px-4 py-4 text-center">{entry.payableDays}/{entry.totalDays}</td>
+                                          <td className="px-4 py-4">₹{(entry.basicSalary + entry.allowances).toLocaleString()}</td>
+                                          <td className="px-4 py-4 text-emerald-600 font-medium">+₹{entry.bonus.toLocaleString()}</td>
+                                          <td className="px-4 py-4 text-red-600 font-medium">-₹{entry.deductions.toLocaleString()}</td>
+                                          <td className="px-4 py-4 text-orange-600 font-medium">-₹{entry.advanceDeduction.toLocaleString()}</td>
+                                          <td className="px-6 py-4 bg-gray-50 text-right font-bold text-gray-900">₹{calculateNetPay(entry).toLocaleString()}</td>
+                                      </tr>
+                                  );
+                              })}
+                          </tbody>
+                          <tfoot className="bg-gray-50 font-bold sticky bottom-0 border-t-2 border-gray-200">
+                              <tr>
+                                  <td colSpan={6} className="px-6 py-4 text-right uppercase text-xs tracking-wider text-gray-500">Total Batch Payout</td>
+                                  <td className="px-6 py-4 text-right text-xl text-emerald-600">₹{viewBatch.totalAmount.toLocaleString()}</td>
+                              </tr>
+                          </tfoot>
+                      </table>
+                  </div>
+                  <div className="p-6 bg-gray-50 border-t rounded-b-2xl flex justify-end gap-3 no-print">
+                      <button onClick={() => window.print()} className="px-6 py-2 bg-slate-800 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-slate-900 transition-colors">
+                          <Printer className="w-4 h-4" /> Print Ledger
+                      </button>
+                      <button onClick={() => setViewBatch(null)} className="px-6 py-2 border border-gray-300 rounded-lg font-medium bg-white hover:bg-gray-50">Close</button>
+                  </div>
+              </div>
+          </div>
       )}
 
       {selectedAdvance && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
                   <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl"><h3 className="font-bold">Process Advance</h3><button onClick={() => setSelectedAdvance(null)}><X className="w-5 h-5"/></button></div>
                   <div className="p-6 space-y-4">
                       <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">Requested: ₹{selectedAdvance.amountRequested}</div>
