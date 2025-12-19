@@ -198,7 +198,7 @@ const StaffList: React.FC = () => {
         localStorage.setItem(key, JSON.stringify(employees));
     } else {
         // For Super Admin, we only save 'Head Office' staff back to 'staff_data' to avoid overwriting franchise data with the whole list
-        const headOfficeStaff = employees.filter(e => e.franchiseName === 'Head Office');
+        const headOfficeStaff = employees.filter(e => e.franchiseId === 'admin');
         // Strip metadata before saving to keep data clean
         const cleanStaff = headOfficeStaff.map(({franchiseName, franchiseId, ...rest}) => rest);
         localStorage.setItem('staff_data', JSON.stringify(cleanStaff));
@@ -218,7 +218,7 @@ const StaffList: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    password: '', 
+    password: 'user123', 
     phone: '',
     department: '',
     role: '', 
@@ -226,7 +226,7 @@ const StaffList: React.FC = () => {
     paymentCycle: 'Monthly',
     salary: '',
     joiningDate: new Date().toISOString().split('T')[0],
-    status: 'Onboarding',
+    status: 'Active',
     workingHours: '', 
     weekOff: 'Sunday',
     aadhar: '',
@@ -246,12 +246,12 @@ const StaffList: React.FC = () => {
     emergencyContactPhone: '',
     emergencyContactRelation: '',
 
-    // Attendance Config
-    gpsGeofencing: true,
+    // Attendance Config - Default to Web Punch Anywhere
+    gpsGeofencing: false,
     qrScan: false,
     manualPunch: true,
-    manualPunchMode: 'Branch' as 'Branch' | 'Anywhere', // Default to Branch restricted
-    punchMethod: 'Manual' as 'Manual' | 'QR' | 'Disabled', // New state for radio group logic
+    manualPunchMode: 'Anywhere' as 'Branch' | 'Anywhere', 
+    punchMethod: 'Anywhere' as 'Branch' | 'Anywhere' | 'QR',
     
     // Module Access
     moduleAccess: [] as string[]
@@ -261,29 +261,14 @@ const StaffList: React.FC = () => {
 
   // Sync punchMethod with underlying flags
   useEffect(() => {
-    if (formData.punchMethod === 'Manual') {
-        setFormData(prev => ({ ...prev, manualPunch: true, qrScan: false }));
+    if (formData.punchMethod === 'Branch') {
+        setFormData(prev => ({ ...prev, manualPunch: true, manualPunchMode: 'Branch', gpsGeofencing: true, qrScan: false }));
+    } else if (formData.punchMethod === 'Anywhere') {
+        setFormData(prev => ({ ...prev, manualPunch: true, manualPunchMode: 'Anywhere', gpsGeofencing: false, qrScan: false }));
     } else if (formData.punchMethod === 'QR') {
         setFormData(prev => ({ ...prev, manualPunch: false, qrScan: true }));
-    } else {
-        setFormData(prev => ({ ...prev, manualPunch: false, qrScan: false }));
     }
   }, [formData.punchMethod]);
-
-  // Auto-enable Live Tracking for Marketing/Sales
-  useEffect(() => {
-      const dept = formData.department.toLowerCase();
-      if (dept.includes('marketing') || dept.includes('sales')) {
-          setFormData(prev => ({...prev, liveTracking: true}));
-      }
-  }, [formData.department]);
-
-  // Auto-enable Live Tracking for 'Work from Anywhere' mode
-  useEffect(() => {
-      if (formData.manualPunchMode === 'Anywhere' && formData.punchMethod === 'Manual') {
-          setFormData(prev => ({...prev, liveTracking: true}));
-      }
-  }, [formData.manualPunchMode, formData.punchMethod]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -376,12 +361,12 @@ const StaffList: React.FC = () => {
                   franchiseId: isSuperAdmin ? 'admin' : undefined,
                   liveTracking: false,
                   attendanceConfig: {
-                      gpsGeofencing: true,
+                      gpsGeofencing: false,
                       qrScan: false,
                       manualPunch: true,
-                      manualPunchMode: 'Branch'
+                      manualPunchMode: 'Anywhere'
                   },
-                  moduleAccess: [] // Default no special access
+                  moduleAccess: [] 
               });
           }
       }
@@ -419,9 +404,11 @@ const StaffList: React.FC = () => {
     const lastName = nameParts.slice(1).join(' ');
 
     // Determine Punch Method state based on config
-    let method: 'Manual' | 'QR' | 'Disabled' = 'Disabled';
+    let method: 'Branch' | 'Anywhere' | 'QR' = 'Anywhere';
     if (employee.attendanceConfig?.qrScan) method = 'QR';
-    else if (employee.attendanceConfig?.manualPunch) method = 'Manual';
+    else if (employee.attendanceConfig?.manualPunch) {
+        method = employee.attendanceConfig.manualPunchMode === 'Branch' ? 'Branch' : 'Anywhere';
+    }
 
     setFormData({
       firstName: firstName || '',
@@ -450,11 +437,11 @@ const StaffList: React.FC = () => {
       emergencyContactName: employee.emergencyContactName || '',
       emergencyContactPhone: employee.emergencyContactPhone || '',
       emergencyContactRelation: employee.emergencyContactRelation || '',
-      gpsGeofencing: employee.attendanceConfig?.gpsGeofencing ?? !employee.allowRemotePunch ?? true,
+      gpsGeofencing: employee.attendanceConfig?.gpsGeofencing ?? false,
       qrScan: employee.attendanceConfig?.qrScan ?? false,
       manualPunch: employee.attendanceConfig?.manualPunch ?? true, 
-      manualPunchMode: employee.attendanceConfig?.manualPunchMode || 'Branch',
-      punchMethod: method, // Set the radio group state
+      manualPunchMode: employee.attendanceConfig?.manualPunchMode || 'Anywhere',
+      punchMethod: method, 
       moduleAccess: employee.moduleAccess || []
     });
     setEditingId(employee.id);
@@ -473,25 +460,12 @@ const StaffList: React.FC = () => {
     e.preventDefault();
     if (!formData.firstName || !formData.role) return;
 
-    // Logic: If Mode is 'Anywhere', we usually disable geofencing strictness.
-    // If Mode is 'Branch', we enable geofencing.
-    const isBranchMode = formData.manualPunchMode === 'Branch';
-    
-    // Final logic based on the radio selection
-    let finalManualPunch = false;
-    let finalQrScan = false;
-    
-    if (formData.punchMethod === 'Manual') {
-        finalManualPunch = true;
-    } else if (formData.punchMethod === 'QR') {
-        finalQrScan = true;
-    }
-
+    // Fix: Explicitly cast manualPunchMode to match type '"Branch" | "Anywhere" | undefined'
     const attendanceConfig = {
-        gpsGeofencing: isBranchMode && finalManualPunch, // Enforce geofencing if in Branch mode and Manual
-        qrScan: finalQrScan,
-        manualPunch: finalManualPunch,
-        manualPunchMode: formData.manualPunchMode
+        gpsGeofencing: formData.punchMethod === 'Branch',
+        qrScan: formData.punchMethod === 'QR',
+        manualPunch: formData.punchMethod === 'Branch' || formData.punchMethod === 'Anywhere',
+        manualPunchMode: (formData.punchMethod === 'Branch' ? 'Branch' : 'Anywhere') as 'Branch' | 'Anywhere'
     };
 
     if (editingId) {
@@ -518,7 +492,7 @@ const StaffList: React.FC = () => {
             accountNumber: formData.accountNumber,
             ifsc: formData.ifsc,
             liveTracking: formData.liveTracking,
-            allowRemotePunch: formData.manualPunchMode === 'Anywhere', // Allow remote if Anywhere mode
+            allowRemotePunch: formData.punchMethod === 'Anywhere', 
             gender: formData.gender,
             bloodGroup: formData.bloodGroup,
             maritalStatus: formData.maritalStatus,
@@ -527,7 +501,7 @@ const StaffList: React.FC = () => {
             emergencyContactPhone: formData.emergencyContactPhone,
             emergencyContactRelation: formData.emergencyContactRelation,
             attendanceConfig: attendanceConfig,
-            moduleAccess: formData.moduleAccess // Save module permissions
+            moduleAccess: formData.moduleAccess 
           };
         }
         return emp;
@@ -557,7 +531,7 @@ const StaffList: React.FC = () => {
         franchiseName: isSuperAdmin ? 'Head Office' : undefined, 
         franchiseId: isSuperAdmin ? 'admin' : undefined,
         liveTracking: formData.liveTracking,
-        allowRemotePunch: formData.manualPunchMode === 'Anywhere',
+        allowRemotePunch: formData.punchMethod === 'Anywhere',
         gender: formData.gender,
         bloodGroup: formData.bloodGroup,
         maritalStatus: formData.maritalStatus,
@@ -566,7 +540,7 @@ const StaffList: React.FC = () => {
         emergencyContactPhone: formData.emergencyContactPhone,
         emergencyContactRelation: formData.emergencyContactRelation,
         attendanceConfig: attendanceConfig,
-        moduleAccess: formData.moduleAccess // Save module permissions
+        moduleAccess: formData.moduleAccess 
       };
       setEmployees(prev => [...prev, newEmployee]);
     }
@@ -620,7 +594,7 @@ const StaffList: React.FC = () => {
                 resetForm();
                 setIsModalOpen(true);
               }}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
             >
               <Plus className="w-5 h-5" />
               Add Staff
@@ -707,8 +681,8 @@ const StaffList: React.FC = () => {
                             <Navigation className="w-3 h-3" />
                         </div>
                     )}
-                    {employee.allowRemotePunch && (
-                        <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-1 border-2 border-white shadow-sm" title="Remote Punch Allowed">
+                    {employee.attendanceConfig?.manualPunchMode === 'Anywhere' && (
+                        <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-1 border-2 border-white shadow-sm" title="Web Punch Anywhere Enabled">
                             <Globe className="w-3 h-3" />
                         </div>
                     )}
@@ -796,7 +770,7 @@ const StaffList: React.FC = () => {
 
       {/* Add/Edit Staff Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={resetForm}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative z-10 animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
@@ -1203,7 +1177,7 @@ const StaffList: React.FC = () => {
                                 />
                                 <div>
                                     <span className="block text-sm font-medium text-gray-700">Enable Live Tracking</span>
-                                    <span className="block text-xs text-gray-500">Track location during shift hours (Mandatory for Marketing/Sales)</span>
+                                    <span className="block text-xs text-gray-500">Track location during shift hours (Recommended for field staff)</span>
                                 </div>
                             </label>
 
@@ -1214,73 +1188,53 @@ const StaffList: React.FC = () => {
                                 <div className="space-y-4">
                                     {/* Web Punch Method - Radio Group */}
                                     <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                        <p className="text-sm font-medium text-gray-700 mb-2">Web Punch Method</p>
+                                        <p className="text-sm font-medium text-gray-700 mb-2">Punch In Method</p>
                                         <div className="space-y-3">
                                             <label className="flex items-start gap-2 cursor-pointer">
                                                 <input 
                                                     type="radio"
                                                     name="punchMethod"
-                                                    value="Manual"
-                                                    checked={formData.punchMethod === 'Manual'}
-                                                    onChange={() => setFormData(prev => ({...prev, punchMethod: 'Manual'}))}
+                                                    value="Anywhere"
+                                                    checked={formData.punchMethod === 'Anywhere'}
+                                                    onChange={() => setFormData(prev => ({...prev, punchMethod: 'Anywhere'}))}
                                                     className="w-4 h-4 text-emerald-600 mt-0.5"
                                                 />
                                                 <div className="text-sm">
-                                                    <span className="font-medium text-gray-800">Manual Button (Click to Punch)</span>
-                                                    {formData.punchMethod === 'Manual' && (
-                                                        <div className="mt-2 ml-1 pl-3 border-l-2 border-gray-200 space-y-2">
-                                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Location Restriction:</p>
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input 
-                                                                    type="radio"
-                                                                    name="manualPunchMode"
-                                                                    value="Branch"
-                                                                    checked={formData.manualPunchMode === 'Branch'}
-                                                                    onChange={() => setFormData(prev => ({...prev, manualPunchMode: 'Branch'}))}
-                                                                    className="w-3 h-3 text-blue-600"
-                                                                />
-                                                                <span className="text-xs text-gray-600">Restrict to Branch (GPS Geofencing)</span>
-                                                            </label>
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input 
-                                                                    type="radio"
-                                                                    name="manualPunchMode"
-                                                                    value="Anywhere"
-                                                                    checked={formData.manualPunchMode === 'Anywhere'}
-                                                                    onChange={() => setFormData(prev => ({...prev, manualPunchMode: 'Anywhere'}))}
-                                                                    className="w-3 h-3 text-blue-600"
-                                                                />
-                                                                <span className="text-xs text-gray-600">Allow Work From Anywhere</span>
-                                                            </label>
-                                                        </div>
-                                                    )}
+                                                    <span className="font-medium text-gray-800">Web Punch anywhere</span>
+                                                    <span className="block text-xs text-gray-500">Employee can mark attendance from any location.</span>
                                                 </div>
                                             </label>
 
-                                            <label className="flex items-center gap-2 cursor-pointer">
+                                            <label className="flex items-start gap-2 cursor-pointer">
+                                                <input 
+                                                    type="radio"
+                                                    name="punchMethod"
+                                                    value="Branch"
+                                                    checked={formData.punchMethod === 'Branch'}
+                                                    onChange={() => setFormData(prev => ({...prev, punchMethod: 'Branch'}))}
+                                                    className="w-4 h-4 text-emerald-600 mt-0.5"
+                                                />
+                                                <div className="text-sm">
+                                                    <span className="font-medium text-gray-800">Web Punch (Restricted to Branch)</span>
+                                                    <span className="block text-xs text-gray-500">GPS geofencing will restrict punching to branch radius.</span>
+                                                </div>
+                                            </label>
+
+                                            <label className="flex items-start gap-2 cursor-pointer">
                                                 <input 
                                                     type="radio"
                                                     name="punchMethod"
                                                     value="QR"
                                                     checked={formData.punchMethod === 'QR'}
                                                     onChange={() => setFormData(prev => ({...prev, punchMethod: 'QR'}))}
-                                                    className="w-4 h-4 text-emerald-600"
+                                                    className="w-4 h-4 text-emerald-600 mt-0.5"
                                                 />
-                                                <span className="text-sm font-medium text-gray-800 flex items-center gap-1">
-                                                    Require QR Scan <span className="text-xs font-normal text-gray-500">(Scan Branch Code)</span>
-                                                </span>
-                                            </label>
-
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input 
-                                                    type="radio"
-                                                    name="punchMethod"
-                                                    value="Disabled"
-                                                    checked={formData.punchMethod === 'Disabled'}
-                                                    onChange={() => setFormData(prev => ({...prev, punchMethod: 'Disabled'}))}
-                                                    className="w-4 h-4 text-gray-400"
-                                                />
-                                                <span className="text-sm text-gray-600">Disabled (No Web Punch)</span>
+                                                <div className="text-sm">
+                                                    <span className="font-medium text-gray-800 flex items-center gap-1">
+                                                        Require QR Scan <span className="text-xs font-normal text-gray-500">(Scan Branch Code)</span>
+                                                    </span>
+                                                    <span className="block text-xs text-gray-500">Employee must scan the branch QR code to punch in.</span>
+                                                </div>
                                             </label>
                                         </div>
                                     </div>
