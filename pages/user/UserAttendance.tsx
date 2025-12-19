@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, CheckCircle, XCircle, 
   Clock, X, Activity, Plane, Save, ChevronDown, 
-  CalendarDays, Users, DollarSign, Search
+  CalendarDays, Users, DollarSign, Search, MapPin, Download, ExternalLink, Map as MapIcon
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, DailyAttendance, Employee, CorporateAccount } from '../../types';
@@ -159,6 +159,25 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     }
   };
 
+  const handleExportCSV = () => {
+    if (!attendanceData.length) return;
+    const headers = ["Date", "Punch In", "Punch Out", "Status", "Location"];
+    const rows = attendanceData.map(d => [
+      d.date, 
+      d.checkIn || 'N/A', 
+      d.checkOut || 'N/A', 
+      d.status, 
+      selectedEmployee?.attendanceConfig?.manualPunchMode || 'REMOTE'
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `attendance_history_${selectedEmployee?.name || 'staff'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 p-4 md:p-6 pb-20">
       {/* HEADER SECTION */}
@@ -173,7 +192,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             </div>
         </div>
 
-        {/* NEW FILTER BAR MATCHING IMAGE */}
+        {/* FILTER BAR */}
         <div className="bg-white p-2 rounded-[1.25rem] border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 w-full md:w-auto">
             {isSuperAdmin && (
                 <div className="relative">
@@ -266,49 +285,87 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl overflow-hidden min-h-[500px]">
         {viewMode === 'Monthly' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <Users className="w-5 h-5 text-emerald-600" />
-                        <select 
-                            value={selectedEmployee?.id || ''} 
-                            onChange={(e) => setSelectedEmployee(allEmployees.find(emp => emp.id === e.target.value) || null)}
-                            className="bg-transparent border-none text-sm font-black text-gray-800 focus:ring-0 cursor-pointer"
-                        >
-                            {filteredStaffList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="flex items-center gap-4 bg-white p-1.5 rounded-xl border border-gray-200">
-                        <button onClick={() => setSelectedMonth(new Date(selectedMonth.setMonth(selectedMonth.getMonth() - 1)))} className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-emerald-600"><ChevronLeft className="w-5 h-5" /></button>
-                        <span className="text-xs font-black text-gray-800 uppercase tracking-widest min-w-[120px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                        <button onClick={() => setSelectedMonth(new Date(selectedMonth.setMonth(selectedMonth.getMonth() + 1)))} className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-emerald-600"><ChevronRight className="w-5 h-5" /></button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/10">
-                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-                        <div key={day} className={`py-4 text-center text-[10px] font-black tracking-widest ${day === 'SUN' ? 'text-rose-500' : 'text-gray-400'}`}>
-                            {day}
+                {/* Monthly List Header Matching Image */}
+                <div className="p-8 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 border border-blue-100">
+                            <MapIcon className="w-6 h-6" />
                         </div>
-                    ))}
+                        <div>
+                            <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Monthly Location History</h3>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1">Geotagged Punch Records</p>
+                        </div>
+                        {isAdmin && (
+                            <select 
+                                value={selectedEmployee?.id || ''} 
+                                onChange={(e) => setSelectedEmployee(allEmployees.find(emp => emp.id === e.target.value) || null)}
+                                className="ml-4 bg-gray-50 border border-gray-200 text-xs font-black text-gray-800 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20"
+                            >
+                                {filteredStaffList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                        )}
+                    </div>
+                    <button 
+                        onClick={handleExportCSV}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                    >
+                        <Download className="w-4 h-4" /> Export CSV
+                    </button>
                 </div>
-                <div className="grid grid-cols-7">
-                    {[...Array(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay()).fill(null), ...attendanceData].map((day, idx) => {
-                        if (!day) return <div key={idx} className="bg-gray-50/20 min-h-[140px] border-b border-r border-gray-100 last:border-r-0"></div>;
-                        const style = getStatusStyle(day.status);
-                        return (
-                            <div key={idx} className={`relative p-5 min-h-[140px] flex flex-col justify-between transition-all bg-white border-b border-r border-gray-100 last:border-r-0 hover:bg-gray-50/50 ${style.bg}`}>
-                                <div className="flex justify-between items-start">
-                                    <span className={`text-xl font-black text-gray-900`}>{new Date(day.date).getDate()}</span>
-                                    {day.status !== AttendanceStatus.NOT_MARKED && <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${style.badge} ${style.text}`}>{day.status.replace('_', ' ')}</span>}
-                                </div>
-                                {day.checkIn && (
-                                    <div className="mt-4 space-y-1 text-[10px] font-bold">
-                                        <div className="text-emerald-600 flex items-center gap-1"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> {day.checkIn}</div>
-                                        <div className="text-rose-400 flex items-center gap-1"><div className="w-1.5 h-1.5 bg-rose-400 rounded-full" /> {day.checkOut || '--:--'}</div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+
+                {/* Monthly Location History Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-white text-gray-400 font-black text-[10px] uppercase tracking-[0.3em] border-b border-gray-50">
+                            <tr>
+                                <th className="px-10 py-10">Date</th>
+                                <th className="px-8 py-10">Punch In</th>
+                                <th className="px-8 py-10 text-center">In Location</th>
+                                <th className="px-8 py-10">Punch Out</th>
+                                <th className="px-10 py-10 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50/50">
+                            {attendanceData.filter(d => d.status !== AttendanceStatus.NOT_MARKED).map((day, idx) => (
+                                <tr key={idx} className={`${idx % 2 === 1 ? 'bg-gray-50/30' : 'bg-white'} hover:bg-gray-100/50 transition-colors`}>
+                                    <td className="px-10 py-10 font-bold text-gray-500">{day.date}</td>
+                                    <td className="px-8 py-10">
+                                        <div className="text-xl font-black text-emerald-600 flex items-center gap-2">
+                                            {day.checkIn || '--:--'}
+                                            <span className="text-[10px] text-emerald-400 opacity-60">AM</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-10 text-center">
+                                        <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-blue-100 bg-blue-50/50 text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                                            <MapPin className="w-3 h-3" />
+                                            {selectedEmployee?.attendanceConfig?.manualPunchMode || 'REMOTE'}
+                                        </span>
+                                    </td>
+                                    <td className="px-8 py-10">
+                                        <div className="text-xl font-black text-rose-500 flex items-center gap-2">
+                                            {day.checkOut || '--:--'}
+                                            <span className="text-[10px] text-rose-300 opacity-60">PM</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-10 py-10 text-right">
+                                        <button className="px-6 py-2.5 rounded-2xl border border-blue-200 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-50 transition-all">
+                                            View on Map
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {attendanceData.filter(d => d.status !== AttendanceStatus.NOT_MARKED).length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="py-32 text-center text-gray-400">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <MapPin className="w-12 h-12 opacity-10" />
+                                            <p className="font-black text-xs uppercase tracking-widest opacity-40">No Geotagged Records Found</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         )}
