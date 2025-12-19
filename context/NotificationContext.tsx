@@ -33,12 +33,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     parseInt(localStorage.getItem(LAST_PLAYED_COUNT_KEY) || '0', 10)
   );
 
-  // Play alarm sound if new notifications appear
   const playAlarmSound = useCallback(() => {
     try {
-      // Create a new Audio object to ensure it plays even if one is already playing/paused
       const audio = new Audio(NOTIFICATION_SOUND_URL);
-      audio.volume = 0.5; // Set volume to 50%
+      audio.volume = 0.5;
       const playPromise = audio.play();
       
       if (playPromise !== undefined) {
@@ -51,24 +49,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
   }, []);
 
-  // Effect to manage sound playing and last played count
   useEffect(() => {
     if (unreadCount > lastPlayedCountRef.current) {
       playAlarmSound();
-      // Update ref and local storage after playing sound for new notifications
       lastPlayedCountRef.current = unreadCount;
       localStorage.setItem(LAST_PLAYED_COUNT_KEY, unreadCount.toString());
     } else if (unreadCount < lastPlayedCountRef.current) {
-      // If notifications were read or cleared, reset lastPlayedCountRef
       lastPlayedCountRef.current = unreadCount;
       localStorage.setItem(LAST_PLAYED_COUNT_KEY, unreadCount.toString());
     }
   }, [unreadCount, playAlarmSound]);
 
-
-  // Polling mechanism to fetch notifications
   useEffect(() => {
-    let timeoutId: number; // Changed NodeJS.Timeout to number
+    let timeoutId: number;
 
     const pollNotifications = async () => {
       try {
@@ -80,18 +73,17 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
           );
           const updatedExisting = prevNotifications.map(pn => {
             const fetched = fetchedNotifications.find(fn => fn.id === pn.id);
-            return fetched ? { ...pn, read: fetched.read } : pn; // Update read status
+            return fetched ? { ...pn, read: fetched.read } : pn;
           });
 
           const mergedNotifications = [
-            ...newNotifications.map(n => ({ ...n, read: false, timestamp: n.timestamp || new Date().toISOString() })), // New notifications start unread, ensure timestamp
-            ...updatedExisting.filter(pn => fetchedNotifications.some(fn => fn.id === pn.id)), // Keep updated existing
-            ...prevNotifications.filter(pn => !fetchedNotifications.some(fn => fn.id === pn.id)) // Keep local-only if not in fetched
+            ...newNotifications.map(n => ({ ...n, read: false, timestamp: n.timestamp || new Date().toISOString() })),
+            ...updatedExisting.filter(pn => fetchedNotifications.some(fn => fn.id === pn.id)),
+            ...prevNotifications.filter(pn => !fetchedNotifications.some(fn => fn.id === pn.id))
           ];
           
-          // Filter out duplicates and sort by timestamp
           const uniqueAndSorted = Array.from(new Map(mergedNotifications.map(n => [n.id, n])).values())
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(a.timestamp).getTime());
 
           return uniqueAndSorted;
         });
@@ -99,19 +91,17 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       } catch (error) {
         console.error("Error polling notifications:", error);
       } finally {
-        timeoutId = setTimeout(pollNotifications, 10000); // Poll every 10 seconds
+        timeoutId = window.setTimeout(pollNotifications, 10000);
       }
     };
 
-    pollNotifications(); // Initial fetch
-    return () => clearTimeout(timeoutId); // Cleanup on unmount
+    pollNotifications();
+    return () => clearTimeout(timeoutId);
   }, []);
 
-  // Persist notifications to local storage whenever they change
   useEffect(() => {
     localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
   }, [notifications]);
-
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
@@ -137,7 +127,6 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       }}
     >
       {children}
-      {/* Hidden audio element for notification sound (optional fallback) */}
       <audio ref={audioRef} src={NOTIFICATION_SOUND_URL} preload="auto" />
     </NotificationContext.Provider>
   );
