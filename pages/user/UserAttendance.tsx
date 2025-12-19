@@ -46,20 +46,26 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         let staffList: any[] = [];
 
         if (isSuperAdmin) {
+            // Admin Data (Head Office)
             const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
             branchesList = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
+            
             const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
             staffList = [...adminStaff.map((s: any) => ({...s, corporateId: 'admin'}))];
 
+            // Add all Corporate Data for Super Admin visibility
             corps.forEach((c: any) => {
                 const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
                 branchesList = [...branchesList, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
+                
                 const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
                 staffList = [...staffList, ...cStaff.map((s: any) => ({...s, corporateId: c.email}))];
             });
         } else {
+            // Franchise User: Only load their own scoped data
             const myBranches = JSON.parse(localStorage.getItem(`branches_data_${currentSessionId}`) || '[]');
             branchesList = myBranches.map((b: any) => ({...b, corporateId: currentSessionId}));
+
             const myStaff = JSON.parse(localStorage.getItem(`staff_data_${currentSessionId}`) || '[]');
             staffList = myStaff.map((s: any) => ({...s, corporateId: currentSessionId}));
         }
@@ -67,6 +73,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         setBranches(branchesList);
         setAllEmployees(staffList);
 
+        // Initial selection for single employee view
         if (!isAdmin) {
             const found = staffList.find(s => s.id === currentSessionId);
             setSelectedEmployee(found || staffList[0] || MOCK_EMPLOYEES[0]);
@@ -75,11 +82,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     loadData();
   }, [isAdmin, currentSessionId, isSuperAdmin]);
 
+  // Derive branches based on corporate filter
   const availableBranches = useMemo(() => {
       if (filterCorporate === 'All') return branches;
       return branches.filter(b => b.corporateId === filterCorporate);
   }, [branches, filterCorporate]);
 
+  // Derived staff list based on Corporate and Branch filters
   const filteredStaffList = useMemo(() => {
       return allEmployees.filter(s => {
           const matchCorp = filterCorporate === 'All' || s.corporateId === filterCorporate;
@@ -88,16 +97,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       });
   }, [allEmployees, filterCorporate, filterBranch]);
 
-  // Handle default selection when filters change
+  // Sync selected employee when filters change
   useEffect(() => {
       if (isAdmin && filteredStaffList.length > 0) {
-          if (viewMode === 'Calendar' && (!selectedEmployee || !filteredStaffList.find(s => s.id === selectedEmployee.id))) {
-              setSelectedEmployee(filteredStaffList[0]);
+          if (!selectedEmployee || !filteredStaffList.find(s => s.id === selectedEmployee.id)) {
+              if (viewMode === 'Calendar') {
+                  setSelectedEmployee(filteredStaffList[0]);
+              }
           }
       }
-  }, [filteredStaffList, isAdmin, viewMode, selectedEmployee]);
+  }, [filteredStaffList, isAdmin, selectedEmployee, viewMode]);
 
-  // Load individual data for Calendar view
+  // Load attendance records for the selected employee
   useEffect(() => {
       if (!selectedEmployee) return;
       const year = selectedMonth.getFullYear();
@@ -107,12 +118,17 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       setAttendanceData(saved ? JSON.parse(saved) : getEmployeeAttendance(selectedEmployee, year, month));
   }, [selectedEmployee, selectedMonth]);
 
-  // Process data for the selected date (Daily Report & Dashboard Stats)
+  // Daily Report Data Logic
   const dailyReportData = useMemo(() => {
       const year = new Date(selectedDate).getFullYear();
       const month = new Date(selectedDate).getMonth();
       
-      return filteredStaffList.map(emp => {
+      // Filter list further if a specific employee is selected in Report mode
+      const listToMap = (viewMode === 'Report' && selectedEmployee) 
+        ? [selectedEmployee] 
+        : filteredStaffList;
+
+      return listToMap.map(emp => {
           const key = `attendance_data_${emp.id}_${year}_${month}`;
           const saved = localStorage.getItem(key);
           const monthData: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
@@ -120,20 +136,23 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
           
           return {
               employee: emp,
-              record: dayRecord || { date: selectedDate, status: AttendanceStatus.NOT_MARKED, isLate: false }
+              record: dayRecord || { date: selectedDate, status: AttendanceStatus.NOT_MARKED }
           };
       });
-  }, [filteredStaffList, selectedDate]);
+  }, [filteredStaffList, selectedDate, selectedEmployee, viewMode]);
 
-  // Enhanced Dashboard Stats for current selection
-  const dashboardStats = useMemo(() => ({
-    total: dailyReportData.length,
-    present: dailyReportData.filter(d => d.record.status === AttendanceStatus.PRESENT).length,
-    absent: dailyReportData.filter(d => d.record.status === AttendanceStatus.ABSENT).length,
-    late: dailyReportData.filter(d => d.record.isLate).length,
-    halfDay: dailyReportData.filter(d => d.record.status === AttendanceStatus.HALF_DAY).length,
-    leave: dailyReportData.filter(d => d.record.status === AttendanceStatus.PAID_LEAVE).length,
+  const dailyStats = useMemo(() => ({
+      total: dailyReportData.length,
+      present: dailyReportData.filter(d => d.record.status === AttendanceStatus.PRESENT).length
   }), [dailyReportData]);
+
+  const stats = useMemo(() => ({
+    present: attendanceData.filter(d => d.status === AttendanceStatus.PRESENT).length,
+    absent: attendanceData.filter(d => d.status === AttendanceStatus.ABSENT).length,
+    late: attendanceData.filter(d => d.isLate).length,
+    halfDay: attendanceData.filter(d => d.status === AttendanceStatus.HALF_DAY).length,
+    leave: attendanceData.filter(d => d.status === AttendanceStatus.PAID_LEAVE).length,
+  }), [attendanceData]);
 
   const handleSaveEdit = () => {
     if (!editingDay) return;
@@ -198,6 +217,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     </div>
                 )}
                 
+                {/* Branch Selector */}
                 <div className="relative">
                     <select 
                         value={filterBranch} 
@@ -210,6 +230,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
 
+                {/* STAFF SELECTOR - NOW NEXT TO BRANCHES */}
                 <div className="relative">
                     <select 
                         value={selectedEmployee?.id || ''} 
@@ -246,14 +267,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       </div>
 
       {/* DASHBOARD STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
           {[
-              { label: 'TOTAL STAFF', count: dashboardStats.total, color: 'slate', icon: Users },
-              { label: 'PRESENT', count: dashboardStats.present, color: 'emerald', icon: CheckCircle },
-              { label: 'ABSENT', count: dashboardStats.absent, color: 'rose', icon: XCircle },
-              { label: 'LATE', count: dashboardStats.late, color: 'amber', icon: Clock },
-              { label: 'HALF DAY', count: dashboardStats.halfDay, color: 'orange', icon: Activity },
-              { label: 'LEAVE', count: dashboardStats.leave, color: 'blue', icon: Plane }
+              { label: 'PRESENT', count: stats.present, color: 'emerald', icon: CheckCircle },
+              { label: 'ABSENT', count: stats.absent, color: 'rose', icon: XCircle },
+              { label: 'LATE', count: stats.late, color: 'amber', icon: Clock },
+              { label: 'HALF DAY', count: stats.halfDay, color: 'orange', icon: Activity },
+              { label: 'LEAVE', count: stats.leave, color: 'blue', icon: Plane }
           ].map((item, idx) => (
               <div key={idx} className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] border border-gray-50 flex flex-col items-center justify-center text-center transition-all hover:scale-105 group">
                   <div className={`p-3 rounded-2xl bg-${item.color}-50 text-${item.color}-600 mb-4 group-hover:scale-110 transition-transform`}>
@@ -352,7 +372,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                     <td className="px-6 py-4 font-black font-mono text-emerald-600 text-sm">{row.record.checkIn || '-'}</td>
                                     <td className="px-6 py-4 font-black text-gray-600 text-xs">{row.record.checkIn ? (row.employee.branch || 'Remote') : '-'}</td>
                                     <td className="px-6 py-4 font-black font-mono text-rose-500 text-sm">{row.record.checkOut || '-'}</td>
-                                    <td className="px-6 py-4 text-right">
+                                    <td className="px-6 py-6 text-right">
                                         <button 
                                             onClick={() => { setEditingDay(row); setEditForm({ status: row.record.status, checkIn: row.record.checkIn || '', checkOut: row.record.checkOut || '' }); setIsEditModalOpen(true); }}
                                             className="text-[11px] font-black text-gray-400 hover:text-emerald-600 transition-colors uppercase tracking-[0.2em] border-b border-transparent hover:border-emerald-600"
@@ -363,6 +383,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 </tr>
                             );
                         })}
+                        {dailyReportData.length === 0 && (
+                            <tr>
+                                <td colSpan={8} className="py-24 text-center">
+                                    <div className="flex flex-col items-center gap-4 opacity-30">
+                                        <Users className="w-12 h-12 text-gray-400" />
+                                        <p className="text-sm font-black text-gray-500 uppercase tracking-[0.2em]">No staff records found for this date</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -430,14 +460,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
       {/* EDIT MODAL */}
       {isEditModalOpen && editingDay && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-[3rem] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.2)] w-full max-w-md border border-gray-100 animate-in zoom-in duration-200 overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl">
+            <div className="bg-white rounded-[3rem] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.2)] w-full max-w-md border border-gray-100 animate-in zoom-in duration-300 overflow-hidden">
                 <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-[3rem]">
                     <div className="space-y-1">
                         <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Adjust Log</h3>
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{editingDay.employee.name} • {selectedDate}</p>
                     </div>
-                    <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                    <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
                 <div className="p-8 space-y-8">
                     <div>
