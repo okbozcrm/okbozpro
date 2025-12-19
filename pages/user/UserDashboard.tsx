@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+/* Added missing MessageSquare import */
 import { 
   Clock, CheckCircle, Calendar, ClipboardList, 
   ArrowRight, DollarSign, PieChart, Bell, 
-  TrendingUp, Play, MapPin, Zap, User, Star
+  TrendingUp, Play, MapPin, Zap, User, Star, MessageSquare
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getEmployeeAttendance } from '../../constants';
