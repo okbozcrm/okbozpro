@@ -46,26 +46,20 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         let staffList: any[] = [];
 
         if (isSuperAdmin) {
-            // Admin Data (Head Office)
             const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
             branchesList = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
-            
             const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
             staffList = [...adminStaff.map((s: any) => ({...s, corporateId: 'admin'}))];
 
-            // Add all Corporate Data for Super Admin visibility
             corps.forEach((c: any) => {
                 const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
                 branchesList = [...branchesList, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
-                
                 const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
                 staffList = [...staffList, ...cStaff.map((s: any) => ({...s, corporateId: c.email}))];
             });
         } else {
-            // Franchise User: Only load their own scoped data
             const myBranches = JSON.parse(localStorage.getItem(`branches_data_${currentSessionId}`) || '[]');
             branchesList = myBranches.map((b: any) => ({...b, corporateId: currentSessionId}));
-
             const myStaff = JSON.parse(localStorage.getItem(`staff_data_${currentSessionId}`) || '[]');
             staffList = myStaff.map((s: any) => ({...s, corporateId: currentSessionId}));
         }
@@ -73,7 +67,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         setBranches(branchesList);
         setAllEmployees(staffList);
 
-        // Initial selection for single employee view
         if (!isAdmin) {
             const found = staffList.find(s => s.id === currentSessionId);
             setSelectedEmployee(found || staffList[0] || MOCK_EMPLOYEES[0]);
@@ -82,13 +75,11 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     loadData();
   }, [isAdmin, currentSessionId, isSuperAdmin]);
 
-  // Derive branches based on corporate filter
   const availableBranches = useMemo(() => {
       if (filterCorporate === 'All') return branches;
       return branches.filter(b => b.corporateId === filterCorporate);
   }, [branches, filterCorporate]);
 
-  // Derived staff list based on Corporate and Branch filters
   const filteredStaffList = useMemo(() => {
       return allEmployees.filter(s => {
           const matchCorp = filterCorporate === 'All' || s.corporateId === filterCorporate;
@@ -97,18 +88,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       });
   }, [allEmployees, filterCorporate, filterBranch]);
 
-  // Sync selected employee when filters change
+  // Handle default selection when filters change
   useEffect(() => {
       if (isAdmin && filteredStaffList.length > 0) {
-          if (!selectedEmployee || !filteredStaffList.find(s => s.id === selectedEmployee.id)) {
-              if (viewMode === 'Calendar') {
-                  setSelectedEmployee(filteredStaffList[0]);
-              }
+          if (viewMode === 'Calendar' && (!selectedEmployee || !filteredStaffList.find(s => s.id === selectedEmployee.id))) {
+              setSelectedEmployee(filteredStaffList[0]);
           }
       }
-  }, [filteredStaffList, isAdmin, selectedEmployee, viewMode]);
+  }, [filteredStaffList, isAdmin, viewMode, selectedEmployee]);
 
-  // Load attendance records for the selected employee
+  // Load individual data for Calendar view
   useEffect(() => {
       if (!selectedEmployee) return;
       const year = selectedMonth.getFullYear();
@@ -118,16 +107,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       setAttendanceData(saved ? JSON.parse(saved) : getEmployeeAttendance(selectedEmployee, year, month));
   }, [selectedEmployee, selectedMonth]);
 
-  // Daily Report Data Logic - This is used for both the table and the high-level dashboard stats
+  // Process data for the selected date (Daily Report & Dashboard Stats)
   const dailyReportData = useMemo(() => {
       const year = new Date(selectedDate).getFullYear();
       const month = new Date(selectedDate).getMonth();
       
-      // Filter list further if a specific employee is selected in Report mode
-      // Actually, for the dashboard stats, we want the whole filtered list
-      const listToMap = filteredStaffList;
-
-      return listToMap.map(emp => {
+      return filteredStaffList.map(emp => {
           const key = `attendance_data_${emp.id}_${year}_${month}`;
           const saved = localStorage.getItem(key);
           const monthData: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
@@ -135,12 +120,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
           
           return {
               employee: emp,
-              record: dayRecord || { date: selectedDate, status: AttendanceStatus.NOT_MARKED }
+              record: dayRecord || { date: selectedDate, status: AttendanceStatus.NOT_MARKED, isLate: false }
           };
       });
   }, [filteredStaffList, selectedDate]);
 
-  // Dashboard Stats - Calculated across all filtered staff for the selected date
+  // Enhanced Dashboard Stats for current selection
   const dashboardStats = useMemo(() => ({
     total: dailyReportData.length,
     present: dailyReportData.filter(d => d.record.status === AttendanceStatus.PRESENT).length,
@@ -213,7 +198,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     </div>
                 )}
                 
-                {/* Branch Selector */}
                 <div className="relative">
                     <select 
                         value={filterBranch} 
@@ -226,7 +210,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
 
-                {/* STAFF SELECTOR - NOW NEXT TO BRANCHES */}
                 <div className="relative">
                     <select 
                         value={selectedEmployee?.id || ''} 
@@ -262,7 +245,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         </div>
       </div>
 
-      {/* DASHBOARD STATS - CORRECTED DATA AND ADDED TOTAL STAFF */}
+      {/* DASHBOARD STATS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
           {[
               { label: 'TOTAL STAFF', count: dashboardStats.total, color: 'slate', icon: Users },
@@ -380,16 +363,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 </tr>
                             );
                         })}
-                        {dailyReportData.length === 0 && (
-                            <tr>
-                                <td colSpan={8} className="py-24 text-center">
-                                    <div className="flex flex-col items-center gap-4 opacity-30">
-                                        <Users className="w-12 h-12 text-gray-400" />
-                                        <p className="text-sm font-black text-gray-500 uppercase tracking-[0.2em]">No staff records found for this date</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
             </div>
