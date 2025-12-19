@@ -3,83 +3,96 @@ import { AttendanceStatus, DailyAttendance, Employee } from './types';
 
 export const MOCK_EMPLOYEES: Employee[] = [];
 
-// Generate attendance helper (Kept for functional logic if needed for real employees)
+// Generate attendance helper with realistic randomized data for dashboard testing
 export const generateMockAttendance = (employee: Employee, year: number, month: number): DailyAttendance[] => {
   if (!employee) return [];
   
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const attendance: DailyAttendance[] = [];
 
-  // Determine the current day for the generated month.
   const today = new Date();
-  let simulatedCurrentDay = 32; // Default to fill all (past months)
+  let simulatedCurrentDay = 32;
 
   if (year === today.getFullYear() && month === today.getMonth()) {
-    simulatedCurrentDay = today.getDate(); // For current real month, fill up to today
+    simulatedCurrentDay = today.getDate();
   } else if (year > today.getFullYear() || (year === today.getFullYear() && month > today.getMonth())) {
-    simulatedCurrentDay = 0; // Future months should be empty
+    simulatedCurrentDay = 0;
   } else {
-    simulatedCurrentDay = daysInMonth; // Past months should be full
+    simulatedCurrentDay = daysInMonth;
   }
 
   const employeeJoiningDate = new Date(employee.joiningDate);
-  employeeJoiningDate.setHours(0,0,0,0); // Normalize to start of day
+  employeeJoiningDate.setHours(0,0,0,0);
 
   for (let i = 1; i <= daysInMonth; i++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
     const currentDayDate = new Date(year, month, i);
-    currentDayDate.setHours(0,0,0,0); // Normalize
+    currentDayDate.setHours(0,0,0,0);
 
-    // 1. Pre-Joining check
     if (currentDayDate < employeeJoiningDate) {
       attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED });
       continue;
     }
     
-    // 2. Future check
     if (i > simulatedCurrentDay) {
-        attendance.push({
-            date: dateStr,
-            status: AttendanceStatus.NOT_MARKED,
-            isLate: false,
-        });
+        attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED, isLate: false });
         continue;
     }
 
-    // 3. Current Day (Today) check - Force NOT_MARKED initially so user must punch in
     const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());
     if (isToday) {
-        attendance.push({
-            date: dateStr,
-            status: AttendanceStatus.NOT_MARKED,
-            isLate: false,
-        });
+        attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED, isLate: false });
         continue;
     }
 
     const dayOfWeek = new Date(year, month, i).getDay();
+    
+    // Sunday is off
+    if (dayOfWeek === 0 || employee.weekOff === new Date(year, month, i).toLocaleDateString('en-US', { weekday: 'long' })) { 
+      attendance.push({
+        date: dateStr,
+        status: AttendanceStatus.WEEK_OFF,
+        checkIn: undefined,
+        checkOut: undefined
+      });
+      continue;
+    }
+
+    // RANDOMIZED LOGIC FOR "CORRECT" DASHBOARD DATA
+    const random = Math.random();
     let status = AttendanceStatus.PRESENT;
     let isLate = false;
+    let checkIn = '09:15 AM';
+    let checkOut = '06:30 PM';
 
-    if (dayOfWeek === 0 || employee.weekOff === new Date(year, month, i).toLocaleDateString('en-US', { weekday: 'long' })) { 
-      status = AttendanceStatus.WEEK_OFF;
+    if (random < 0.10) { // 10% chance Absent
+        status = AttendanceStatus.ABSENT;
+        checkIn = undefined as any;
+        checkOut = undefined as any;
+    } else if (random < 0.20) { // 10% chance Half Day
+        status = AttendanceStatus.HALF_DAY;
+        checkIn = '09:30 AM';
+        checkOut = '01:30 PM';
     } else {
-        // Default to present for generated history unless overridden by real data storage
         status = AttendanceStatus.PRESENT;
+        // 25% chance of being late if present
+        if (Math.random() < 0.25) {
+            isLate = true;
+            checkIn = '10:15 AM';
+        }
     }
 
     attendance.push({
       date: dateStr,
       status,
       isLate,
-      checkIn: status === AttendanceStatus.PRESENT ? '09:30 AM' : undefined,
-      checkOut: status === AttendanceStatus.PRESENT ? '06:30 PM' : undefined,
+      checkIn,
+      checkOut,
     });
   }
   return attendance;
 };
 
-// Helper to get consistent "random" attendance for a specific employee
 export const getEmployeeAttendance = (employee: Employee, year: number, month: number): DailyAttendance[] => {
   return generateMockAttendance(employee, year, month);
 };
