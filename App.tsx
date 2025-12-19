@@ -29,6 +29,7 @@ import Subscription from './pages/admin/Subscription';
 import DriverMonitoring from './pages/admin/DriverMonitoring';
 import CallEnquiries from './pages/admin/CallEnquiries';
 import Transport from './pages/admin/Transport';
+import UserDashboard from './pages/user/UserDashboard'; // Added import
 import UserAttendance from './pages/user/UserAttendance';
 import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
@@ -96,7 +97,8 @@ const App: React.FC = () => {
       );
   }
 
-  const homePath = userRole === UserRole.EMPLOYEE ? '/user' : '/admin';
+  // Updated home path for employees
+  const homePath = userRole === UserRole.EMPLOYEE ? '/user/dashboard' : '/admin';
 
   return (
     <ThemeProvider>
@@ -156,6 +158,7 @@ const App: React.FC = () => {
 
                     {userRole === UserRole.EMPLOYEE && (
                       <>
+                        <Route path="/user/dashboard" element={<UserDashboard />} />
                         <Route path="/user" element={<UserAttendance />} />
                         <Route path="/user/tasks" element={<TaskManagement role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/customer-care" element={<CustomerCare role={UserRole.EMPLOYEE} />} />

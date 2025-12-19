@@ -200,6 +200,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const sidebarLinks = useMemo(() => {
     if (role === UserRole.EMPLOYEE) {
         const base = [
+            { id: 'dash-emp', path: '/user/dashboard', label: 'Overview', icon: LayoutDashboard }, // Added Dashboard for Employee
             { id: 'care-emp', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
             { id: 'chat-emp', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
             { id: 'tasks-emp', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
