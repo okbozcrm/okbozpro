@@ -165,14 +165,25 @@ const Expenses: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Expense>>(initialFormState);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null); 
 
+  // Persistence - FIXED AGGREGATED SAVE LOGIC
   useEffect(() => {
     if (!isSuperAdmin) {
         const key = getSessionKey();
         localStorage.setItem(key, JSON.stringify(expenses));
     } else {
-        const headOfficeExpenses = expenses.filter(e => e.corporateId === 'admin');
-        const cleanExpenses = headOfficeExpenses.map(({franchiseName, corporateId, ...rest}) => rest);
-        localStorage.setItem('office_expenses', JSON.stringify(cleanExpenses));
+        // Super Admin: Distribute changes back to correct keys
+        // 1. Save Head Office
+        const headOffice = expenses.filter(e => e.corporateId === 'admin');
+        const cleanHO = headOffice.map(({franchiseName, corporateId, ...rest}) => rest);
+        localStorage.setItem('office_expenses', JSON.stringify(cleanHO));
+
+        // 2. Save each Franchise
+        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corps.forEach((corp: any) => {
+            const corpData = expenses.filter(e => e.corporateId === corp.email);
+            const cleanCorp = corpData.map(({franchiseName, corporateId, ...rest}) => rest);
+            localStorage.setItem(`office_expenses_${corp.email}`, JSON.stringify(cleanCorp));
+        });
     }
   }, [expenses, isSuperAdmin, sessionId]);
 
@@ -243,7 +254,7 @@ const Expenses: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this transaction?")) {
+    if (window.confirm("Are you sure you want to delete this transaction? This will be permanent.")) {
       setExpenses(prev => prev.filter(exp => exp.id !== id));
       if (editingExpenseId === id) {
           resetForm();
@@ -289,7 +300,6 @@ const Expenses: React.FC = () => {
         const myCorp = corporates.find(c => c.email === sessionId);
         resolvedFranchiseName = myCorp ? myCorp.companyName : 'My Franchise';
     } else if (editingExpenseId) {
-        // Keep existing if editing and admin
         const existing = expenses.find(ex => ex.id === editingExpenseId);
         resolvedFranchiseName = existing?.franchiseName || 'Head Office';
     }
@@ -368,6 +378,7 @@ const Expenses: React.FC = () => {
           </p>
         </div>
         <button 
+          type="button"
           onClick={handleOpenAddTransaction}
           className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
         >
@@ -433,9 +444,9 @@ const Expenses: React.FC = () => {
                        <td className={`px-6 py-4 font-mono font-bold ${exp.type === 'Income' ? 'text-emerald-600' : 'text-red-600'}`}>{exp.type === 'Income' ? '+' : '-'}₹{exp.amount.toLocaleString()}</td>
                        <td className="px-6 py-4 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold border ${exp.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>{exp.status}</span></td>
                        <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2">
-                           <button onClick={() => handleViewInvoice(exp)} className="text-gray-400 hover:text-blue-500 p-1.5 rounded-full hover:bg-blue-50 transition-colors"><Eye className="w-4 h-4" /></button>
-                           <button onClick={() => handleEdit(exp)} className="text-gray-400 hover:text-emerald-600 p-1.5 rounded-full hover:bg-emerald-50 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                           <button onClick={() => handleDelete(exp.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                           <button type="button" onClick={() => handleViewInvoice(exp)} className="text-gray-400 hover:text-blue-500 p-1.5 rounded-full hover:bg-blue-50 transition-colors cursor-pointer"><Eye className="w-4 h-4" /></button>
+                           <button type="button" onClick={() => handleEdit(exp)} className="text-gray-400 hover:text-emerald-600 p-1.5 rounded-full hover:bg-emerald-50 transition-colors cursor-pointer"><Edit2 className="w-4 h-4" /></button>
+                           <button type="button" onClick={() => handleDelete(exp.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                        </div></td>
                      </tr>
                    ))}
@@ -455,14 +466,14 @@ const Expenses: React.FC = () => {
                  ) : (<div className="h-full flex items-center justify-center text-gray-400 text-sm">No data to display</div>)}
               </div>
            </div>
-           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-xl text-white shadow-lg"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-lg">Download Report</h3><FileText className="w-6 h-6 opacity-80" /></div><p className="text-indigo-100 text-sm mb-6">Generate detailed PDF reports for auditing.</p><button className="w-full bg-white text-indigo-600 py-2 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"><Download className="w-4 h-4" /> Export PDF</button></div>
+           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-xl text-white shadow-lg"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-lg">Download Report</h3><FileText className="w-6 h-6 opacity-80" /></div><p className="text-indigo-100 text-sm mb-6">Generate detailed PDF reports for auditing.</p><button type="button" className="w-full bg-white text-indigo-600 py-2 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"><Download className="w-4 h-4" /> Export PDF</button></div>
         </div>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-800">{editingExpenseId ? 'Edit Transaction' : 'Add Transaction'}</h3><button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button></div>
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50"><h3 className="font-bold text-gray-800">{editingExpenseId ? 'Edit Transaction' : 'Add Transaction'}</h3><button type="button" onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="flex bg-gray-100 p-1 rounded-lg"><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Income', category: INCOME_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}><ArrowUpCircle className="w-4 h-4" /> Income</button><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Expense', category: EXPENSE_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}><ArrowDownCircle className="w-4 h-4" /> Expense</button></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Transaction Number</label><input type="text" name="transactionNumber" required placeholder="e.g. JK-00001" value={formData.transactionNumber} onChange={handleInputChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono" /></div>
@@ -489,9 +500,9 @@ const Expenses: React.FC = () => {
                       {invoiceData.description && (<div><h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Description</h4><p className="text-sm text-gray-600 italic">{invoiceData.description}</p></div>)}
                   </div>
                   <div className="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-                      {invoiceData.receiptUrl && (<button onClick={() => setRawReceiptPreviewUrl(invoiceData.receiptUrl!)} className="px-4 py-2 border border-blue-200 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 flex items-center gap-2"><Paperclip className="w-4 h-4" /> Receipt</button>)}
-                      <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center gap-2"><Printer className="w-4 h-4" /> Print</button>
-                      <button onClick={() => setShowInvoiceViewer(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium">Close</button>
+                      {invoiceData.receiptUrl && (<button type="button" onClick={() => setRawReceiptPreviewUrl(invoiceData.receiptUrl!)} className="px-4 py-2 border border-blue-200 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 flex items-center gap-2 cursor-pointer"><Paperclip className="w-4 h-4" /> Receipt</button>)}
+                      <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center gap-2 cursor-pointer"><Printer className="w-4 h-4" /> Print</button>
+                      <button type="button" onClick={() => setShowInvoiceViewer(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium cursor-pointer">Close</button>
                   </div>
               </div>
           </div>
@@ -499,7 +510,7 @@ const Expenses: React.FC = () => {
 
       {rawReceiptPreviewUrl && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-           <div className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"><div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl"><h3 className="font-bold text-gray-800">Receipt Preview</h3><button onClick={() => setRawReceiptPreviewUrl(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full"><X className="w-5 h-5" /></button></div>
+           <div className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"><div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl"><h3 className="font-bold text-gray-800">Receipt Preview</h3><button type="button" onClick={() => setRawReceiptPreviewUrl(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full cursor-pointer"><X className="w-5 h-5" /></button></div>
               <div className="flex-1 bg-gray-100 flex items-center justify-center p-4 overflow-hidden relative">
                   {rawReceiptPreviewUrl.includes('pdf') ? (<iframe src={rawReceiptPreviewUrl} className="w-full h-full rounded border border-gray-300" title="Receipt PDF"></iframe>) : (<img src={rawReceiptPreviewUrl} alt="Receipt" className="max-w-full max-h-full object-contain shadow-md rounded" />)}
               </div>

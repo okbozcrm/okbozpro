@@ -1,6 +1,4 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
-// @google/genai: Add missing import for Headset
 import { Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -36,8 +34,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
 
-  const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
 
   // --- 1. Global Filter States ---
   const [filterCorporate, setFilterCorporate] = useState<string>('All');
@@ -51,7 +49,7 @@ const Dashboard = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const [enquiries, setEnquiries] = useState<ExtendedEnquiry[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]); // Added Trips State
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   
   // --- Clock & Greeting State ---
@@ -92,39 +90,44 @@ const Dashboard = () => {
 
   // --- 3. Initial Data Fetching ---
   useEffect(() => {
-    // A. Load Corporates
-    try {
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        setCorporates(corps);
-    } catch (e) {}
+    // A. Load Corporates (Only needed for Super Admin dropdowns)
+    if (isSuperAdmin) {
+        try {
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            setCorporates(corps);
+        } catch (e) {}
+    }
 
-    // B. Load Branches (Aggregated)
+    // B. Load Branches (Strict Scoping)
     try {
-        let allBranches: any[] = [];
-        // Head Office Branches
-        const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        allBranches = [...allBranches, ...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
-        
-        // Corporate Branches
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((c: any) => {
-            const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            allBranches = [...allBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
-        });
-        setBranches(allBranches);
+        let loadedBranches: any[] = [];
+        if (isSuperAdmin) {
+            // Load Admin Data (Head Office)
+            const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
+            loadedBranches = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
+            
+            // Load Corporate Branches
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            corps.forEach((c: any) => {
+                const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+                loadedBranches = [...loadedBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
+            });
+        } else {
+            // Load ONLY non-admin's own branches
+            const key = `branches_data_${sessionId}`;
+            const saved = localStorage.getItem(key);
+            if (saved) loadedBranches = JSON.parse(saved).map((b: any) => ({...b, corporateId: sessionId}));
+        }
+        setBranches(loadedBranches);
     } catch(e) {}
 
-    // C. Load Employees (Aggregated)
+    // C. Load Employees (Strict Scoping)
     let allEmployees: ExtendedEmployee[] = [];
     if (isSuperAdmin) {
-        // Admin's own staff
         const adminData = localStorage.getItem('staff_data');
         if (adminData) {
             try { allEmployees = [...allEmployees, ...JSON.parse(adminData).map((e:any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))]; } catch (e) {}
-        } else {
-            allEmployees = []; // No mocks
         }
-        // Corporate Staff
         const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
         corps.forEach((corp: any) => {
             const corpData = localStorage.getItem(`staff_data_${corp.email}`);
@@ -135,8 +138,6 @@ const Dashboard = () => {
             }
         });
     } else {
-        // Single Corporate/User View
-        const sessionId = localStorage.getItem('app_session_id') || 'admin';
         const key = `staff_data_${sessionId}`; 
         try {
             const saved = localStorage.getItem(key);
@@ -147,33 +148,43 @@ const Dashboard = () => {
     }
     setEmployees(allEmployees);
 
-    // D. Load Vehicle Enquiries (Aggregated / Global)
+    // D. Load Vehicle Enquiries (Strict Scoping)
     try {
-        const enqs = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
-        setEnquiries(enqs);
+        const enqs: Enquiry[] = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
+        if (isSuperAdmin) {
+            setEnquiries(enqs);
+        } else {
+            // Filter enquiries for the franchise
+            const myEnqs = enqs.filter(e => {
+               let ownerId = e.assignedCorporate;
+               if (!ownerId && e.assignedTo) {
+                   const staff = allEmployees.find(s => s.id === e.assignedTo);
+                   if (staff) ownerId = staff.corporateId;
+               }
+               return ownerId === sessionId;
+            });
+            setEnquiries(myEnqs);
+        }
     } catch(e) {}
 
-    // E. Load Trips (Aggregated) - NEW
+    // E. Load Trips (Strict Scoping)
     let allTrips: Trip[] = [];
     if (isSuperAdmin) {
-        // Admin Trips
         try {
             const adminTrips = JSON.parse(localStorage.getItem('trips_data') || '[]');
             allTrips = [...allTrips, ...adminTrips.map((t: any) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
         } catch(e) {}
         
-        // Corporate Trips
         const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
         corps.forEach((c: any) => {
             const cTrips = localStorage.getItem(`trips_data_${c.email}`);
             if (cTrips) {
                 try {
                     allTrips = [...allTrips, ...JSON.parse(cTrips).map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
-                } catch(e) {}
+                } catch (e) {}
             }
         });
     } else {
-        const sessionId = localStorage.getItem('app_session_id') || 'admin';
         const key = `trips_data_${sessionId}`;
         try {
             const saved = localStorage.getItem(key);
@@ -184,34 +195,41 @@ const Dashboard = () => {
     }
     setTrips(allTrips);
 
-    // F. Pending Leaves (Mock removed)
-    const savedApprovals = localStorage.getItem(`pending_approvals_${localStorage.getItem('app_session_id') || 'admin'}`);
+    const savedApprovals = localStorage.getItem(`pending_approvals_${sessionId}`);
     if (savedApprovals) setPendingApprovals(JSON.parse(savedApprovals));
     else setPendingApprovals([]);
 
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, sessionId]);
 
   // --- 4. Filtering Logic ---
   
   // Available Branches for Dropdown (Dependent on Selected Corporate)
   const availableBranches = useMemo(() => {
-      if (filterCorporate === 'All') return branches; // Show all branches if All Corps selected
-      if (filterCorporate === 'admin') return branches.filter(b => (b as any).corporateId === 'admin');
-      return branches.filter(b => (b as any).corporateId === filterCorporate);
-  }, [branches, filterCorporate]);
+      if (isSuperAdmin) {
+          if (filterCorporate === 'All') return branches; 
+          if (filterCorporate === 'admin') return branches.filter(b => (b as any).corporateId === 'admin');
+          return branches.filter(b => (b as any).corporateId === filterCorporate);
+      } else {
+          return branches.filter(b => (b as any).corporateId === sessionId);
+      }
+  }, [branches, filterCorporate, isSuperAdmin, sessionId]);
 
-  // Filtered Data Sets
+  // Filtered Data Sets (Final filter layer based on Dashboard UI controls)
   const filteredEmployees = useMemo(() => {
       return employees.filter(e => {
-          const matchCorp = filterCorporate === 'All' || e.corporateId === filterCorporate;
+          const matchCorp = isSuperAdmin
+              ? (filterCorporate === 'All' || e.corporateId === filterCorporate)
+              : true; // Data already scoped at fetch
           const matchBranch = filterBranch === 'All' || e.branch === filterBranch;
           return matchCorp && matchBranch;
       });
-  }, [employees, filterCorporate, filterBranch]);
+  }, [employees, filterCorporate, filterBranch, isSuperAdmin]);
 
   const filteredTrips = useMemo(() => {
       return trips.filter(t => {
-          const matchCorp = filterCorporate === 'All' || t.ownerId === filterCorporate || (filterCorporate === 'admin' && t.ownerId === 'admin');
+          const matchCorp = isSuperAdmin
+            ? (filterCorporate === 'All' || t.ownerId === filterCorporate || (filterCorporate === 'admin' && t.ownerId === 'admin'))
+            : true; // Data already scoped at fetch
           const matchBranch = filterBranch === 'All' || t.branch === filterBranch;
           
           let matchDate = true;
@@ -222,24 +240,12 @@ const Dashboard = () => {
           }
           return matchCorp && matchBranch && matchDate;
       });
-  }, [trips, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth]);
+  }, [trips, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth, isSuperAdmin]);
 
   const filteredEnquiries = useMemo(() => {
       return enquiries.filter(e => {
-          const corpKey = e.assignedCorporate || 'Head Office';
-          const branchKey = e.assignedBranch || '';
-
-          // Match Corporate
-          let matchCorp = true;
-          if (filterCorporate !== 'All') {
-              if (filterCorporate === 'admin') matchCorp = corpKey === 'Head Office';
-              else matchCorp = corpKey === filterCorporate; // Matches email
-          }
-
-          // Match Branch
-          const matchBranch = filterBranch === 'All' || branchKey === filterBranch;
+          const matchBranch = filterBranch === 'All' || e.assignedBranch === filterBranch;
           
-          // Date Filtering
           let matchDate = true;
           const enqDate = e.date || e.createdAt.split(',')[0]; 
           
@@ -249,9 +255,9 @@ const Dashboard = () => {
               matchDate = enqDate.startsWith(selectedMonth);
           }
 
-          return matchCorp && matchBranch && matchDate;
+          return matchBranch && matchDate;
       });
-  }, [enquiries, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth]);
+  }, [enquiries, filterBranch, filterType, selectedDate, selectedMonth]);
 
   // --- 5. Statistics Calculation ---
 
@@ -265,7 +271,6 @@ const Dashboard = () => {
       const targetYear = targetDate.getFullYear();
       const targetMonth = targetDate.getMonth();
 
-      // If Daily View
       if (filterType === 'Daily') {
           filteredEmployees.forEach(emp => {
               const data = getEmployeeAttendance(emp, targetYear, targetMonth);
@@ -282,9 +287,7 @@ const Dashboard = () => {
               }
           });
       } else {
-          // Monthly View - Simplified Active Count
           present = filteredEmployees.filter(e => e.status === 'Active').length;
-          // Calculate total absences in month
           filteredEmployees.forEach(emp => {
               const data = getEmployeeAttendance(emp, parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]) - 1);
               absent += data.filter(d => d.status === AttendanceStatus.ABSENT).length;
@@ -302,20 +305,19 @@ const Dashboard = () => {
       return { total, completed, revenue };
   }, [filteredTrips]);
 
-  // Vehicle Stats (Dynamic Revenue Parsing)
+  // Vehicle Stats
   const vehicleStats = useMemo(() => {
       const total = filteredEnquiries.length;
-      const booked = filteredEnquiries.filter(e => e.status === 'Booked' || (e as any).outcome === 'Booked').length;
+      const booked = filteredEnquiries.filter(e => e.status === 'Booked' || e.status === 'Order Accepted').length;
       const conversion = total > 0 ? Math.round((booked / total) * 100) : 0;
       
-      // Attempt to parse revenue from "Total Estimate: ₹XXX" string in details
       const amount = filteredEnquiries.reduce((sum, e) => {
-          if (e.status === 'Booked' || (e as any).outcome === 'Booked') {
+          if (e.status === 'Booked' || e.status === 'Order Accepted' || e.status === 'Completed') {
               const match = e.details.match(/Estimate: ₹([\d,]+)/) || e.details.match(/₹([\d,]+)/);
               if (match) {
                   return sum + parseInt(match[1].replace(/,/g, ''));
               }
-              return sum + 2500; // Fallback average if not parsed
+              return sum + (e.estimatedPrice || 0); 
           }
           return sum;
       }, 0);
@@ -323,7 +325,7 @@ const Dashboard = () => {
       return { total, booked, conversion, amount };
   }, [filteredEnquiries]);
 
-  // Attendance Chart Data (Weekly Trend)
+  // Attendance Chart Data
   const attendanceChartData = useMemo(() => {
       const data = [];
       const baseDate = new Date(selectedDate);
@@ -334,7 +336,6 @@ const Dashboard = () => {
           const dateStr = d.toISOString().split('T')[0];
           const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
 
-          // Calculate attendance for this day across filtered employees
           let p = 0;
           filteredEmployees.forEach(emp => {
               const record = getEmployeeAttendance(emp, d.getFullYear(), d.getMonth()).find(r => r.date === dateStr);
@@ -346,24 +347,23 @@ const Dashboard = () => {
       return data;
   }, [selectedDate, filteredEmployees]);
 
-  // Vehicle Revenue Chart Data
+  // Revenue Chart Data
   const vehicleChartData = useMemo(() => {
       const data = [];
-      // Calculate revenue trends for last 6 months
       const today = new Date();
       for (let i = 5; i >= 0; i--) {
           const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-          const monthStr = d.toISOString().slice(0, 7); // YYYY-MM
+          const monthStr = d.toISOString().slice(0, 7);
           const monthLabel = d.toLocaleDateString('en-US', { month: 'short' });
           
           const revenue = filteredEnquiries
-              .filter(e => e.createdAt.startsWith(monthStr) && (e.status === 'Booked' || (e as any).outcome === 'Booked'))
+              .filter(e => (e.date?.startsWith(monthStr) || e.createdAt.startsWith(monthStr)) && (e.status === 'Booked' || e.status === 'Order Accepted' || e.status === 'Completed'))
               .reduce((sum, e) => {
                   const match = e.details.match(/Estimate: ₹([\d,]+)/) || e.details.match(/₹([\d,]+)/);
                   if (match) {
                       return sum + parseInt(match[1].replace(/,/g, ''));
                   }
-                  return sum + 2500;
+                  return sum + (e.estimatedPrice || 2500);
               }, 0);
           
           data.push({ name: monthLabel, revenue });
@@ -373,7 +373,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Franchise/Admin Header with Clock */}
       <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-center animate-in fade-in slide-in-from-top-4">
           <div>
               <div className="flex items-center gap-2 mb-1">
@@ -397,7 +396,6 @@ const Dashboard = () => {
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">Performance Metrics</h2>
         </div>
         
-        {/* Global Filter Bar */}
         <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-wrap gap-2 items-center">
             {isSuperAdmin && (
                 <select 
@@ -459,9 +457,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Attendance Stat */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="flex justify-between items-start mb-2">
                 <div>
@@ -477,11 +473,9 @@ const Dashboard = () => {
             <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {attendanceStats.present} Present</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> {attendanceStats.absent} Absent</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500"></span> {attendanceStats.late} Late</span>
             </div>
         </div>
 
-        {/* Trip Booking Stats */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => navigate('/admin/trips')}>
             <div className="flex justify-between items-start mb-2">
                 <div>
@@ -498,7 +492,6 @@ const Dashboard = () => {
             </div>
         </div>
 
-        {/* Vehicle Enquiries Stat */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="flex justify-between items-start mb-2">
                 <div>
@@ -515,7 +508,6 @@ const Dashboard = () => {
             </div>
         </div>
 
-        {/* Pending Tasks / Approvals */}
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => navigate('/admin/tasks')}>
             <div className="flex justify-between items-start mb-2">
                 <div>
@@ -532,9 +524,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Attendance Chart */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
               <h3 className="font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-emerald-500" /> Attendance Trend (Last 7 Days)
@@ -543,34 +533,15 @@ const Dashboard = () => {
                   <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={attendanceChartData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                          <XAxis 
-                              dataKey="name" 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{fill: '#9ca3af', fontSize: 12}} 
-                              dy={10}
-                          />
-                          <YAxis 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{fill: '#9ca3af', fontSize: 12}} 
-                          />
-                          <Tooltip 
-                              cursor={{fill: 'transparent'}}
-                              contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}
-                          />
-                          <Bar 
-                              dataKey="present" 
-                              fill="#10b981" 
-                              radius={[4, 4, 0, 0]} 
-                              barSize={30}
-                          />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                          <Tooltip cursor={{fill: 'transparent'}} contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                          <Bar dataKey="present" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
                       </BarChart>
                   </ResponsiveContainer>
               </div>
           </div>
 
-          {/* Revenue Chart */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
               <h3 className="font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-purple-500" /> Transport Revenue (Last 6 Months)
@@ -585,38 +556,16 @@ const Dashboard = () => {
                               </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                          <XAxis 
-                              dataKey="name" 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{fill: '#9ca3af', fontSize: 12}} 
-                              dy={10}
-                          />
-                          <YAxis 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{fill: '#9ca3af', fontSize: 12}}
-                              tickFormatter={(value) => `₹${value/1000}k`}
-                          />
-                          <Tooltip 
-                              contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}
-                              formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
-                          />
-                          <Area 
-                              type="monotone" 
-                              dataKey="revenue" 
-                              stroke="#8b5cf6" 
-                              strokeWidth={3}
-                              fillOpacity={1} 
-                              fill="url(#colorRevenue)" 
-                          />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} tickFormatter={(value) => `₹${value/1000}k`} />
+                          <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']} />
+                          <Area type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                       </AreaChart>
                   </ResponsiveContainer>
               </div>
           </div>
       </div>
 
-      {/* Recent Trips / Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
@@ -627,9 +576,7 @@ const Dashboard = () => {
                   {filteredTrips.slice(0, 5).map((trip) => (
                       <div key={trip.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                           <div className="flex items-center gap-3">
-                              <div className="p-2 rounded-full bg-blue-100 text-blue-600">
-                                  <Truck className="w-4 h-4" />
-                              </div>
+                              <div className="p-2 rounded-full bg-blue-100 text-blue-600"><Truck className="w-4 h-4" /></div>
                               <div>
                                   <p className="font-bold text-gray-800 dark:text-white text-sm">{trip.userName}</p>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">{trip.branch} • {trip.tripId}</p>
@@ -648,9 +595,7 @@ const Dashboard = () => {
                           </div>
                       </div>
                   ))}
-                  {filteredTrips.length === 0 && (
-                      <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">No recent trips found.</div>
-                  )}
+                  {filteredTrips.length === 0 && <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">No recent trips found.</div>}
               </div>
           </div>
 
@@ -658,50 +603,9 @@ const Dashboard = () => {
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white shadow-lg">
                   <h4 className="font-bold text-lg mb-2">Quick Actions</h4>
                   <div className="space-y-3">
-                      <button onClick={() => navigate('/admin/trips')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2">
-                          <Truck className="w-4 h-4 text-emerald-400" /> Book New Trip
-                      </button>
-                      
-                      <button onClick={() => navigate('/admin/customer-care')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2">
-                          <Headset className="w-4 h-4 text-blue-400" /> Create Transport Quote
-                      </button>
-                      
-                      <button onClick={() => navigate('/admin/attendance')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-orange-400" /> Mark Attendance
-                      </button>
-                  </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
-                  <h4 className="font-bold text-gray-800 dark:text-white mb-4">Staff Status</h4>
-                  <div className="space-y-4">
-                      <div>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-600 dark:text-gray-400">Present</span>
-                              <span className="font-bold text-gray-800 dark:text-white">{attendanceStats.present}</span>
-                          </div>
-                          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{width: `${(attendanceStats.present / (filteredEmployees.length || 1)) * 100}%`}}></div>
-                          </div>
-                      </div>
-                      <div>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-600 dark:text-gray-400">Late</span>
-                              <span className="font-bold text-gray-800 dark:text-white">{attendanceStats.late}</span>
-                          </div>
-                          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                              <div className="bg-orange-500 h-1.5 rounded-full" style={{width: `${(attendanceStats.late / (filteredEmployees.length || 1)) * 100}%`}}></div>
-                          </div>
-                      </div>
-                      <div>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-600 dark:text-gray-400">On Field</span>
-                              <span className="font-bold text-gray-800 dark:text-white">{attendanceStats.onField}</span>
-                          </div>
-                          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                              <div className="bg-blue-500 h-1.5 rounded-full" style={{width: `${(attendanceStats.onField / (filteredEmployees.length || 1)) * 100}%`}}></div>
-                          </div>
-                      </div>
+                      <button onClick={() => navigate('/admin/trips')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2"><Truck className="w-4 h-4 text-emerald-400" /> Book New Trip</button>
+                      <button onClick={() => navigate('/admin/customer-care')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2"><Headset className="w-4 h-4 text-blue-400" /> Create Transport Quote</button>
+                      <button onClick={() => navigate('/admin/attendance')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-2"><Calendar className="w-4 h-4 text-orange-400" /> Mark Attendance</button>
                   </div>
               </div>
           </div>
