@@ -6,7 +6,7 @@ import {
   Phone, DollarSign, Plane, Briefcase, Filter, Search, FileText, Save,
   QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
-  Building2, ExternalLink, MousePointer2, Send
+  Building2, ExternalLink, MousePointer2, Send, Timer, Edit2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -22,7 +22,7 @@ interface UserAttendanceProps {
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status' | 'Monthly Summary' | 'My Calendar'>('Dashboard');
+  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status'>('Dashboard');
   
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [attendanceData, setAttendanceData] = useState<DailyAttendance[]>([]);
@@ -32,7 +32,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<DailyAttendance | null>(null);
+  const [editingRecord, setEditingRecord] = useState<DailyAttendance & { empId?: string }>({ date: '', status: AttendanceStatus.NOT_MARKED });
 
   const [filterSearch, setFilterSearch] = useState('');
   const todayDateStr = new Date().toISOString().split('T')[0];
@@ -177,26 +177,40 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     };
   }, [filteredStaffList, attendanceData, personalStats, isAdmin]);
 
-  const handleEditClick = (record: DailyAttendance) => {
+  const handleEditClick = (record: DailyAttendance, empId?: string) => {
       if (!isAdmin) return; 
-      setEditingRecord({ ...record });
+      setEditingRecord({ ...record, empId: empId || selectedEmployee?.id });
       setIsEditModalOpen(true);
   };
 
   const handleSaveChanges = () => {
-      if (!selectedEmployee || !editingRecord) return;
+      const targetEmpId = editingRecord.empId || selectedEmployee?.id;
+      if (!targetEmpId || !editingRecord.date) return;
+      
       const date = new Date(editingRecord.date);
       const year = date.getFullYear();
       const month = date.getMonth();
-      const key = `attendance_data_${selectedEmployee.id}_${year}_${month}`;
+      const key = `attendance_data_${targetEmpId}_${year}_${month}`;
       
-      const currentMonthData = JSON.parse(localStorage.getItem(key) || JSON.stringify(getEmployeeAttendance(selectedEmployee, year, month)));
-      const updatedMonthData = currentMonthData.map((d: DailyAttendance) => d.date === editingRecord.date ? editingRecord : d);
+      const targetEmp = employees.find(e => e.id === targetEmpId);
+      if (!targetEmp) return;
+
+      const currentMonthData = JSON.parse(localStorage.getItem(key) || JSON.stringify(getEmployeeAttendance(targetEmp, year, month)));
+      const updatedMonthData = currentMonthData.map((d: DailyAttendance) => d.date === editingRecord.date ? {
+          date: editingRecord.date,
+          status: editingRecord.status,
+          checkIn: editingRecord.checkIn,
+          checkOut: editingRecord.checkOut,
+          isLate: editingRecord.isLate
+      } : d);
       
       localStorage.setItem(key, JSON.stringify(updatedMonthData));
-      setAttendanceData(updatedMonthData);
+      
+      if (targetEmpId === selectedEmployee?.id) {
+          setAttendanceData(updatedMonthData);
+      }
+      
       setIsEditModalOpen(false);
-      setEditingRecord(null);
   };
 
   const handlePunchAction = (action: 'In' | 'Out') => {
@@ -224,6 +238,169 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     setIsPunchedIn(action === 'In');
     alert(`Successfully Punched ${action}!`);
   };
+
+  // Helper for Daily Status View
+  const staffDailyLogs = useMemo(() => {
+    if (!isAdmin) return [];
+    
+    const date = new Date(selectedDate);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    return filteredStaffList.map(emp => {
+        const key = `attendance_data_${emp.id}_${year}_${month}`;
+        const saved = localStorage.getItem(key);
+        const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
+        const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED };
+        return {
+            ...emp,
+            dailyRecord: record
+        };
+    });
+  }, [filteredStaffList, selectedDate, isAdmin]);
+
+  const renderDailyStatus = () => (
+    <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in fade-in duration-500">
+        <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-gray-50/30">
+            <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
+                        <Calendar className="w-5 h-5" />
+                    </div>
+                    <input 
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="bg-transparent border-none outline-none font-black text-gray-800 text-sm appearance-none cursor-pointer"
+                    />
+                </div>
+                <div className="h-8 w-px bg-gray-200"></div>
+                <div className="flex gap-2">
+                    <span className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black border border-emerald-100">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        {staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT).length} Present
+                    </span>
+                    <span className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-black border border-rose-100">
+                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                        {staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length} Absent
+                    </span>
+                </div>
+            </div>
+
+            <div className="flex gap-4">
+                {isSuperAdmin && (
+                    <div className="relative group">
+                        <select 
+                            value={filterCorporate}
+                            onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }}
+                            className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm"
+                        >
+                            <option value="All">Corporate: All</option>
+                            <option value="admin">Head Office</option>
+                            {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
+                        </select>
+                        <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                )}
+                <div className="relative group">
+                    <select 
+                        value={filterBranch}
+                        onChange={(e) => setFilterBranch(e.target.value)}
+                        className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm"
+                    >
+                        <option value="All">Branch: All</option>
+                        {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                    </select>
+                    <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+            </div>
+        </div>
+
+        <div className="overflow-x-auto">
+            <table className="w-full text-left">
+                <thead className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
+                    <tr>
+                        <th className="px-10 py-8">Staff Name</th>
+                        <th className="px-10 py-8">Branch / Shift</th>
+                        <th className="px-10 py-8">Check In</th>
+                        <th className="px-10 py-8">Check Out</th>
+                        <th className="px-10 py-8 text-center">Status</th>
+                        <th className="px-10 py-8 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                    {staffDailyLogs.map((log, i) => (
+                        <tr key={i} className="hover:bg-gray-50/50 transition-all group">
+                            <td className="px-10 py-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-lg border border-emerald-100 shadow-sm">
+                                        {log.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-gray-800 tracking-tight">{log.name}</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{log.role}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-10 py-8">
+                                <p className="font-bold text-gray-600 text-sm">{log.branch || 'Head Office'}</p>
+                                <p className="text-[10px] text-gray-400 font-black">{log.workingHours || '09:30 - 18:30'}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-200'}`}></div>
+                                    <span className={`text-lg font-black ${log.dailyRecord.checkIn ? 'text-gray-800' : 'text-gray-300'}`}>
+                                        {log.dailyRecord.checkIn || '--:--'}
+                                    </span>
+                                    {log.dailyRecord.isLate && (
+                                        <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100 uppercase tracking-wider">Late</span>
+                                    )}
+                                </div>
+                            </td>
+                            <td className="px-10 py-8">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkOut ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-gray-200'}`}></div>
+                                    <span className={`text-lg font-black ${log.dailyRecord.checkOut ? 'text-gray-800' : 'text-gray-300'}`}>
+                                        {log.dailyRecord.checkOut || '--:--'}
+                                    </span>
+                                </div>
+                            </td>
+                            <td className="px-10 py-8 text-center">
+                                <span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
+                                    log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                    log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                    'bg-gray-100 text-gray-500 border-gray-200'
+                                }`}>
+                                    {log.dailyRecord.status.replace('_', ' ')}
+                                </span>
+                            </td>
+                            <td className="px-10 py-8 text-right">
+                                <button 
+                                    onClick={() => handleEditClick(log.dailyRecord, log.id)}
+                                    className="p-3 hover:bg-white rounded-2xl text-gray-400 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 hover:shadow-md"
+                                >
+                                    <Edit2 className="w-5 h-5" />
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                    {staffDailyLogs.length === 0 && (
+                        <tr>
+                            <td colSpan={6} className="py-32 text-center">
+                                <div className="flex flex-col items-center gap-4 text-gray-300">
+                                    <Users className="w-16 h-16 opacity-20" />
+                                    <p className="font-black uppercase tracking-[0.3em] text-sm">No staff records found for this criteria.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    </div>
+  );
 
   const renderMonthlyCalendar = () => (
     <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in zoom-in-95 duration-500">
@@ -278,8 +455,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             <option value="All">Branch: All</option>
                             {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                         </select>
-                        <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                 </div>
             )}
@@ -368,15 +545,19 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         </div>
 
         {isAdmin && (
-            <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100">
-                {['Dashboard', 'Monthly Summary'].map((tab) => {
+            <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
+                {['Dashboard', 'Daily Status'].map((tab) => {
                     return (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
                             className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            {tab}
+                            {tab === 'Daily Status' ? (
+                                <div className="flex items-center gap-2">
+                                    <Timer className="w-4 h-4" /> Daily Status
+                                </div>
+                            ) : tab}
                         </button>
                     );
                 })}
@@ -439,12 +620,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                   </div>
               )}
 
-              {/* MONTHLY SUMMARY BELOW CLOCK (For Employees) */}
-              {!isAdmin && renderMonthlyCalendar()}
+              {/* MONTHLY SUMMARY CALENDAR ON DASHBOARD (For All Roles) */}
+              {renderMonthlyCalendar()}
 
               {/* Recent Activity / Log Table (Only for Admin) */}
               {isAdmin && (
-                <div className="bg-white rounded-[3rem] border border-gray-50 shadow-2xl shadow-emerald-900/5 overflow-hidden">
+                <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
                     <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
@@ -502,12 +683,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
           </div>
       )}
 
-      {/* --- MONTHLY SUMMARY TAB (Admin Only) --- */}
-      {isAdmin && activeTab === 'Monthly Summary' && renderMonthlyCalendar()}
+      {/* --- DAILY STATUS TAB (Admin Only) --- */}
+      {isAdmin && activeTab === 'Daily Status' && renderDailyStatus()}
 
       {/* --- EDIT ATTENDANCE MODAL (Admin Only) --- */}
       {isEditModalOpen && editingRecord && isAdmin && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
               <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
                   <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                       <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Edit Attendance - {editingRecord.date}</h3>
@@ -536,7 +717,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                           <div>
                               <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check In</label>
                               <input 
-                                type="text"
+                                type="text" 
                                 value={editingRecord.checkIn || ''}
                                 onChange={(e) => setEditingRecord({...editingRecord, checkIn: e.target.value})}
                                 placeholder="09:30 AM"
@@ -546,7 +727,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                           <div>
                               <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check Out</label>
                               <input 
-                                type="text"
+                                type="text" 
                                 value={editingRecord.checkOut || ''}
                                 onChange={(e) => setEditingRecord({...editingRecord, checkOut: e.target.value})}
                                 placeholder="06:30 PM"
