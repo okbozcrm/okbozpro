@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Calendar, User, Clock, CheckCircle, AlertCircle, 
   Trash2, Search, Filter, MoreHorizontal, X, SlidersHorizontal, 
-  Pencil, Building2, Save, BarChart3, List, CalendarDays, Bell, BellRing
+  Pencil, Building2, Save, BarChart3, List, CalendarDays, Bell
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';
@@ -24,8 +24,8 @@ interface Task {
   priority: 'Low' | 'Medium' | 'High';
   startDate: string;
   endDate: string;
-  reminderTime?: string; // ISO string for reminder
-  reminderTriggered?: boolean; // Track if notification already sent
+  reminderTime?: string; // NEW: ISO string for reminder
+  reminderTriggered?: boolean; // NEW: Track if notification already sent
   createdAt: string;
 }
 
@@ -77,7 +77,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
 
   // --- Task State ---
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('tasks_data');
+    const key = isSuperAdmin ? 'tasks_data' : `tasks_data`; 
+    const saved = localStorage.getItem(key);
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
@@ -85,19 +86,22 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('tasks_data', JSON.stringify(tasks));
-  }, [tasks]);
+    const key = isSuperAdmin ? 'tasks_data' : `tasks_data`;
+    localStorage.setItem(key, JSON.stringify(tasks));
+  }, [tasks, isSuperAdmin]);
 
+  // Handle storage events to update tasks when layout markers change
   useEffect(() => {
     const handleStorage = () => {
-      const saved = localStorage.getItem('tasks_data');
+      const key = isSuperAdmin ? 'tasks_data' : `tasks_data`;
+      const saved = localStorage.getItem(key);
       if (saved) {
         setTasks(JSON.parse(saved));
       }
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  }, [isSuperAdmin]);
 
   // --- UI State ---
   const [activeTab, setActiveTab] = useState<'Kanban' | 'Performance'>('Kanban');
@@ -116,8 +120,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     priority: 'Medium',
     startDate: '',
     endDate: '',
-    reminderTime: '',
-    reminderEnabled: false,
+    reminderTime: '', // NEW
+    reminderEnabled: false, // NEW
     status: 'Todo'
   });
 
@@ -159,7 +163,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       priority: 'Medium',
       startDate: formatDateTime(now),
       endDate: formatDateTime(tomorrow),
-      reminderTime: formatDateTime(now),
+      reminderTime: '',
       reminderEnabled: false,
       status: 'Todo'
     });
@@ -209,16 +213,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     e.preventDefault();
     if (!formData.title || !formData.assignedTo) return;
 
-    // Validation: Reminder must be after now and before/equal to end date
-    if (formData.reminderEnabled) {
-      const rTime = new Date(formData.reminderTime).getTime();
-      const endTime = new Date(formData.endDate).getTime();
-      if (rTime > endTime) {
-        alert("Reminder cannot be set after the task end date.");
-        return;
-      }
-    }
-
     let corpName = 'Head Office';
     if (formData.corporateId !== 'admin') {
        const c = corporates.find(c => c.email === formData.corporateId);
@@ -243,7 +237,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         startDate: formData.startDate,
         endDate: formData.endDate,
         reminderTime: finalReminderTime,
-        reminderTriggered: (finalReminderTime === t.reminderTime) ? t.reminderTriggered : false,
+        reminderTriggered: (finalReminderTime === t.reminderTime) ? t.reminderTriggered : false, // Reset if time changed
         status: formData.status as any
       } : t);
       setTasks(updatedTasks);
@@ -270,7 +264,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
           sendSystemNotification({
               type: 'task_assigned',
               title: `New Task: ${newTask.title}`,
-              message: `You have been assigned a new task by ${assignedByName}.`,
+              message: `You have been assigned a new task.`,
               targetRoles: [UserRole.EMPLOYEE],
               employeeId: formData.assignedTo,
               link: `/user/tasks`
@@ -379,7 +373,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                     type="text" 
                     placeholder="Search tasks..." 
                     value={searchQuery}
-                    /* FIX: Changed setSearchTerm to setSearchQuery to resolve undefined name error */
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
@@ -414,8 +407,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                             const assignee = getStaffDetails(task.assignedTo);
                             const endDate = new Date(task.endDate);
                             const hasReminder = !!task.reminderTime;
-                            const isReminderOver = task.reminderTriggered;
-                            
                             return (
                             <div key={task.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all group relative">
                                 <div className="flex justify-between items-start mb-2">
@@ -424,10 +415,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                       {task.priority}
                                   </span>
                                   {hasReminder && (
-                                    <div className="relative group/bell" title={isReminderOver ? 'Reminder already triggered' : `Reminder set for ${new Date(task.reminderTime!).toLocaleString()}`}>
-                                      <Bell className={`w-3.5 h-3.5 ${isReminderOver ? 'text-gray-300' : 'text-orange-500 animate-pulse'}`} />
-                                      {!isReminderOver && <span className="absolute -top-1 -right-1 block h-1.5 w-1.5 rounded-full bg-red-500 ring-1 ring-white"></span>}
-                                    </div>
+                                    <Bell className={`w-3.5 h-3.5 ${task.reminderTriggered ? 'text-gray-300' : 'text-orange-500 animate-pulse'}`} />
                                   )}
                                 </div>
                                 <div className="flex gap-1">
@@ -667,7 +655,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                           onChange={(e) => setFormData({...formData, reminderTime: e.target.value})} 
                           className="w-full px-4 py-3 border border-orange-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-gray-700 bg-white" 
                        />
-                       <p className="text-[10px] text-orange-500 mt-1.5">* You will receive an internal app notification and a desktop alert at this time.</p>
+                       <p className="text-[10px] text-orange-500 mt-1.5">* You will receive an internal app notification at this time.</p>
                      </div>
                    )}
                  </div>
