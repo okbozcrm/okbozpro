@@ -32,7 +32,6 @@ const MASTER_ADMIN_LINKS = [
   { id: 'documents', path: '/admin/documents', label: 'Documents', icon: FileText },
   { id: 'vendors', path: '/admin/vendors', label: 'Vendor Attachment', icon: CarFront },
   { id: 'payroll', path: '/admin/payroll', label: 'Payroll', icon: DollarSign },
-  { id: 'admin-finance', path: '/admin/admin-finance', label: 'Admin Finance', icon: ReceiptIndianRupee },
   { id: 'finance-and-expenses', path: '/admin/finance-and-expenses', label: 'Finance & Expenses', icon: CreditCard },
   { id: 'corporate', path: '/admin/corporate', label: 'Corporate', icon: Building2 },
   { id: 'data-export', path: '/admin/data-export', label: 'Data & Backup', icon: Database }, 
