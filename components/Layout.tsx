@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
@@ -23,7 +22,6 @@ const MASTER_ADMIN_LINKS = [
   { id: 'customer-care', path: '/admin/customer-care', label: 'Customer Care', icon: Headset },
   { id: 'trips', path: '/admin/trips', label: 'Trip Booking', icon: Map },
   { id: 'tracking', path: '/admin/tracking', label: 'Live Tracking', icon: Navigation },
-  { id: 'driver-monitoring', path: '/admin/driver-monitoring', label: 'Driver Monitoring', icon: Activity },
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
   { id: 'leads', path: '/admin/leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'tasks', path: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
@@ -88,7 +86,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
   }, [role]);
 
-  // NEW: Background effect to check for due task reminders
+  // Background effect to check for due task reminders
   useEffect(() => {
     const checkTaskReminders = async () => {
         try {
@@ -311,7 +309,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return orderedLinks.filter(link => {
       if (role === UserRole.ADMIN) return true;
       const corporateAllowed = [
-        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking', 'driver-monitoring',
+        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 'employee-settings',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments'
       ];
@@ -335,7 +333,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     const restrictedLinksMap: Record<string, any> = {
         'reports': { id: 'reports', path: '/user/reports', label: 'Reports', icon: BarChart3 },
         'trips': { id: 'trips', path: '/user/trips', label: 'Trip Booking', icon: Map },
-        'driver-monitoring': { id: 'driver-monitoring', path: '/user/driver-monitoring', label: 'Driver Monitoring', icon: Activity },
         'driver-payments': { id: 'driver-payments', path: '/user/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee },
         'attendance_admin': { id: 'attendance_admin', path: '/user/attendance-admin', label: 'Attendance (Admin)', icon: Calendar },
         'staff': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },

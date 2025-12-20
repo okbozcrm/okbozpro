@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, Plus, Search, Filter, Download, 
@@ -132,6 +131,7 @@ const DriverPayments: React.FC = () => {
     remarks: ''
   };
   const [walletForm, setWalletForm] = useState(initialWalletForm);
+  const [allBranches, setAllBranches] = useState<any[]>([]);
 
   // --- Load Data ---
   useEffect(() => {
@@ -153,6 +153,7 @@ const DriverPayments: React.FC = () => {
     let loadedPayments: DriverPayment[] = [];
     let loadedWallet: WalletTransaction[] = [];
     let loadedStaff: Employee[] = [];
+    let loadedBranches: any[] = [];
 
     if (isSuperAdmin) {
         // --- Admin View: Aggregate Everything ---
@@ -184,11 +185,20 @@ const DriverPayments: React.FC = () => {
             loadedStaff = [...loadedStaff, ...cStaff];
         });
 
+        // D. Branches
+        const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
+        loadedBranches = [...adminBranches];
+        corps.forEach((c: any) => {
+            const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+            loadedBranches = [...loadedBranches, ...cBranches];
+        });
+
     } else {
         // --- Franchise View: Scoped Data ---
         const payKey = `driver_payment_records_${sessionId}`;
         const walletKey = `driver_wallet_data_${sessionId}`;
         const staffKey = `staff_data_${sessionId}`;
+        const branchKey = `branches_data_${sessionId}`;
 
         loadedPayments = JSON.parse(localStorage.getItem(payKey) || '[]');
         
@@ -196,11 +206,13 @@ const DriverPayments: React.FC = () => {
         loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: sessionId }));
         
         loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]');
+        loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]');
     }
 
     setPayments(loadedPayments);
     setWalletTransactions(loadedWallet);
     setStaffList(loadedStaff);
+    setAllBranches(loadedBranches);
   }, [isSuperAdmin, sessionId]);
 
   // --- Computed Logic for Compensation Form ---
@@ -867,7 +879,7 @@ const DriverPayments: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 text-right font-bold text-gray-900">₹{p.amount}</td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${p.status === 'Paid' ? 'text-green-600 bg-green-50' : 'text-yellow-600 bg-yellow-50'}`}>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${p.status === 'Paid' ? 'text-green-600 bg-green-50' : 'text-yellow-600 bg-yellow-50'}`}>
                                                     {p.status}
                                                 </span>
                                             </td>
@@ -898,9 +910,15 @@ const DriverPayments: React.FC = () => {
                      <div className="space-y-3">
                          <div>
                              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                             <select className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option>Select Branch</option>
-                                {/* Populate branches if needed */}
+                             <select 
+                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                                value={compForm.branch}
+                                onChange={(e) => setCompForm({...compForm, branch: e.target.value})}
+                             >
+                                <option value="">Select Branch</option>
+                                {allBranches.map((b: any) => (
+                                    <option key={b.id || b.name} value={b.name}>{b.name}</option>
+                                ))}
                              </select>
                          </div>
                          <div className="grid grid-cols-2 gap-3">

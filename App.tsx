@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -23,7 +22,7 @@ import { CustomerCare } from './pages/admin/CustomerCare';
 import AutoDialer from './pages/admin/AutoDialer';
 import DriverPayments from './pages/admin/DriverPayments';
 import DataExport from './pages/admin/DataExport'; 
-import Messenger from './pages/admin/Messenger'; // NEW IMPORT
+import Messenger from './pages/admin/Messenger'; 
 import UserAttendance from './pages/user/UserAttendance';
 import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
@@ -123,7 +122,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login onLogin={handleLogin} />} />
-                {/* NEW: Specific login routes */}
+                {/* Specific login routes */}
                 <Route path="/login/admin" element={<Login onLogin={handleLogin} initialTab="admin" />} />
                 <Route path="/login/corporate" element={<Login onLogin={handleLogin} initialTab="corporate" />} />
                 <Route path="/login/employee" element={<Login onLogin={handleLogin} initialTab="employee" />} />
@@ -165,7 +164,7 @@ const App: React.FC = () => {
                         {/* Data Export Route */}
                         <Route path="/admin/data-export" element={<DataExport />} />
                         
-                        {/* NEW: Chat Route */}
+                        {/* Chat Route */}
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
 
                         {/* Corporate Management & Settings - Only Super Admin */}
@@ -193,7 +192,7 @@ const App: React.FC = () => {
                         <Route path="/user/apply-leave" element={<ApplyLeave />} />
                         <Route path="/user/profile" element={<UserProfile />} />
                         
-                        {/* NEW: Chat Route for Employee */}
+                        {/* Chat Route for Employee */}
                         <Route path="/user/chat" element={<Messenger role={UserRole.EMPLOYEE} />} />
 
                         {/* Permitted Modules - Rendering Admin components for Employee */}
