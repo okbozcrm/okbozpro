@@ -18,7 +18,7 @@ type SettingCategory =
   | 'Auto Live Track'
   | 'Calendar Month' | 'Attendance Cycle' | 'Payout Date' | 'Import Settings' | 'Incentive Types' | 'Salary Templates' | 'Round Off'
   | 'App Notifications'
-  | 'CMS & Content' // Added CMS
+  | 'CMS & Content'
   | 'Request A Feature';
 
 // --- Reusable UI Elements ---
@@ -38,6 +38,7 @@ const ToggleSwitch = ({ label, checked, onChange }: { label: string, checked: bo
   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
     <span className="font-medium text-gray-700">{label}</span>
     <button 
+      type="button"
       onClick={onChange}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-emerald-500' : 'bg-gray-300'}`}
     >
@@ -46,9 +47,8 @@ const ToggleSwitch = ({ label, checked, onChange }: { label: string, checked: bo
   </div>
 );
 
-// --- Sub-Components for Each Section ---
+// --- Sub-Components ---
 
-// 1. My Company Report
 const MyCompanyReport = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="My Company Report" icon={FileText} desc="Overview of company health and statistics." />
@@ -71,18 +71,9 @@ const MyCompanyReport = () => (
         <p className="text-gray-400 text-xs font-medium mt-2">Next cycle: Dec 01</p>
       </div>
     </div>
-    <div className="bg-gray-50 rounded-xl p-8 text-center border border-dashed border-gray-300">
-       <Download className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-       <h4 className="text-gray-900 font-medium">Download Full Report</h4>
-       <p className="text-gray-500 text-sm mb-4">Get a detailed PDF analysis of your company stats.</p>
-       <button className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors">
-         Download PDF
-       </button>
-    </div>
   </div>
 );
 
-// 2. My Team (Admins)
 const MyTeamAdmins = () => {
   const [admins, setAdmins] = useState([
     { id: 1, name: 'Senthil Kumar', role: 'Super Admin', email: 'senthil@okboz.com', active: true },
@@ -92,13 +83,6 @@ const MyTeamAdmins = () => {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="My Team (Admins)" icon={Shield} desc="Manage access levels and administrative staff." />
-      
-      <div className="flex justify-end">
-        <button className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-emerald-600">
-          <Plus className="w-4 h-4" /> Add Admin
-        </button>
-      </div>
-
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
@@ -117,13 +101,9 @@ const MyTeamAdmins = () => {
                   <div className="text-gray-500 text-xs">{admin.email}</div>
                 </td>
                 <td className="px-6 py-4 text-gray-600">{admin.role}</td>
-                <td className="px-6 py-4">
-                  <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Active</span>
-                </td>
+                <td className="px-6 py-4"><span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Active</span></td>
                 <td className="px-6 py-4 text-right">
-                  <button className="text-gray-400 hover:text-emerald-600 p-1">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  <button type="button" className="text-gray-400 hover:text-emerald-600 p-1"><Edit2 className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -134,73 +114,102 @@ const MyTeamAdmins = () => {
   );
 };
 
-// 3. Departments & Roles (Updated for Persistence)
 const DepartmentsAndRoles = () => {
-  // Load initial state from local storage or defaults
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  
+  // Namespaced storage keys to prevent multi-tenancy pollution
+  const DEPT_KEY = isSuperAdmin ? 'company_departments' : `company_departments_${sessionId}`;
+  const ROLE_KEY = isSuperAdmin ? 'company_roles' : `company_roles_${sessionId}`;
+
   const [departments, setDepartments] = useState<string[]>(() => {
-    const saved = localStorage.getItem('company_departments');
-    return saved ? JSON.parse(saved) : ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance'];
+    try {
+      const saved = localStorage.getItem(DEPT_KEY);
+      return saved ? JSON.parse(saved) : ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance'];
+    } catch (e) { return ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance']; }
   });
 
   const [roles, setRoles] = useState<string[]>(() => {
-    const saved = localStorage.getItem('company_roles');
-    return saved ? JSON.parse(saved) : ['Manager', 'Team Lead', 'Executive', 'Intern', 'Director', 'Associate'];
+    try {
+      const saved = localStorage.getItem(ROLE_KEY);
+      return saved ? JSON.parse(saved) : ['Manager', 'Team Lead', 'Executive', 'Intern', 'Director', 'Associate'];
+    } catch (e) { return ['Manager', 'Team Lead', 'Executive', 'Intern', 'Director', 'Associate']; }
   });
 
   const [newDept, setNewDept] = useState('');
   const [newRole, setNewRole] = useState('');
 
-  // Persist changes
-  useEffect(() => {
-    localStorage.setItem('company_departments', JSON.stringify(departments));
-  }, [departments]);
+  const saveDepts = (list: string[]) => {
+      setDepartments(list);
+      localStorage.setItem(DEPT_KEY, JSON.stringify(list));
+      // Fallback for StaffList which expects 'company_departments' globally in some contexts
+      if (!isSuperAdmin) localStorage.setItem('company_departments', JSON.stringify(list));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('company_roles', JSON.stringify(roles));
-  }, [roles]);
+  const saveRoles = (list: string[]) => {
+      setRoles(list);
+      localStorage.setItem(ROLE_KEY, JSON.stringify(list));
+      if (!isSuperAdmin) localStorage.setItem('company_roles', JSON.stringify(list));
+  };
+
+  const handleAddDept = () => {
+      const trimmed = newDept.trim();
+      if (!trimmed) return;
+      if (departments.includes(trimmed)) { alert("Department already exists"); return; }
+      saveDepts([...departments, trimmed]);
+      setNewDept('');
+  };
+
+  const handleAddRole = () => {
+      const trimmed = newRole.trim();
+      if (!trimmed) return;
+      if (roles.includes(trimmed)) { alert("Role already exists"); return; }
+      saveRoles([...roles, trimmed]);
+      setNewRole('');
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="Departments & Roles" icon={Building2} desc="Define the organizational structure for your company." />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Depts */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Building2 className="w-4 h-4 text-emerald-500" /> Departments</h3>
           <div className="flex gap-2 mb-4">
             <input 
               value={newDept} 
               onChange={(e) => setNewDept(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleAddDept()}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               placeholder="e.g. Logistics"
             />
-            <button onClick={() => {if(newDept) {setDepartments([...departments, newDept]); setNewDept('')}}} className="bg-emerald-500 hover:bg-emerald-600 text-white p-2 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
+            <button type="button" onClick={handleAddDept} className="bg-emerald-500 hover:bg-emerald-600 text-white p-2 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
           </div>
-          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
             {departments.map((d, i) => (
-              <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group hover:border-emerald-200 transition-colors">
+              <div key={d} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group hover:border-emerald-200 transition-colors">
                 <span className="text-sm font-medium text-gray-700">{d}</span>
-                <button onClick={() => setDepartments(departments.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
+                <button type="button" onClick={() => saveDepts(departments.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
               </div>
             ))}
           </div>
         </div>
-        {/* Roles */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><BriefcaseIcon className="w-4 h-4 text-blue-500" /> Job Roles</h3>
           <div className="flex gap-2 mb-4">
             <input 
               value={newRole} 
               onChange={(e) => setNewRole(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleAddRole()}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               placeholder="e.g. Driver"
             />
-            <button onClick={() => {if(newRole) {setRoles([...roles, newRole]); setNewRole('')}}} className="bg-emerald-500 hover:bg-emerald-600 text-white p-2 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
+            <button type="button" onClick={handleAddRole} className="bg-emerald-500 hover:bg-emerald-600 text-white p-2 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
           </div>
-          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
             {roles.map((r, i) => (
-              <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group hover:border-blue-200 transition-colors">
+              <div key={r} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group hover:border-blue-200 transition-colors">
                 <span className="text-sm font-medium text-gray-700">{r}</span>
-                <button onClick={() => setRoles(roles.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
+                <button type="button" onClick={() => saveRoles(roles.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
               </div>
             ))}
           </div>
@@ -210,78 +219,50 @@ const DepartmentsAndRoles = () => {
   );
 };
 
-// 4. Custom Fields
 const CustomFields = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="Custom Fields" icon={Settings2} desc="Add extra fields to employee profiles." />
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center">
-       <div className="mb-4 text-gray-500">
-         Currently no custom fields configured.
-       </div>
-       <button className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg font-medium hover:bg-emerald-100 transition-colors border border-emerald-200 flex items-center gap-2 mx-auto">
-         <Plus className="w-4 h-4" /> Add Custom Field
-       </button>
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center text-gray-400">
+       Currently no custom fields configured.
     </div>
   </div>
 );
 
-// 5. Inactive Employees
 const InactiveEmployees = () => {
   const [inactiveStaff, setInactiveStaff] = useState<any[]>([]);
   const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
 
   const loadInactive = () => {
       let all: any[] = [];
-      // 1. Head Office / Current User Data
-      // For Super Admin in StaffList, they only save to 'staff_data'.
-      // For normal users/corporate, they save to 'staff_data_{id}'.
-      const sessionId = localStorage.getItem('app_session_id') || 'admin';
       const key = isSuperAdmin ? 'staff_data' : `staff_data_${sessionId}`;
-      
       try {
         const localData = JSON.parse(localStorage.getItem(key) || '[]');
-        // We tag them with the storage key so we know where to save them back
-        all = [...localData.map((e:any) => ({...e, storageKey: key}))];
-      } catch(e) {
-        console.error("Error loading staff data for inactive list", e);
-      }
-
+        all = localData.map((e:any) => ({...e, storageKey: key}));
+      } catch(e) {}
       setInactiveStaff(all.filter(e => e.status === 'Inactive'));
   };
 
-  useEffect(() => {
-      loadInactive();
-  }, []);
+  useEffect(() => { loadInactive(); }, []);
 
   const handleRestore = (employee: any) => {
       if(!window.confirm(`Restore ${employee.name} to Active status?`)) return;
-
-      const key = employee.storageKey;
       try {
-        const stored = JSON.parse(localStorage.getItem(key) || '[]');
+        const stored = JSON.parse(localStorage.getItem(employee.storageKey) || '[]');
         const updated = stored.map((e: any) => e.id === employee.id ? { ...e, status: 'Active' } : e);
-        localStorage.setItem(key, JSON.stringify(updated));
-        loadInactive(); // Refresh list
-      } catch (e) {
-        console.error("Failed to restore employee", e);
-        alert("Error restoring employee data.");
-      }
+        localStorage.setItem(employee.storageKey, JSON.stringify(updated));
+        loadInactive();
+      } catch (e) {}
   };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="Inactive Employees" icon={UserX} desc="View and restore former employees." />
-      
       {inactiveStaff.length > 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4">Employee</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Left On (Est.)</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
+              <tr><th className="px-6 py-4">Employee</th><th className="px-6 py-4">Role</th><th className="px-6 py-4 text-right">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {inactiveStaff.map((emp) => (
@@ -289,24 +270,12 @@ const InactiveEmployees = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <img src={emp.avatar} alt="" className="w-8 h-8 rounded-full opacity-60" />
-                      <div>
-                        <div className="font-medium text-gray-900">{emp.name}</div>
-                        <div className="text-gray-500 text-xs">{emp.department}</div>
-                      </div>
+                      <div><div className="font-medium text-gray-900">{emp.name}</div><div className="text-gray-500 text-xs">{emp.department}</div></div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-gray-600">{emp.role}</td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {/* Mock exit date since we don't track it explicitly yet */}
-                    N/A
-                  </td>
                   <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => handleRestore(emp)}
-                      className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center gap-1 ml-auto"
-                    >
-                      <RotateCw className="w-3 h-3" /> Restore
-                    </button>
+                    <button type="button" onClick={() => handleRestore(emp)} className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-3 py-1 rounded-md text-xs font-bold transition-colors">Restore</button>
                   </td>
                 </tr>
               ))}
@@ -314,47 +283,27 @@ const InactiveEmployees = () => {
           </table>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-           <div className="p-8 text-center text-gray-500">
-              <UserX className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No inactive employees found.</p>
-              <p className="text-xs text-gray-400 mt-1">Mark employees as 'Inactive' in Staff Management to see them here.</p>
-           </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
+           <UserX className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+           <p>No inactive employees found.</p>
         </div>
       )}
     </div>
   );
 };
 
-// 6. Shifts & Breaks
 const ShiftsAndBreaks = () => {
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const SHIFT_KEY = sessionId === 'admin' ? 'company_shifts' : `company_shifts_${sessionId}`;
+
   const [shifts, setShifts] = useState<{id: number, name: string, start: string, end: string}[]>(() => {
-    const saved = localStorage.getItem('company_shifts');
-    return saved ? JSON.parse(saved) : [
-      { id: 1, name: 'General Shift', start: '09:30', end: '18:30' }
-    ];
+    try {
+      const saved = localStorage.getItem(SHIFT_KEY);
+      return saved ? JSON.parse(saved) : [{ id: 1, name: 'General Shift', start: '09:30', end: '18:30' }];
+    } catch(e) { return [{ id: 1, name: 'General Shift', start: '09:30', end: '18:30' }]; }
   });
 
-  useEffect(() => {
-    localStorage.setItem('company_shifts', JSON.stringify(shifts));
-  }, [shifts]);
-
-  const addShift = () => {
-    const newId = Date.now();
-    setShifts([...shifts, { id: newId, name: 'New Shift', start: '09:00', end: '18:00' }]);
-  };
-
-  const updateShift = (id: number, field: string, value: string) => {
-    setShifts(shifts.map(s => s.id === id ? { ...s, [field]: value } : s));
-  };
-
-  const removeShift = (id: number) => {
-    if (shifts.length <= 1) {
-        alert("You need at least one shift configured.");
-        return;
-    }
-    setShifts(shifts.filter(s => s.id !== id));
-  };
+  useEffect(() => { localStorage.setItem(SHIFT_KEY, JSON.stringify(shifts)); }, [shifts, SHIFT_KEY]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -364,58 +313,21 @@ const ShiftsAndBreaks = () => {
           <div key={shift.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-center">
              <div className="flex-1 w-full">
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Shift Name</label>
-                <input 
-                    value={shift.name} 
-                    onChange={(e) => updateShift(shift.id, 'name', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
+                <input value={shift.name} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, name: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
              </div>
-             <div className="w-full md:w-32">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Start Time</label>
-                <input 
-                    type="time" 
-                    value={shift.start} 
-                    onChange={(e) => updateShift(shift.id, 'start', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-             </div>
-             <div className="w-full md:w-32">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">End Time</label>
-                <input 
-                    type="time" 
-                    value={shift.end} 
-                    onChange={(e) => updateShift(shift.id, 'end', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-             </div>
-             <button 
-                onClick={() => removeShift(shift.id)}
-                className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"
-             >
-                <Trash2 className="w-5 h-5" />
-             </button>
+             <div className="w-full md:w-32"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Start</label><input type="time" value={shift.start} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, start: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+             <div className="w-full md:w-32"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">End</label><input type="time" value={shift.end} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, end: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
+             <button type="button" onClick={() => shifts.length > 1 && setShifts(shifts.filter(s => s.id !== shift.id))} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-5 h-5" /></button>
           </div>
         ))}
-        <button 
-            onClick={addShift}
-            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2"
-        >
-           <Plus className="w-5 h-5" /> Create New Shift
-        </button>
+        <button type="button" onClick={() => setShifts([...shifts, { id: Date.now(), name: 'New Shift', start: '09:00', end: '18:00' }])} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2"><Plus className="w-5 h-5" /> Create New Shift</button>
       </div>
     </div>
   );
 };
 
-// 7. Attendance Modes
 const AttendanceModes = () => {
-  const [modes, setModes] = useState({
-    gps: true,
-    selfie: true,
-    qr: false,
-    manual: false
-  });
-
+  const [modes, setModes] = useState({ gps: true, selfie: true, qr: false, manual: false });
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="Attendance Modes" icon={Smartphone} desc="Choose how employees mark their attendance." />
@@ -429,424 +341,218 @@ const AttendanceModes = () => {
   );
 };
 
-// 8. Custom Paid Leaves
-const CustomPaidLeaves = () => (
-  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-    <SectionHeader title="Custom Paid Leaves" icon={Plane} desc="Set up annual leave quotas." />
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-       <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span className="font-bold text-gray-700">Casual Leave (CL)</span>
-          <span className="bg-white border px-3 py-1 rounded text-sm font-bold">12 / Year</span>
-       </div>
-       <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span className="font-bold text-gray-700">Sick Leave (SL)</span>
-          <span className="bg-white border px-3 py-1 rounded text-sm font-bold">10 / Year</span>
-       </div>
-       <button className="text-emerald-600 text-sm font-medium hover:underline flex items-center gap-1">
-         <Plus className="w-3 h-3" /> Add Leave Type
-       </button>
-    </div>
-  </div>
-);
+// FIX: Added missing CustomPaidLeaves component
+const CustomPaidLeaves = () => {
+  const [leaves, setLeaves] = useState([
+    { id: 1, name: 'Casual Leave', code: 'CL', days: 12 },
+    { id: 2, name: 'Sick Leave', code: 'SL', days: 10 },
+  ]);
 
-// 9. Holiday List
-const HolidayList = () => (
-  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-    <SectionHeader title="Holiday List" icon={Calendar} desc="Manage public holidays for the year." />
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-       <div className="flex justify-between items-center mb-4">
-          <h4 className="font-bold text-gray-800">2025 Calendar</h4>
-          <button className="text-emerald-600 text-xs font-bold border border-emerald-200 px-3 py-1 rounded hover:bg-emerald-50">Upload List</button>
-       </div>
-       <div className="space-y-2">
-          <div className="flex justify-between p-2 border-b border-gray-100">
-             <span>New Year's Day</span>
-             <span className="text-gray-500 text-sm">Jan 01, Wed</span>
-          </div>
-          <div className="flex justify-between p-2 border-b border-gray-100">
-             <span>Republic Day</span>
-             <span className="text-gray-500 text-sm">Jan 26, Sun</span>
-          </div>
-          <div className="flex justify-between p-2">
-             <span>Independence Day</span>
-             <span className="text-gray-500 text-sm">Aug 15, Fri</span>
-          </div>
-       </div>
-    </div>
-  </div>
-);
-
-// 10. Auto Live Track
-const AutoLiveTrack = () => {
-  const [tracking, setTracking] = useState(true);
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="Auto Live Track" icon={Zap} desc="Background GPS tracking for field staff." />
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-         <ToggleSwitch label="Enable Live Tracking" checked={tracking} onChange={() => setTracking(!tracking)} />
-         <p className="text-xs text-gray-500 mt-4 bg-yellow-50 p-3 rounded border border-yellow-100">
-           <AlertCircle className="w-3 h-3 inline mr-1" />
-           Battery usage may increase for employees with this setting enabled. Tracking only active during shift hours.
-         </p>
+      <SectionHeader title="Custom Paid Leaves" icon={Plane} desc="Manage available leave types and their annual quotas." />
+      <div className="grid grid-cols-1 gap-4">
+        {leaves.map(leave => (
+          <div key={leave.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+            <div>
+              <div className="font-bold text-gray-800">{leave.name} ({leave.code})</div>
+              <div className="text-xs text-gray-500">{leave.days} days per year</div>
+            </div>
+            <button type="button" className="text-gray-400 hover:text-emerald-600 p-2"><Edit2 className="w-4 h-4" /></button>
+          </div>
+        ))}
+        <button type="button" className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2">
+          <Plus className="w-5 h-5" /> Add Leave Type
+        </button>
       </div>
     </div>
   );
 };
 
-// 11. Payout Date Settings (New Component)
+// FIX: Added missing HolidayList component
+const HolidayList = () => {
+  const [holidays, setHolidays] = useState([
+    { id: 1, name: 'New Year', date: '2025-01-01' },
+    { id: 2, name: 'Pongal', date: '2025-01-14' },
+  ]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <SectionHeader title="Holiday List" icon={Calendar} desc="Configure the annual holiday calendar." />
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-4">Holiday Name</th>
+              <th className="px-6 py-4">Date</th>
+              <th className="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {holidays.map((h) => (
+              <tr key={h.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 font-medium text-gray-900">{h.name}</td>
+                <td className="px-6 py-4 text-gray-600">{h.date}</td>
+                <td className="px-6 py-4 text-right">
+                  <button type="button" className="text-gray-400 hover:text-red-500 p-1"><Trash2 className="w-4 h-4" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2">
+        <Plus className="w-5 h-5" /> Add Holiday
+      </button>
+    </div>
+  );
+};
+
+// FIX: Added missing AutoLiveTrack component
+const AutoLiveTrack = () => {
+  const [enabled, setEnabled] = useState(false);
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <SectionHeader title="Auto Live Track" icon={Zap} desc="Enable automatic background location tracking during shift hours." />
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <ToggleSwitch label="Enable Auto Tracking" checked={enabled} onChange={() => setEnabled(!enabled)} />
+        <div className="p-4 bg-blue-50 text-blue-700 text-xs flex items-start gap-2 border-t border-blue-100">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p>Enabling this will track staff location automatically from Punch In to Punch Out. Requires staff permission on their mobile device.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// FIX: Added missing AppNotifications component
+const AppNotifications = () => {
+  const [config, setConfig] = useState({ push: true, email: true, whatsapp: false });
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <SectionHeader title="App Notifications" icon={Bell} desc="Configure which channels to use for system alerts." />
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+        <ToggleSwitch label="Push Notifications" checked={config.push} onChange={() => setConfig({...config, push: !config.push})} />
+        <ToggleSwitch label="Email Alerts" checked={config.email} onChange={() => setConfig({...config, email: !config.email})} />
+        <ToggleSwitch label="WhatsApp Integration" checked={config.whatsapp} onChange={() => setConfig({...config, whatsapp: !config.whatsapp})} />
+      </div>
+    </div>
+  );
+};
+
 const PayoutDateSettings = () => {
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const DEPT_KEY = isSuperAdmin ? 'company_departments' : `company_departments_${sessionId}`;
+  const PAYOUT_KEY = isSuperAdmin ? 'company_payout_dates' : `company_payout_dates_${sessionId}`;
+  const GLOBAL_DAY_KEY = isSuperAdmin ? 'company_global_payout_day' : `company_global_payout_day_${sessionId}`;
+
   const [departments] = useState<string[]>(() => {
-    const saved = localStorage.getItem('company_departments');
-    return saved ? JSON.parse(saved) : ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance'];
+    try {
+      const saved = localStorage.getItem(DEPT_KEY);
+      return saved ? JSON.parse(saved) : ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance'];
+    } catch(e) { return ['Sales', 'Marketing', 'Development', 'HR', 'Operations', 'Finance']; }
   });
 
   const [payoutConfig, setPayoutConfig] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('company_payout_dates');
-    return saved ? JSON.parse(saved) : {};
+    try {
+      const saved = localStorage.getItem(PAYOUT_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) { return {}; }
   });
 
-  const [globalDay, setGlobalDay] = useState<string>(() => {
-     return localStorage.getItem('company_global_payout_day') || '5'; // Default 5th
-  });
+  const [globalDay, setGlobalDay] = useState<string>(() => localStorage.getItem(GLOBAL_DAY_KEY) || '5');
 
   const handleSave = () => {
-    localStorage.setItem('company_payout_dates', JSON.stringify(payoutConfig));
-    localStorage.setItem('company_global_payout_day', globalDay);
-    // Visual feedback
-    const btn = document.getElementById('payout-save-btn');
-    if(btn) {
-        const originalText = btn.innerText;
-        btn.innerText = 'Saved!';
-        setTimeout(() => btn.innerText = originalText, 2000);
-    }
+    localStorage.setItem(PAYOUT_KEY, JSON.stringify(payoutConfig));
+    localStorage.setItem(GLOBAL_DAY_KEY, globalDay);
+    alert("Payout configuration saved!");
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6 animate-in fade-in slide-in-from-right-4">
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
        <div>
           <label className="block text-sm font-bold text-gray-700 mb-2">Default Payout Day</label>
           <div className="flex items-center gap-3">
              <span className="text-sm text-gray-600">Monthly on the</span>
-             <select 
-                value={globalDay}
-                onChange={(e) => setGlobalDay(e.target.value)}
-                className="w-20 p-2 border border-gray-300 rounded-lg text-center outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
-             >
-                {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                ))}
+             <select value={globalDay} onChange={(e) => setGlobalDay(e.target.value)} className="w-20 p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
              </select>
              <span className="text-sm text-gray-600">of every month</span>
           </div>
-          <p className="text-xs text-gray-400 mt-2">This date applies to all employees unless a department override is set below.</p>
        </div>
-
        <div className="pt-4 border-t border-gray-100">
-          <h4 className="font-bold text-gray-800 mb-4 text-sm flex items-center gap-2">
-             <Building2 className="w-4 h-4 text-emerald-500" /> Department Overrides
-          </h4>
+          <h4 className="font-bold text-gray-800 mb-4 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-emerald-500" /> Department Overrides</h4>
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
              {departments.map(dept => (
-                <div key={dept} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-emerald-200 transition-colors">
+                <div key={dept} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
                    <span className="font-medium text-gray-700 text-sm">{dept}</span>
-                   <div className="flex items-center gap-2">
-                      <select 
-                         value={payoutConfig[dept] || ''}
-                         onChange={(e) => setPayoutConfig(prev => ({...prev, [dept]: e.target.value}))}
-                         className="w-32 p-1.5 text-xs border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
-                      >
-                         <option value="">Default ({globalDay}th)</option>
-                         {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                            <option key={d} value={d}>{d}th</option>
-                         ))}
-                      </select>
-                   </div>
+                   <select value={payoutConfig[dept] || ''} onChange={(e) => setPayoutConfig(prev => ({...prev, [dept]: e.target.value}))} className="w-32 p-1.5 text-xs border border-gray-300 rounded-lg outline-none">
+                      <option value="">Default ({globalDay}th)</option>
+                      {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}th</option>)}
+                   </select>
                 </div>
              ))}
           </div>
        </div>
-
-       <div className="pt-4 border-t border-gray-100 flex justify-end">
-          <button 
-             id="payout-save-btn"
-             onClick={handleSave}
-             className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm transition-colors flex items-center gap-2"
-          >
-             <Save className="w-4 h-4" /> Save Configuration
-          </button>
+       <div className="pt-4 flex justify-end">
+          <button type="button" onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors"><Save className="w-4 h-4" /> Save Configuration</button>
        </div>
     </div>
   );
 };
 
-// 12. Salary Settings Group (Updated)
-const SalarySettingsGroup = ({ active }: { active: SettingCategory }) => {
-  const renderSalaryContent = () => {
-    switch(active) {
-      case 'Calendar Month':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-             <label className="block text-sm font-medium text-gray-700 mb-2">Payroll Calculation Period</label>
-             <select className="w-full p-3 border border-gray-300 rounded-lg outline-none">
-                <option>1st to 30th/31st (Standard)</option>
-                <option>26th to 25th</option>
-             </select>
-          </div>
-        );
-      case 'Attendance Cycle':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-             <label className="block text-sm font-medium text-gray-700 mb-2">Attendance Cut-off Date</label>
-             <select className="w-full p-3 border border-gray-300 rounded-lg outline-none">
-                <option>Same as Calendar Month</option>
-                <option>Last day of month</option>
-             </select>
-          </div>
-        );
-      case 'Payout Date':
-        return <PayoutDateSettings />;
-      case 'Import Settings':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center">
-             <UploadCloud className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-             <p className="text-sm text-gray-500 mb-4">Import past salary data from CSV/Excel.</p>
-             <button className="bg-emerald-50 text-white px-4 py-2 rounded-lg text-sm font-medium">Upload File</button>
-          </div>
-        );
-      case 'Incentive Types':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-3">
-             <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                <span>Performance Bonus</span>
-                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Variable</span>
-             </div>
-             <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                <span>Overtime Pay</span>
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Hourly</span>
-             </div>
-             <button className="text-emerald-600 text-sm font-medium hover:underline">+ Add Incentive</button>
-          </div>
-        );
-      case 'Salary Templates':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-             <h4 className="font-bold text-gray-800 mb-4">Default Structure</h4>
-             <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>Basic</span><span className="font-mono text-gray-600">50% of CTC</span></div>
-                <div className="flex justify-between"><span>HRA</span><span className="font-mono text-gray-600">30% of Basic</span></div>
-                <div className="flex justify-between"><span>Special Allowance</span><span className="font-mono text-gray-600">Balance</span></div>
-             </div>
-             <button className="mt-6 w-full py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Customize Template</button>
-          </div>
-        );
-      case 'Round Off':
-        return (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-             <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 mb-2">
-                <input type="radio" name="round" defaultChecked className="text-emerald-500" />
-                <span>Round to nearest integer</span>
-             </label>
-             <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                <input type="radio" name="round" className="text-emerald-500" />
-                <span>Round to 2 decimals</span>
-             </label>
-          </div>
-        );
-      default: return null;
-    }
-  };
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title={active} icon={DollarSign} desc="Configure payroll calculation rules." />
-      {renderSalaryContent()}
-    </div>
-  );
-};
-
-// 13. App Notifications
-const AppNotifications = () => {
-  const [notifs, setNotifs] = useState({
-    email: true,
-    push: true,
-    sms: false
-  });
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="App Notifications" icon={Bell} desc="Manage system alerts and triggers." />
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-         <ToggleSwitch label="Email Alerts" checked={notifs.email} onChange={() => setNotifs({...notifs, email: !notifs.email})} />
-         <ToggleSwitch label="Mobile Push Notifications" checked={notifs.push} onChange={() => setNotifs({...notifs, push: !notifs.push})} />
-         <ToggleSwitch label="SMS Alerts (Extra charges apply)" checked={notifs.sms} onChange={() => setNotifs({...notifs, sms: !notifs.sms})} />
-      </div>
-    </div>
-  );
-};
-
-// 14. CMS Settings (New Component)
 const CMSSettings = () => {
-    const [pages, setPages] = useState({
-        privacy: '',
-        terms: '',
-        about: '',
-        support: ''
-    });
-
+    const [pages, setPages] = useState({ privacy: '', terms: '', about: '', support: '' });
     useEffect(() => {
-        const savedCMS = localStorage.getItem('cms_content');
-        if (savedCMS) {
-            try {
-                setPages(JSON.parse(savedCMS));
-            } catch(e) { console.error(e); }
-        }
+        const saved = localStorage.getItem('cms_content');
+        if (saved) try { setPages(JSON.parse(saved)); } catch(e) {}
     }, []);
 
-    const handleSaveCMS = () => {
+    const handleSave = () => {
         localStorage.setItem('cms_content', JSON.stringify(pages));
-        const btn = document.getElementById('cms-save-btn');
-        if (btn) {
-            const originalText = btn.innerText;
-            btn.innerText = 'Saved!';
-            setTimeout(() => btn.innerText = originalText, 2000);
-        }
+        alert("CMS content saved!");
     };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
             <SectionHeader title="CMS & Content" icon={BookOpen} desc="Manage website content pages." />
-            
             <div className="grid grid-cols-1 gap-6">
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-800 mb-4">Privacy Policy</h3>
-                    <textarea 
-                        value={pages.privacy}
-                        onChange={(e) => setPages({...pages, privacy: e.target.value})}
-                        className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
-                        placeholder="Enter Privacy Policy content..."
-                    />
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-800 mb-4">Terms & Conditions</h3>
-                    <textarea 
-                        value={pages.terms}
-                        onChange={(e) => setPages({...pages, terms: e.target.value})}
-                        className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
-                        placeholder="Enter Terms & Conditions content..."
-                    />
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-800 mb-4">About Us</h3>
-                    <textarea 
-                        value={pages.about}
-                        onChange={(e) => setPages({...pages, about: e.target.value})}
-                        className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
-                        placeholder="Enter About Us content..."
-                    />
-                </div>
-
-                <div className="flex justify-end">
-                    <button 
-                        id="cms-save-btn"
-                        onClick={handleSaveCMS}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm transition-colors flex items-center gap-2"
-                    >
-                        <Save className="w-4 h-4" /> Save Content
-                    </button>
-                </div>
+                {['privacy', 'terms', 'about'].map(p => (
+                    <div key={p} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="font-bold text-gray-800 mb-4 capitalize">{p} Policy</h3>
+                        <textarea value={(pages as any)[p]} onChange={(e) => setPages({...pages, [p]: e.target.value})} className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder={`Enter ${p} content...`} />
+                    </div>
+                ))}
+                <div className="flex justify-end"><button type="button" onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2"><Save className="w-4 h-4" /> Save Content</button></div>
             </div>
         </div>
     );
 };
 
-// 15. Feature Request
 const FeatureRequest = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="Request A Feature" icon={MessageSquare} desc="Help us improve OK BOZ." />
     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-       <textarea 
-         rows={4}
-         className="w-full p-4 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 resize-none mb-4"
-         placeholder="Describe the feature you would like to see..."
-       />
-       <button className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors">
-         Submit Request
-       </button>
+       <textarea rows={4} className="w-full p-4 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 resize-none mb-4" placeholder="Describe the feature you would like to see..." />
+       <button type="button" className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors">Submit Request</button>
     </div>
   </div>
 );
 
-// --- Main Employee Settings Page ---
-
 const EmployeeSettings: React.FC = () => {
   const [activeSetting, setActiveSetting] = useState<SettingCategory>('Departments & Roles');
-
   const menuItems = [
-    {
-      heading: 'MY COMPANY',
-      items: [
-        { id: 'My Company Report', icon: FileText },
-        { id: 'My Team (Admins)', icon: CheckCircle },
-        { id: 'Departments & Roles', icon: Building2 },
-        { id: 'Custom Fields', icon: Settings2 },
-        { id: 'Inactive Employees', icon: UserX },
-      ]
-    },
-    {
-      heading: 'ATTENDANCE SETTINGS',
-      items: [
-        { id: 'Shifts & Breaks', icon: Clock },
-        { id: 'Attendance Modes', icon: Smartphone },
-      ]
-    },
-    {
-      heading: 'LEAVES AND HOLIDAYS',
-      items: [
-        { id: 'Custom Paid Leaves', icon: Plane },
-        { id: 'Holiday List', icon: Calendar },
-      ]
-    },
-    {
-      heading: 'AUTOMATION',
-      items: [
-        { id: 'Auto Live Track', icon: Zap },
-      ]
-    },
-    {
-      heading: 'SALARY SETTINGS',
-      items: [
-        { id: 'Calendar Month', icon: Calendar },
-        { id: 'Attendance Cycle', icon: RotateCcw },
-        { id: 'Payout Date', icon: CalendarCheck },
-        { id: 'Import Settings', icon: Download },
-        { id: 'Incentive Types', icon: Award },
-        { id: 'Salary Templates', icon: File },
-        { id: 'Round Off', icon: DollarSign },
-      ]
-    },
-    {
-      heading: 'ALERT & NOTIFICATION',
-      items: [
-        { id: 'App Notifications', icon: Bell },
-      ]
-    },
-    {
-        heading: 'WEBSITE CONTENT', // New Section
-        items: [
-            { id: 'CMS & Content', icon: BookOpen }
-        ]
-    },
-    {
-      heading: 'OTHER SETTINGS',
-      items: [
-        { id: 'Request A Feature', icon: MessageSquare },
-      ]
-    }
+    { heading: 'MY COMPANY', items: [ { id: 'My Company Report', icon: FileText }, { id: 'My Team (Admins)', icon: CheckCircle }, { id: 'Departments & Roles', icon: Building2 }, { id: 'Custom Fields', icon: Settings2 }, { id: 'Inactive Employees', icon: UserX } ] },
+    { heading: 'ATTENDANCE SETTINGS', items: [ { id: 'Shifts & Breaks', icon: Clock }, { id: 'Attendance Modes', icon: Smartphone } ] },
+    { heading: 'LEAVES AND HOLIDAYS', items: [ { id: 'Custom Paid Leaves', icon: Plane }, { id: 'Holiday List', icon: Calendar } ] },
+    { heading: 'AUTOMATION', items: [ { id: 'Auto Live Track', icon: Zap } ] },
+    { heading: 'SALARY SETTINGS', items: [ { id: 'Calendar Month', icon: Calendar }, { id: 'Attendance Cycle', icon: RotateCcw }, { id: 'Payout Date', icon: CalendarCheck }, { id: 'Import Settings', icon: Download }, { id: 'Incentive Types', icon: Award }, { id: 'Salary Templates', icon: File }, { id: 'Round Off', icon: DollarSign } ] },
+    { heading: 'ALERT & NOTIFICATION', items: [ { id: 'App Notifications', icon: Bell } ] },
+    { heading: 'WEBSITE CONTENT', items: [ { id: 'CMS & Content', icon: BookOpen } ] },
+    { heading: 'OTHER SETTINGS', items: [ { id: 'Request A Feature', icon: MessageSquare } ] }
   ];
 
-  // Render content based on active selection
   const renderContent = () => {
     switch (activeSetting) {
       case 'My Company Report': return <MyCompanyReport />;
@@ -854,62 +560,31 @@ const EmployeeSettings: React.FC = () => {
       case 'Departments & Roles': return <DepartmentsAndRoles />;
       case 'Custom Fields': return <CustomFields />;
       case 'Inactive Employees': return <InactiveEmployees />;
-      
       case 'Shifts & Breaks': return <ShiftsAndBreaks />;
       case 'Attendance Modes': return <AttendanceModes />;
-      
       case 'Custom Paid Leaves': return <CustomPaidLeaves />;
       case 'Holiday List': return <HolidayList />;
-      
       case 'Auto Live Track': return <AutoLiveTrack />;
-      
       case 'App Notifications': return <AppNotifications />;
-      
-      case 'CMS & Content': return <CMSSettings />; // Render CMS component
-
+      case 'CMS & Content': return <CMSSettings />;
       case 'Request A Feature': return <FeatureRequest />;
-      
-      // Salary Group
-      case 'Calendar Month':
-      case 'Attendance Cycle':
-      case 'Payout Date':
-      case 'Import Settings':
-      case 'Incentive Types':
-      case 'Salary Templates':
-      case 'Round Off':
-        return <SalarySettingsGroup active={activeSetting} />;
-        
-      default:
-        return <DepartmentsAndRoles />;
+      case 'Payout Date': return <PayoutDateSettings />;
+      default: return <div className="p-8 text-center text-gray-500">Select a configuration option from the left.</div>;
     }
   };
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col">
-      <div className="mb-6 shrink-0">
-        <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
-      </div>
-
+      <div className="mb-6 shrink-0"><h2 className="text-2xl font-bold text-gray-800">Configuration</h2></div>
       <div className="flex flex-1 overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm">
-        {/* Left Sidebar Navigation */}
         <div className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0 overflow-y-auto custom-scrollbar">
           <div className="py-6 px-4 space-y-8">
             {menuItems.map((group, groupIdx) => (
               <div key={groupIdx}>
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">
-                  {group.heading}
-                </h4>
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">{group.heading}</h4>
                 <div className="space-y-1">
                   {group.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveSetting(item.id as SettingCategory)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                        activeSetting === item.id 
-                          ? 'bg-white text-emerald-600 shadow-sm border border-gray-100' 
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                    >
+                    <button key={item.id} onClick={() => setActiveSetting(item.id as SettingCategory)} className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${activeSetting === item.id ? 'bg-white text-emerald-600 shadow-sm border border-gray-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
                       <item.icon className={`w-4 h-4 ${activeSetting === item.id ? 'text-emerald-500' : 'text-gray-400'}`} />
                       {item.id}
                     </button>
@@ -919,11 +594,7 @@ const EmployeeSettings: React.FC = () => {
             ))}
           </div>
         </div>
-
-        {/* Right Content Area */}
-        <div className="flex-1 overflow-y-auto bg-white p-8">
-          {renderContent()}
-        </div>
+        <div className="flex-1 overflow-y-auto bg-white p-8">{renderContent()}</div>
       </div>
     </div>
   );
