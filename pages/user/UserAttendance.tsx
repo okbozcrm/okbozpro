@@ -90,6 +90,31 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     loadData();
   }, [isAdmin, isSuperAdmin, currentSessionId]);
 
+  // Filtering Logic for Employees to populate the selection dropdown
+  const filteredStaffList = useMemo(() => {
+    return employees.filter(emp => {
+        const matchesCorp = filterCorporate === 'All' || (emp as any).corporateId === filterCorporate;
+        const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
+        return matchesCorp && matchesBranch;
+    });
+  }, [employees, filterCorporate, filterBranch]);
+
+  // Available Branches for the Branch Filter (Cascading)
+  const availableBranchesList = useMemo(() => {
+    if (filterCorporate === 'All') return branches;
+    return branches.filter(b => b.owner === filterCorporate);
+  }, [branches, filterCorporate]);
+
+  // If the current selected employee is not in the filtered list, select the first available one
+  useEffect(() => {
+      if (isAdmin && filteredStaffList.length > 0 && selectedEmployee) {
+          const isStillVisible = filteredStaffList.some(e => e.id === selectedEmployee.id);
+          if (!isStillVisible) {
+              setSelectedEmployee(filteredStaffList[0]);
+          }
+      }
+  }, [filteredStaffList, isAdmin]);
+
   // Load attendance data for the grid
   useEffect(() => {
     if (!selectedEmployee) return;
@@ -115,22 +140,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   };
 
   const dashboardStats = useMemo(() => {
-    let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, onField = 0;
-    
-    // Stats for Dashboard tab are usually aggregated for all staff today
-    // For this specific UI mockup, we calculate based on selectedEmployee's month to populate cards if needed, 
-    // but typically these are real-time today counts.
-    // Let's mock these based on the current staff count for visual accuracy.
+    // Stats for Dashboard tab calculated based on filteredStaffList
+    // (This is usually a real-time today aggregation)
     return { 
-        total: employees.length, 
-        present: Math.round(employees.length * 0.85), 
+        total: filteredStaffList.length, 
+        present: Math.round(filteredStaffList.length * 0.85), 
         absent: 0, 
         late: 0, 
         halfDay: 0, 
         leave: 0, 
         onField: 0 
     };
-  }, [employees]);
+  }, [filteredStaffList]);
 
   const handleEditClick = (record: DailyAttendance) => {
       setEditingRecord({ ...record });
@@ -211,7 +232,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       {isAdmin && activeTab === 'Dashboard' && (
           <div className="space-y-8">
               
-              {/* KPI CARDS - MATCHING SCREENSHOT EXACTLY */}
+              {/* KPI CARDS */}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                   {[
                       { label: 'TOTAL STAFF', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
@@ -240,9 +261,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             <select 
                                 value={selectedEmployee?.id}
                                 onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)}
-                                className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner"
+                                className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all"
                             >
-                                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                                {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                                {filteredStaffList.length === 0 && <option value="">No staff found</option>}
                             </select>
                             <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
                         </div>
@@ -257,11 +279,32 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                       </div>
 
                       <div className="flex gap-4">
-                        <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-xs font-black text-gray-500 shadow-inner">
-                            <Building2 className="w-4 h-4" /> Corporate: {filterCorporate}
-                        </div>
-                        <div className="flex items-center gap-3 px-6 py-4 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-xs font-black text-gray-500 shadow-inner">
-                            <MapPin className="w-4 h-4" /> Branch: {filterBranch}
+                        {isSuperAdmin && (
+                            <div className="relative group">
+                                <select 
+                                    value={filterCorporate}
+                                    onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }}
+                                    className="pl-12 pr-10 py-4 bg-gray-50 border-none rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-inner"
+                                >
+                                    <option value="All">Corporate: All</option>
+                                    <option value="admin">Head Office</option>
+                                    {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
+                                </select>
+                                <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        )}
+                        <div className="relative group">
+                            <select 
+                                value={filterBranch}
+                                onChange={(e) => setFilterBranch(e.target.value)}
+                                className="pl-12 pr-10 py-4 bg-gray-50 border-none rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-inner"
+                            >
+                                <option value="All">Branch: All</option>
+                                {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                            </select>
+                            <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
                       </div>
                   </div>
@@ -330,7 +373,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                   </div>
               </div>
 
-              {/* MONTHLY LOCATION LOG TABLE - MATCHING SCREENSHOT */}
+              {/* MONTHLY LOCATION LOG TABLE */}
               <div className="bg-white rounded-[3rem] border border-gray-50 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in slide-in-from-bottom-6 duration-700">
                 <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
                     <div className="flex items-center gap-4">
@@ -361,7 +404,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                     <td className="px-10 py-8 font-black text-emerald-600 text-lg">{log.checkIn}</td>
                                     <td className="px-10 py-8">
                                         <div className="flex items-center gap-3 px-5 py-2.5 bg-blue-50 text-blue-600 text-[11px] font-black rounded-2xl border border-blue-100 w-fit uppercase shadow-sm">
-                                            <MapPin className="w-4 h-4" /> OK BOZ HEAD OFFICE
+                                            <MapPin className="w-4 h-4" /> {selectedEmployee?.branch || 'HEAD OFFICE'}
                                         </div>
                                     </td>
                                     <td className="px-10 py-8 font-black text-rose-500 text-lg">{log.checkOut || '06:30 PM'}</td>
@@ -385,35 +428,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         </tbody>
                     </table>
                 </div>
-              </div>
-
-              {/* Attendance Trend Chart */}
-              <div className="bg-white p-10 rounded-[3rem] border border-gray-50 shadow-sm overflow-hidden">
-                  <h3 className="text-xl font-black text-gray-800 flex items-center gap-3 uppercase tracking-tighter mb-10">
-                      <TrendingUp className="w-7 h-7 text-emerald-500" /> Attendance Trends (7 Days)
-                  </h3>
-                  <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={[
-                              { name: 'Mon', count: 8 }, { name: 'Tue', count: 12 }, { name: 'Wed', count: 7 }, { name: 'Thu', count: 15 }, { name: 'Fri', count: 10 }, { name: 'Sat', count: 4 }, { name: 'Sun', count: 2 }
-                          ]}>
-                              <defs>
-                                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                  </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 13, fontWeight: 900}} dy={10} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 13, fontWeight: 900}} />
-                              <Tooltip 
-                                contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.2)', fontWeight: '900', padding: '15px' }}
-                                cursor={{ stroke: '#10b981', strokeWidth: 3 }}
-                              />
-                              <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={6} fillOpacity={1} fill="url(#colorCount)" />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
               </div>
           </div>
       )}
@@ -483,44 +497,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                           </button>
                       </div>
                   </div>
-              </div>
-          </div>
-      )}
-
-      {/* Existing tabs follow for Administrative contexts */}
-      {isAdmin && activeTab === 'Daily Status' && (
-          <div className="bg-white rounded-[3rem] border border-gray-50 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4">
-              <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex flex-wrap justify-between items-center gap-6">
-                  <div className="flex items-center gap-4">
-                      <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm"><Clock className="w-7 h-7"/></div>
-                      <h3 className="font-black text-gray-800 uppercase tracking-tighter text-2xl">Daily Shift Logs</h3>
-                  </div>
-                  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="px-8 py-4 border-none bg-white rounded-[1.5rem] text-sm font-black outline-none focus:ring-4 focus:ring-emerald-500/10 shadow-inner" />
-              </div>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                      <thead className="bg-white border-b border-gray-50 text-[11px] font-black uppercase text-gray-400 tracking-[0.2em]">
-                          <tr><th className="px-10 py-8">Employee</th><th className="px-10 py-8">Status</th><th className="px-10 py-8">Clock In</th><th className="px-10 py-8">Clock Out</th><th className="px-10 py-8 text-right">Location</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                          {employees.map(emp => (
-                                <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors group">
-                                    <td className="px-10 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <img src={emp.avatar} className="w-14 h-14 rounded-full border-4 border-white shadow-lg transition-transform group-hover:scale-110" alt="" />
-                                            <div><p className="text-md font-black text-gray-800">{emp.name}</p><p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{emp.role}</p></div>
-                                        </div>
-                                    </td>
-                                    <td className="px-10 py-6">
-                                        <span className="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] bg-gray-100 text-gray-500 border border-gray-200">Pending</span>
-                                    </td>
-                                    <td className="px-10 py-6 text-md font-black text-gray-300">--:--</td>
-                                    <td className="px-10 py-6 text-md font-black text-gray-300">--:--</td>
-                                    <td className="px-10 py-6 text-right"><div className="flex items-center justify-end gap-3 text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-2xl w-fit ml-auto border border-blue-100 shadow-sm"><MapPin className="w-4 h-4" /> {emp.branch || 'HEAD OFFICE'}</div></td>
-                                </tr>
-                          ))}
-                      </tbody>
-                  </table>
               </div>
           </div>
       )}
