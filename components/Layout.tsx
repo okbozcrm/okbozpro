@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
@@ -315,18 +314,19 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   }, [role, orderedLinks]);
 
   const userLinks = useMemo(() => {
+    // REARRANGED: New requested order for staff panel
     const baseLinks = [
-        { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
-        /* FIX: Corrected typo 'messageSquareText' to 'MessageSquareText' icon name. */
-        { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
-        { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
-        { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
+        { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
+        { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
+        { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
+        { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
     ];
+    
     const restrictedLinksMap: Record<string, any> = {
         'reports': { id: 'reports', path: '/user/reports', label: 'Reports', icon: BarChart3 },
         'trips': { id: 'trips', path: '/user/trips', label: 'Trip Booking', icon: Map },
@@ -336,16 +336,19 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard }
     };
+    
     const addedLinks: any[] = [];
     employeePermissions.forEach(perm => {
         if (restrictedLinksMap[perm]) addedLinks.push(restrictedLinksMap[perm]);
     });
+    
     const finalLinks = [...baseLinks];
-    finalLinks.splice(4, 0, ...addedLinks);
+    // Insert restricted/permission links after "My Profile" but before "Customer Care"
+    // "My Profile" is at index 4 now.
+    finalLinks.splice(5, 0, ...addedLinks);
     return finalLinks;
   }, [employeePermissions]);
 
-  /* FIX: Corrected self-referencing variable 'sidebarLinks' to use 'visibleAdminLinks' for the non-employee case. */
   const sidebarLinks = role === UserRole.EMPLOYEE ? userLinks : visibleAdminLinks;
   const currentPath = location.pathname;
 

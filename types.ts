@@ -245,7 +245,7 @@ declare global {
     /**
      * The aistudio property is expected to be of type AIStudio as per environment requirements.
      */
-    /* FIX: Added readonly modifier to match ambient environment declarations and resolve modifier mismatch errors during interface merging. */
-    readonly aistudio: AIStudio;
+    /* FIX: Removed readonly modifier to match identical modifiers requirement during interface merging with ambient declarations. */
+    aistudio: AIStudio;
   }
 }

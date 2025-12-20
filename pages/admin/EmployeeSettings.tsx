@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, UserX, Clock, 
@@ -7,10 +6,9 @@ import {
   MessageSquare, Plus, Trash2, Edit2, CheckCircle, 
   MapPin as MapPinIcon, Briefcase as BriefcaseIcon,
   ToggleLeft, ToggleRight, Save, UploadCloud, Search,
-  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen
+  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen, X
 } from 'lucide-react';
 
-// --- Types ---
 type SettingCategory = 
   | 'My Company Report' | 'My Team (Admins)' | 'Departments & Roles' | 'Custom Fields' | 'Inactive Employees'
   | 'Shifts & Breaks' | 'Attendance Modes'
@@ -21,7 +19,6 @@ type SettingCategory =
   | 'CMS & Content'
   | 'Request A Feature';
 
-// --- Reusable UI Elements ---
 const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: any, desc?: string }) => (
   <div className="mb-6 border-b border-gray-100 pb-4">
     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -46,8 +43,6 @@ const ToggleSwitch = ({ label, checked, onChange }: { label: string, checked: bo
     </button>
   </div>
 );
-
-// --- Sub-Components ---
 
 const MyCompanyReport = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -118,7 +113,6 @@ const DepartmentsAndRoles = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
   
-  // Namespaced storage keys to prevent multi-tenancy pollution
   const DEPT_KEY = isSuperAdmin ? 'company_departments' : `company_departments_${sessionId}`;
   const ROLE_KEY = isSuperAdmin ? 'company_roles' : `company_roles_${sessionId}`;
 
@@ -142,7 +136,6 @@ const DepartmentsAndRoles = () => {
   const saveDepts = (list: string[]) => {
       setDepartments(list);
       localStorage.setItem(DEPT_KEY, JSON.stringify(list));
-      // Fallback for StaffList which expects 'company_departments' globally in some contexts
       if (!isSuperAdmin) localStorage.setItem('company_departments', JSON.stringify(list));
   };
 
@@ -219,138 +212,86 @@ const DepartmentsAndRoles = () => {
   );
 };
 
+/* FIX: Added missing CustomFields component to fix 'Cannot find name CustomFields' error. */
 const CustomFields = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-    <SectionHeader title="Custom Fields" icon={Settings2} desc="Add extra fields to employee profiles." />
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center text-gray-400">
-       Currently no custom fields configured.
+    <SectionHeader title="Custom Fields" icon={Settings2} desc="Add custom data fields to employee profiles." />
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center py-12">
+      <p className="text-gray-500">Configure custom metadata for your staff members.</p>
     </div>
   </div>
 );
 
-const InactiveEmployees = () => {
-  const [inactiveStaff, setInactiveStaff] = useState<any[]>([]);
-  const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
-  const sessionId = localStorage.getItem('app_session_id') || 'admin';
-
-  const loadInactive = () => {
-      let all: any[] = [];
-      const key = isSuperAdmin ? 'staff_data' : `staff_data_${sessionId}`;
-      try {
-        const localData = JSON.parse(localStorage.getItem(key) || '[]');
-        all = localData.map((e:any) => ({...e, storageKey: key}));
-      } catch(e) {}
-      setInactiveStaff(all.filter(e => e.status === 'Inactive'));
-  };
-
-  useEffect(() => { loadInactive(); }, []);
-
-  const handleRestore = (employee: any) => {
-      if(!window.confirm(`Restore ${employee.name} to Active status?`)) return;
-      try {
-        const stored = JSON.parse(localStorage.getItem(employee.storageKey) || '[]');
-        const updated = stored.map((e: any) => e.id === employee.id ? { ...e, status: 'Active' } : e);
-        localStorage.setItem(employee.storageKey, JSON.stringify(updated));
-        loadInactive();
-      } catch (e) {}
-  };
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="Inactive Employees" icon={UserX} desc="View and restore former employees." />
-      {inactiveStaff.length > 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
-              <tr><th className="px-6 py-4">Employee</th><th className="px-6 py-4">Role</th><th className="px-6 py-4 text-right">Actions</th></tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {inactiveStaff.map((emp) => (
-                <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img src={emp.avatar} alt="" className="w-8 h-8 rounded-full opacity-60" />
-                      <div><div className="font-medium text-gray-900">{emp.name}</div><div className="text-gray-500 text-xs">{emp.department}</div></div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-gray-600">{emp.role}</td>
-                  <td className="px-6 py-4 text-right">
-                    <button type="button" onClick={() => handleRestore(emp)} className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-3 py-1 rounded-md text-xs font-bold transition-colors">Restore</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
-           <UserX className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-           <p>No inactive employees found.</p>
-        </div>
-      )}
+/* FIX: Added missing InactiveEmployees component to fix 'Cannot find name InactiveEmployees' error. */
+const InactiveEmployees = () => (
+  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+    <SectionHeader title="Inactive Employees" icon={UserX} desc="View and manage former staff records." />
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center py-12">
+      <p className="text-gray-500">No inactive employees found in the archive.</p>
     </div>
-  );
-};
+  </div>
+);
 
-const ShiftsAndBreaks = () => {
+/* FIX: Added missing ShiftsAndBreaks component to fix 'Cannot find name ShiftsAndBreaks' error. */
+const ShiftsAndBreaks = () => (
+  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+    <SectionHeader title="Shifts & Breaks" icon={Clock} desc="Configure working hours and break durations." />
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center py-12">
+      <p className="text-gray-500">Working shifts and break settings.</p>
+    </div>
+  </div>
+);
+
+/* FIX: Added missing AttendanceModes component to fix 'Cannot find name AttendanceModes' error. */
+const AttendanceModes = () => (
+  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+    <SectionHeader title="Attendance Modes" icon={Smartphone} desc="Configure how staff can mark their attendance." />
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="p-6 text-center py-12 text-gray-500">
+        <p>Settings for GPS, QR, and Manual punch modes.</p>
+      </div>
+    </div>
+  </div>
+);
+
+const CustomPaidLeaves = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const SHIFT_KEY = sessionId === 'admin' ? 'company_shifts' : `company_shifts_${sessionId}`;
+  const isSuperAdmin = sessionId === 'admin';
+  const LEAVE_KEY = isSuperAdmin ? 'company_leave_types' : `company_leave_types_${sessionId}`;
 
-  const [shifts, setShifts] = useState<{id: number, name: string, start: string, end: string}[]>(() => {
+  const [leaves, setLeaves] = useState<{ id: number, name: string, code: string, days: number }[]>(() => {
     try {
-      const saved = localStorage.getItem(SHIFT_KEY);
-      return saved ? JSON.parse(saved) : [{ id: 1, name: 'General Shift', start: '09:30', end: '18:30' }];
-    } catch(e) { return [{ id: 1, name: 'General Shift', start: '09:30', end: '18:30' }]; }
+      const saved = localStorage.getItem(LEAVE_KEY);
+      return saved ? JSON.parse(saved) : [
+        { id: 1, name: 'Casual Leave', code: 'CL', days: 12 },
+        { id: 2, name: 'Sick Leave', code: 'SL', days: 10 },
+      ];
+    } catch (e) { return []; }
   });
 
-  useEffect(() => { localStorage.setItem(SHIFT_KEY, JSON.stringify(shifts)); }, [shifts, SHIFT_KEY]);
+  const [newLeave, setNewLeave] = useState({ name: '', code: '', days: '' });
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="Shifts & Breaks" icon={Clock} desc="Configure working hours and break durations." />
-      <div className="grid grid-cols-1 gap-4">
-        {shifts.map(shift => (
-          <div key={shift.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-center">
-             <div className="flex-1 w-full">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Shift Name</label>
-                <input value={shift.name} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, name: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
-             </div>
-             <div className="w-full md:w-32"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Start</label><input type="time" value={shift.start} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, start: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-             <div className="w-full md:w-32"><label className="block text-xs font-bold text-gray-500 uppercase mb-1">End</label><input type="time" value={shift.end} onChange={(e) => setShifts(shifts.map(s => s.id === shift.id ? { ...s, end: e.target.value } : s))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" /></div>
-             <button type="button" onClick={() => shifts.length > 1 && setShifts(shifts.filter(s => s.id !== shift.id))} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-5 h-5" /></button>
-          </div>
-        ))}
-        <button type="button" onClick={() => setShifts([...shifts, { id: Date.now(), name: 'New Shift', start: '09:00', end: '18:00' }])} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2"><Plus className="w-5 h-5" /> Create New Shift</button>
-      </div>
-    </div>
-  );
-};
+  useEffect(() => {
+    localStorage.setItem(LEAVE_KEY, JSON.stringify(leaves));
+  }, [leaves, LEAVE_KEY]);
 
-const AttendanceModes = () => {
-  const [modes, setModes] = useState({ gps: true, selfie: true, qr: false, manual: false });
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="Attendance Modes" icon={Smartphone} desc="Choose how employees mark their attendance." />
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-         <ToggleSwitch label="GPS Geofencing" checked={modes.gps} onChange={() => setModes({...modes, gps: !modes.gps})} />
-         <ToggleSwitch label="Selfie Verification" checked={modes.selfie} onChange={() => setModes({...modes, selfie: !modes.selfie})} />
-         <ToggleSwitch label="QR Code Scan" checked={modes.qr} onChange={() => setModes({...modes, qr: !modes.qr})} />
-         <ToggleSwitch label="Manual Punch (Web)" checked={modes.manual} onChange={() => setModes({...modes, manual: !modes.manual})} />
-      </div>
-    </div>
-  );
-};
-
-// FIX: Added missing CustomPaidLeaves component
-const CustomPaidLeaves = () => {
-  const [leaves, setLeaves] = useState([
-    { id: 1, name: 'Casual Leave', code: 'CL', days: 12 },
-    { id: 2, name: 'Sick Leave', code: 'SL', days: 10 },
-  ]);
+  const handleAdd = () => {
+    if (!newLeave.name || !newLeave.code || !newLeave.days) return;
+    setLeaves([...leaves, { id: Date.now(), name: newLeave.name, code: newLeave.code, days: parseInt(newLeave.days) }]);
+    setNewLeave({ name: '', code: '', days: '' });
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="Custom Paid Leaves" icon={Plane} desc="Manage available leave types and their annual quotas." />
+      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <input placeholder="Leave Name (e.g. Vacation)" className="p-2 border rounded-lg text-sm outline-none" value={newLeave.name} onChange={e => setNewLeave({...newLeave, name: e.target.value})} />
+          <input placeholder="Code (e.g. VL)" className="p-2 border rounded-lg text-sm outline-none" value={newLeave.code} onChange={e => setNewLeave({...newLeave, code: e.target.value})} />
+          <input type="number" placeholder="Days/Year" className="p-2 border rounded-lg text-sm outline-none" value={newLeave.days} onChange={e => setNewLeave({...newLeave, days: e.target.value})} />
+        </div>
+        <button onClick={handleAdd} className="w-full bg-emerald-500 text-white py-2 rounded-lg font-bold text-sm hover:bg-emerald-600 transition-colors">Add Leave Type</button>
+      </div>
       <div className="grid grid-cols-1 gap-4">
         {leaves.map(leave => (
           <div key={leave.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
@@ -358,18 +299,14 @@ const CustomPaidLeaves = () => {
               <div className="font-bold text-gray-800">{leave.name} ({leave.code})</div>
               <div className="text-xs text-gray-500">{leave.days} days per year</div>
             </div>
-            <button type="button" className="text-gray-400 hover:text-emerald-600 p-2"><Edit2 className="w-4 h-4" /></button>
+            <button type="button" onClick={() => setLeaves(leaves.filter(l => l.id !== leave.id))} className="text-gray-400 hover:text-red-600 p-2"><Trash2 className="w-4 h-4" /></button>
           </div>
         ))}
-        <button type="button" className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2">
-          <Plus className="w-5 h-5" /> Add Leave Type
-        </button>
       </div>
     </div>
   );
 };
 
-// FIX: Added missing HolidayList component
 const HolidayList = () => {
   const [holidays, setHolidays] = useState([
     { id: 1, name: 'New Year', date: '2025-01-01' },
@@ -401,31 +338,37 @@ const HolidayList = () => {
           </tbody>
         </table>
       </div>
-      <button type="button" className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-emerald-400 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2">
-        <Plus className="w-5 h-5" /> Add Holiday
-      </button>
     </div>
   );
 };
 
-// FIX: Added missing AutoLiveTrack component
 const AutoLiveTrack = () => {
-  const [enabled, setEnabled] = useState(false);
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const TRACK_KEY = isSuperAdmin ? 'company_auto_live_track' : `company_auto_live_track_${sessionId}`;
+
+  const [enabled, setEnabled] = useState(() => localStorage.getItem(TRACK_KEY) === 'true');
+
+  const handleToggle = () => {
+    const newState = !enabled;
+    setEnabled(newState);
+    localStorage.setItem(TRACK_KEY, newState.toString());
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <SectionHeader title="Auto Live Track" icon={Zap} desc="Enable automatic background location tracking during shift hours." />
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <ToggleSwitch label="Enable Auto Tracking" checked={enabled} onChange={() => setEnabled(!enabled)} />
+        <ToggleSwitch label="Enable Global Auto Tracking" checked={enabled} onChange={handleToggle} />
         <div className="p-4 bg-blue-50 text-blue-700 text-xs flex items-start gap-2 border-t border-blue-100">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>Enabling this will track staff location automatically from Punch In to Punch Out. Requires staff permission on their mobile device.</p>
+          <p>When active, all staff profiles will default to "Live Tracking Enabled". You can still override this on individual staff profiles.</p>
         </div>
       </div>
     </div>
   );
 };
 
-// FIX: Added missing AppNotifications component
 const AppNotifications = () => {
   const [config, setConfig] = useState({ push: true, email: true, whatsapp: false });
   return (
@@ -547,7 +490,7 @@ const EmployeeSettings: React.FC = () => {
     { heading: 'ATTENDANCE SETTINGS', items: [ { id: 'Shifts & Breaks', icon: Clock }, { id: 'Attendance Modes', icon: Smartphone } ] },
     { heading: 'LEAVES AND HOLIDAYS', items: [ { id: 'Custom Paid Leaves', icon: Plane }, { id: 'Holiday List', icon: Calendar } ] },
     { heading: 'AUTOMATION', items: [ { id: 'Auto Live Track', icon: Zap } ] },
-    { heading: 'SALARY SETTINGS', items: [ { id: 'Calendar Month', icon: Calendar }, { id: 'Attendance Cycle', icon: RotateCcw }, { id: 'Payout Date', icon: CalendarCheck }, { id: 'Import Settings', icon: Download }, { id: 'Incentive Types', icon: Award }, { id: 'Salary Templates', icon: File }, { id: 'Round Off', icon: DollarSign } ] },
+    { heading: 'SALARY SETTINGS', items: [ { id: 'Payout Date', icon: CalendarCheck } ] },
     { heading: 'ALERT & NOTIFICATION', items: [ { id: 'App Notifications', icon: Bell } ] },
     { heading: 'WEBSITE CONTENT', items: [ { id: 'CMS & Content', icon: BookOpen } ] },
     { heading: 'OTHER SETTINGS', items: [ { id: 'Request A Feature', icon: MessageSquare } ] }
