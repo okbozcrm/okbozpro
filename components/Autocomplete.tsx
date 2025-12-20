@@ -27,21 +27,25 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     clearSuggestions,
   } = usePlacesAutocomplete({
     requestOptions: {
+      /* Define search scope here */
     },
     debounce: 300,
     defaultValue: defaultValue
   });
 
+  // Local state to handle list visibility
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  // Sync local value if defaultValue changes externally
   useEffect(() => {
     if (defaultValue && defaultValue !== value) {
       setValue(defaultValue, false);
     }
   }, [defaultValue, setValue]);
 
+  // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -72,18 +76,20 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
 
     if (setNewPlace) {
       try {
+        // Method 1: Try Standard Geocoding (Requires Geocoding API)
         const results = await getGeocode({ address });
         const { lat, lng } = await getLatLng(results[0]);
         setNewPlace({ lat, lng });
       } catch (error: any) {
         console.warn("Geocoding failed, attempting PlacesService fallback...", error);
         
+        // Method 2: Fallback to Places Details (Requires Places API, often enabled when Geocoding isn't)
         if (window.google && window.google.maps && window.google.maps.places) {
             try {
                 const mapDiv = document.createElement('div');
                 const service = new window.google.maps.places.PlacesService(mapDiv);
                 
-                service.getDetails({ placeId: placeId, fields: ['geometry'] }, (place: any, status: any) => {
+                service.getDetails({ placeId: placeId, fields: ['geometry'] }, (place, status) => {
                     if (status === window.google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
                         setNewPlace({
                             lat: place.geometry.location.lat(),
@@ -91,6 +97,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
                         });
                         setErrorMsg(null);
                     } else {
+                        // If both fail, show specific error
                         console.error("Places Details fallback failed:", status);
                         if (error?.toString().includes("REQUEST_DENIED") || error === "REQUEST_DENIED") {
                              setErrorMsg("Geocoding/Places API not fully authorized. Coordinates unavailable.");
