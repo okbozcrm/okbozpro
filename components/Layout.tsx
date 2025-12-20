@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
@@ -25,7 +26,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
   { id: 'leads', path: '/admin/leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'tasks', path: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
-  { id: 'attendance', path: '/admin/attendance', label: 'Attendance', icon: Calendar },
+  { id: 'attendance', path: '/admin/attendance', label: 'Attendance Dashboard', icon: Activity },
   { id: 'branches', path: '/admin/branches', label: 'Branches', icon: Building },
   { id: 'staff', path: '/admin/staff', label: 'Staff Management', icon: Users },
   { id: 'employee-settings', path: '/admin/employee-settings', label: 'Employee Setting', icon: UserCog },
@@ -86,7 +87,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
   }, [role]);
 
-  // Background effect to check for due task reminders
   useEffect(() => {
     const checkTaskReminders = async () => {
         try {
@@ -99,13 +99,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             let hasUpdate = false;
 
             const updatedTasks = tasks.map(task => {
-                // If task is assigned to me, has a reminder, and it's time
                 if (task.assignedTo === sessionId && 
                     task.reminderTime && 
                     !task.reminderTriggered && 
                     new Date(task.reminderTime) <= now) {
                     
-                    // Trigger System Notification
                     sendSystemNotification({
                         type: 'system',
                         title: `Task Reminder: ${task.title}`,
@@ -123,7 +121,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
             if (hasUpdate) {
                 localStorage.setItem('tasks_data', JSON.stringify(updatedTasks));
-                // Signal TaskManagement component if it's currently rendered
                 window.dispatchEvent(new Event('storage'));
             }
         } catch (e) {
@@ -131,9 +128,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
     };
 
-    // Check every 30 seconds
     const interval = setInterval(checkTaskReminders, 30000);
-    checkTaskReminders(); // Initial check
+    checkTaskReminders();
 
     return () => clearInterval(interval);
   }, [role]);
@@ -321,6 +317,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const userLinks = useMemo(() => {
     const baseLinks = [
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
+        /* FIX: Corrected typo 'messageSquareText' to 'MessageSquareText' icon name. */
         { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
@@ -334,7 +331,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'reports': { id: 'reports', path: '/user/reports', label: 'Reports', icon: BarChart3 },
         'trips': { id: 'trips', path: '/user/trips', label: 'Trip Booking', icon: Map },
         'driver-payments': { id: 'driver-payments', path: '/user/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee },
-        'attendance_admin': { id: 'attendance_admin', path: '/user/attendance-admin', label: 'Attendance (Admin)', icon: Calendar },
+        'attendance_admin': { id: 'attendance_admin', path: '/user/attendance-admin', label: 'Attendance (Admin)', icon: Activity },
         'staff': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard }
@@ -348,6 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return finalLinks;
   }, [employeePermissions]);
 
+  /* FIX: Corrected self-referencing variable 'sidebarLinks' to use 'visibleAdminLinks' for the non-employee case. */
   const sidebarLinks = role === UserRole.EMPLOYEE ? userLinks : visibleAdminLinks;
   const currentPath = location.pathname;
 

@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -216,6 +215,14 @@ export interface DriverActivityLog {
 
 
 declare global {
+  /**
+   * Interface for the AI Studio API key selection tool.
+   */
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   namespace google {
     namespace maps {
       interface LatLngLiteral {
@@ -235,5 +242,10 @@ declare global {
     google: any; // Keep this for broader compatibility with runtime access to window.google
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;
+    /**
+     * The aistudio property is expected to be of type AIStudio as per environment requirements.
+     */
+    /* FIX: Removed readonly modifier to match ambient environment declarations and resolve modifier mismatch errors during interface merging. */
+    aistudio: AIStudio;
   }
 }

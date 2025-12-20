@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserRole } from '../types';
 import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck } from 'lucide-react';
@@ -102,9 +101,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 localStorage.setItem('logged_in_employee_corporate_id', corporateOwnerId);
 
                 // Send login notification
-                // Fix: Explicitly cast 'type' to 'login' literal string
+                // FIX: Added 'as const' to ensure notification type literal is correctly matched
                 const loginNotification = {
-                    type: 'login' as 'login',
+                    type: 'login' as const,
                     title: 'Employee Logged In',
                     message: `${employeeName} (${employeeId}) has logged in.`,
                     targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],

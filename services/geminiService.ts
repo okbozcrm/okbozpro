@@ -1,14 +1,13 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-// Safely initialize the AI client; assumes API_KEY is present in environment
-// @ts-ignore - process is not defined in browser, but usually injected by bundlers. Fallback to empty string if missing.
-const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : ''; 
-const ai = new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
+// Helper to get a fresh Gemini instance with the current API key
+// This ensures we always use the most up-to-date API key (mandatory for paid key selection workflow)
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// 1. General Chat (Upgraded to gemini-3-pro-preview)
+// 1. General Chat (Complex Text Task)
 export const generateGeminiResponse = async (prompt: string, systemInstruction?: string): Promise<string> => {
   try {
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -26,6 +25,7 @@ export const generateGeminiResponse = async (prompt: string, systemInstruction?:
 // 2. Image Editing (gemini-2.5-flash-image)
 export const editImage = async (prompt: string, base64Image: string, mimeType: string): Promise<string | null> => {
   try {
+    const ai = getAi();
     // Extract raw base64 string if data URL is provided
     const data = base64Image.split(',')[1] || base64Image;
     
@@ -39,7 +39,7 @@ export const editImage = async (prompt: string, base64Image: string, mimeType: s
       },
     });
 
-    // Find the image part in the response
+    // Find the image part in the response as per guidelines (do not assume first part)
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
         return part.inlineData.data;
@@ -55,6 +55,7 @@ export const editImage = async (prompt: string, base64Image: string, mimeType: s
 // 3. Image Generation (gemini-3-pro-image-preview)
 export const generateImage = async (prompt: string, aspectRatio: string): Promise<string | null> => {
   try {
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts: [{ text: prompt }] },
@@ -66,6 +67,7 @@ export const generateImage = async (prompt: string, aspectRatio: string): Promis
       },
     });
 
+    // Find image part in candidates
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
         return part.inlineData.data;
@@ -81,6 +83,7 @@ export const generateImage = async (prompt: string, aspectRatio: string): Promis
 // 4. Video Understanding (gemini-3-pro-preview)
 export const analyzeVideo = async (prompt: string, base64Video: string, mimeType: string): Promise<string> => {
   try {
+    const ai = getAi();
     const data = base64Video.split(',')[1] || base64Video;
     
     const response = await ai.models.generateContent({
@@ -99,13 +102,14 @@ export const analyzeVideo = async (prompt: string, base64Video: string, mimeType
   }
 };
 
-// 5. Audio Transcription (gemini-2.5-flash)
+// 5. Audio Transcription (Upgraded to gemini-3-flash-preview for basic text tasks)
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   try {
+    const ai = getAi();
     const data = base64Audio.split(',')[1] || base64Audio;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType, data } },
@@ -123,6 +127,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 // 6. Thinking Mode (gemini-3-pro-preview with max budget)
 export const generateThinkingResponse = async (prompt: string): Promise<string> => {
   try {
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,

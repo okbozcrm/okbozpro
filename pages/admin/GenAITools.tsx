@@ -1,21 +1,41 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, Image as ImageIcon, Video, Mic, BrainCircuit, 
-  Upload, Send, Loader2, Download, Play, Square, Wand2, Edit 
+  Upload, Send, Loader2, Download, Play, Square, Wand2, Edit, AlertCircle, Key
 } from 'lucide-react';
 import { 
   generateImage, editImage, analyzeVideo, 
   transcribeAudio, generateThinkingResponse 
 } from '../../services/geminiService';
 
-const ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"];
+/* FIX: Updated aspect ratios to match supported values (1:1, 3:4, 4:3, 9:16, 16:9) */
+const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9"];
 
 const GenAITools: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'image-gen' | 'image-edit' | 'video' | 'audio' | 'think'>('image-gen');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasPaidKey, setHasPaidKey] = useState(false);
+
+  // Check for API key selection status on mount and when switching to tools that require it
+  useEffect(() => {
+    const checkKey = async () => {
+        if (window.aistudio) {
+            const hasKey = await window.aistudio.hasSelectedApiKey();
+            setHasPaidKey(hasKey);
+        }
+    };
+    checkKey();
+  }, [activeTab]);
+
+  const handleOpenSelectKey = async () => {
+      if (window.aistudio) {
+          await window.aistudio.openSelectKey();
+          // Assume key selection was successful to mitigate race conditions as per instructions
+          setHasPaidKey(true);
+      }
+  };
 
   // Image Gen State
   const [imgPrompt, setImgPrompt] = useState('');
@@ -44,6 +64,13 @@ const GenAITools: React.FC = () => {
 
   const handleImageGen = async () => {
     if (!imgPrompt) return;
+    
+    // Check if the user has completed the mandatory paid API key selection
+    if (!hasPaidKey) {
+        setError("A paid API key from GCP is required for gemini-3-pro-image-preview features.");
+        return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
@@ -54,8 +81,14 @@ const GenAITools: React.FC = () => {
       } else {
         setError("Failed to generate image.");
       }
-    } catch (e) {
-      setError("Error generating image.");
+    } catch (e: any) {
+      // Handle key reset if error suggests it's invalid/expired
+      if (e.message?.includes("Requested entity was not found")) {
+          setHasPaidKey(false);
+          setError("API Key configuration error. Please re-select your paid API key via the banner.");
+      } else {
+          setError("Error generating image.");
+      }
     }
     setLoading(false);
   };
@@ -66,7 +99,7 @@ const GenAITools: React.FC = () => {
     setError(null);
     setResult(null);
     try {
-      // Assuming PNG input/output for simplicity in this demo context
+      // Image editing uses gemini-2.5-flash-image (General Image generation/editing)
       const base64 = await editImage(editPrompt, editImageFile, 'image/png');
       if (base64) {
         setResult(`data:image/png;base64,${base64}`);
@@ -181,36 +214,60 @@ const GenAITools: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-1">
         <button 
-          onClick={() => { setActiveTab('image-gen'); setResult(null); }}
+          onClick={() => { setActiveTab('image-gen'); setResult(null); setError(null); }}
           className={`px-4 py-2 rounded-t-lg font-medium flex items-center gap-2 transition-colors ${activeTab === 'image-gen' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-gray-600 hover:bg-gray-50'}`}
         >
           <Wand2 className="w-4 h-4" /> Image Generator
         </button>
         <button 
-          onClick={() => { setActiveTab('image-edit'); setResult(null); }}
+          onClick={() => { setActiveTab('image-edit'); setResult(null); setError(null); }}
           className={`px-4 py-2 rounded-t-lg font-medium flex items-center gap-2 transition-colors ${activeTab === 'image-edit' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-gray-600 hover:bg-gray-50'}`}
         >
           <Edit className="w-4 h-4" /> Image Editor
         </button>
         <button 
-          onClick={() => { setActiveTab('video'); setResult(null); }}
+          onClick={() => { setActiveTab('video'); setResult(null); setError(null); }}
           className={`px-4 py-2 rounded-t-lg font-medium flex items-center gap-2 transition-colors ${activeTab === 'video' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-gray-600 hover:bg-gray-50'}`}
         >
           <Video className="w-4 h-4" /> Video Analyst
         </button>
         <button 
-          onClick={() => { setActiveTab('audio'); setResult(null); }}
+          onClick={() => { setActiveTab('audio'); setResult(null); setError(null); }}
           className={`px-4 py-2 rounded-t-lg font-medium flex items-center gap-2 transition-colors ${activeTab === 'audio' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-gray-600 hover:bg-gray-50'}`}
         >
           <Mic className="w-4 h-4" /> Audio Scribe
         </button>
         <button 
-          onClick={() => { setActiveTab('think'); setResult(null); }}
+          onClick={() => { setActiveTab('think'); setResult(null); setError(null); }}
           className={`px-4 py-2 rounded-t-lg font-medium flex items-center gap-2 transition-colors ${activeTab === 'think' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-gray-600 hover:bg-gray-50'}`}
         >
           <BrainCircuit className="w-4 h-4" /> Deep Thinker
         </button>
       </div>
+
+      {/* API Key Selection Banner for gemini-3-pro-image-preview */}
+      {activeTab === 'image-gen' && !hasPaidKey && (
+          <div className="bg-amber-50 border border-amber-200 p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-start gap-4">
+                  <div className="p-3 bg-amber-100 rounded-full text-amber-600 shrink-0">
+                      <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                      <h4 className="font-bold text-amber-900">Paid API Key Required</h4>
+                      <p className="text-sm text-amber-800">
+                          To use <strong>gemini-3-pro-image-preview</strong> for high-quality images, you must select an API key from a paid GCP project.
+                          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="ml-1 underline font-medium">Learn about billing</a>.
+                      </p>
+                  </div>
+              </div>
+              <button 
+                  onClick={handleOpenSelectKey}
+                  className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold shadow-md flex items-center gap-2 transition-all whitespace-nowrap"
+              >
+                  <Key className="w-4 h-4" /> Select API Key
+              </button>
+          </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-h-[400px]">
         
@@ -242,11 +299,11 @@ const GenAITools: React.FC = () => {
             </div>
             <button 
               onClick={handleImageGen} 
-              disabled={loading || !imgPrompt}
+              disabled={loading || !imgPrompt || !hasPaidKey}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              Generate
+              Generate High Quality (3.0 Pro)
             </button>
           </div>
         )}
@@ -401,7 +458,7 @@ const GenAITools: React.FC = () => {
               className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
-              Deep Think
+              Deep Think (3.0 Pro)
             </button>
           </div>
         )}
