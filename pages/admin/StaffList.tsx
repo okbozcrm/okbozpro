@@ -1,14 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Plus, Search, Phone, Mail, X, User, Upload, FileText, CreditCard, 
-  Briefcase, Calendar, Pencil, Trash2, Building2, Lock, Download, 
-  Navigation, Globe, MapPin, Eye, EyeOff, Smartphone, ScanLine, 
-  MousePointerClick, Heart, Home, AlertCircle, PhoneCall, Laptop, 
-  ShieldCheck, Key, QrCode, UserCog, UserCheck, Hash, CheckSquare, 
-  Square, Save 
-} from 'lucide-react'; 
-import { Employee } from '../../types';
+import { Plus, Search, Phone, Mail, X, User, Upload, FileText, CreditCard, Briefcase, Calendar, Pencil, Trash2, Building2, Lock, Download, Navigation, Globe, MapPin, Eye, EyeOff, Smartphone, ScanLine, MousePointerClick, Heart, Home, AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode, UserCog, UserCheck, Hash, CheckSquare, Square, Save } from 'lucide-react'; 
+import { Employee, Branch } from '../../types';
 import ContactDisplay from '../../components/ContactDisplay';
 
 interface Shift {
@@ -47,7 +40,6 @@ const StaffList: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
-  // State to hold all employees currently visible/managed
   const [employees, setEmployees] = useState<DisplayEmployee[]>(() => {
     if (isSuperAdmin) {
         let allData: DisplayEmployee[] = [];
@@ -75,6 +67,7 @@ const StaffList: React.FC = () => {
   });
 
   const [branches, setBranches] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [corporates, setCorporates] = useState<any[]>([]);
   const [filterCorporate, setFilterCorporate] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
@@ -104,12 +97,17 @@ const StaffList: React.FC = () => {
 
     const DEPT_KEY = isSuperAdmin ? 'company_departments' : `company_departments_${sessionId}`;
     const ROLE_KEY = isSuperAdmin ? 'company_roles' : `company_roles_${sessionId}`;
+    const SHIFT_KEY = isSuperAdmin ? 'company_shifts' : `company_shifts_${sessionId}`;
 
     const savedDepts = localStorage.getItem(DEPT_KEY);
     setDepartmentOptions(savedDepts ? JSON.parse(savedDepts) : ['Sales', 'Marketing', 'Development', 'HR', 'Operations']);
     
     const savedRoles = localStorage.getItem(ROLE_KEY);
     setRoleOptions(savedRoles ? JSON.parse(savedRoles) : ['Manager', 'Team Lead', 'Executive', 'Intern', 'Director']);
+    
+    const savedShifts = localStorage.getItem(SHIFT_KEY);
+    setShifts(savedShifts ? JSON.parse(savedShifts) : [{ id: 1, name: 'General Shift', start: '09:30', end: '18:30' }]);
+
   }, [isSuperAdmin, sessionId]);
 
   const availableBranches = useMemo(() => {
@@ -119,23 +117,20 @@ const StaffList: React.FC = () => {
       return branches.filter((b: any) => b.corporateId === filterCorporate);
   }, [branches, filterCorporate, isSuperAdmin]);
 
-  // Persistent logic: Synchronize state back to individual localStorage keys
+  // FIX: Persistent logic updated for Super Admin to save back to specific franchise keys
   useEffect(() => {
     if (!isSuperAdmin) {
         localStorage.setItem(`staff_data_${sessionId}`, JSON.stringify(employees));
     } else {
-        // Group all employees by their franchiseId for Super Admin partitioning
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        const groups: Record<string, DisplayEmployee[]> = { 'admin': [] };
-        corps.forEach((c: any) => { groups[c.email] = []; });
-
+        // Group all employees by their franchiseId
+        const groups: Record<string, DisplayEmployee[]> = {};
         employees.forEach(emp => {
             const fid = emp.franchiseId || 'admin';
             if (!groups[fid]) groups[fid] = [];
             groups[fid].push(emp);
         });
 
-        // Save each group back to its specific database key
+        // Save each group to its respective key
         Object.entries(groups).forEach(([fid, staffList]) => {
             const cleanStaff = staffList.map(({franchiseName, franchiseId, ...rest}) => rest);
             const key = fid === 'admin' ? 'staff_data' : `staff_data_${fid}`;
@@ -222,22 +217,13 @@ const StaffList: React.FC = () => {
           const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
           const data: any = {};
           headers.forEach((h, idx) => { data[h] = values[idx]; });
-          
           const name = data.name || (data.firstname ? `${data.firstname} ${data.lastname}` : '');
-          const email = (data.email || data['email address'] || '').trim().toLowerCase();
-          const phone = (data.phone || '').trim();
-
+          const email = data.email || data['email address'];
           if (name && email) {
-              // Uniqueness check during CSV import
-              const isGlobalDuplicate = employees.some(emp => (emp.email?.toLowerCase() === email && email !== "") || (emp.phone === phone && phone !== ""));
-              const isBatchDuplicate = newStaff.some(emp => (emp.email?.toLowerCase() === email && email !== "") || (emp.phone === phone && phone !== ""));
-              
-              if (isGlobalDuplicate || isBatchDuplicate) continue;
-
               maxId++;
               newStaff.push({
                   id: data.id || `BOZ${String(maxId).padStart(4, '0')}`, name, email,
-                  phone, role: data.role || 'Employee', department: data.department || 'General',
+                  phone: data.phone || '', role: data.role || 'Employee', department: data.department || 'General',
                   avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff`,
                   joiningDate: data.joiningdate || new Date().toISOString().split('T')[0], status: 'Active',
                   password: 'user123', weekOff: 'Sunday', franchiseId: isSuperAdmin ? 'admin' : sessionId,
@@ -253,25 +239,11 @@ const StaffList: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
     
-    // Validation Feedback
+    // FIX: Added validation feedback
     if (!formData.firstName) { alert("First Name is required."); return; }
     if (!formData.role) { alert("Job Role is required."); return; }
     if (!formData.id) { alert("Employee ID is required."); return; }
     if (!formData.department) { alert("Department is required."); return; }
-
-    // DUPLICATION VALIDATION: Email & Phone must be unique
-    const normalizedEmail = formData.email.trim().toLowerCase();
-    const normalizedPhone = formData.phone.trim();
-
-    const isDuplicateEmail = employees.some(emp => 
-        emp.id !== editingId && emp.email?.trim().toLowerCase() === normalizedEmail && normalizedEmail !== ''
-    );
-    const isDuplicatePhone = employees.some(emp => 
-        emp.id !== editingId && emp.phone?.trim() === normalizedPhone && normalizedPhone !== ''
-    );
-
-    if (isDuplicateEmail) { alert("Error: This email address is already assigned to another staff member."); return; }
-    if (isDuplicatePhone) { alert("Error: This phone number is already assigned to another staff member."); return; }
     
     const attendanceConfig = {
         gpsGeofencing: formData.punchMethod === 'Branch',
@@ -285,7 +257,7 @@ const StaffList: React.FC = () => {
         ...emp, 
         id: formData.id, 
         name: `${formData.firstName} ${formData.lastName}`, role: formData.role, department: formData.department || 'General',
-        joiningDate: formData.joiningDate, email: normalizedEmail, password: formData.password, phone: normalizedPhone,
+        joiningDate: formData.joiningDate, email: formData.email, password: formData.password, phone: formData.phone,
         branch: formData.branch, paymentCycle: formData.paymentCycle, salary: formData.salary, status: formData.status,
         workingHours: formData.workingHours, weekOff: formData.weekOff, aadhar: formData.aadhar, pan: formData.pan,
         accountNumber: formData.accountNumber, ifsc: formData.ifsc, liveTracking: formData.liveTracking,
@@ -298,7 +270,7 @@ const StaffList: React.FC = () => {
       const newEmployee: DisplayEmployee = {
         id: formData.id, name: `${formData.firstName} ${formData.lastName}`, role: formData.role, department: formData.department || 'General',
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=10b981&color=fff`,
-        joiningDate: formData.joiningDate, email: normalizedEmail, password: formData.password, phone: normalizedPhone,
+        joiningDate: formData.joiningDate, email: formData.email, password: formData.password, phone: formData.phone,
         branch: formData.branch, paymentCycle: formData.paymentCycle, salary: formData.salary, status: formData.status,
         workingHours: formData.workingHours, weekOff: formData.weekOff, aadhar: formData.aadhar, pan: formData.pan,
         accountNumber: formData.accountNumber, ifsc: formData.ifsc, franchiseId: isSuperAdmin ? 'admin' : sessionId,
@@ -307,9 +279,8 @@ const StaffList: React.FC = () => {
         emergencyContactName: formData.emergencyContactName, emergencyContactPhone: formData.emergencyContactPhone,
         emergencyContactRelation: formData.emergencyContactRelation, attendanceConfig, moduleAccess: formData.moduleAccess 
       };
-      setEmployees(prev => [newEmployee, ...prev]);
+      setEmployees(prev => [...prev, newEmployee]);
     }
-
     setIsModalOpen(false);
     setFormData(initialFormState);
     setEditingId(null);
@@ -375,11 +346,6 @@ const StaffList: React.FC = () => {
                 <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${employee.status === 'Probation' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' : employee.status === 'Inactive' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
                     {employee.status || 'Active'}
                 </span>
-                {isSuperAdmin && employee.franchiseName && (
-                    <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase tracking-tighter">
-                        {employee.franchiseName}
-                    </span>
-                )}
                 <button onClick={() => handleEdit(employee)} className="text-xs text-blue-600 font-bold hover:underline tracking-tight">VIEW PROFILE</button>
             </div>
           </div>
@@ -388,7 +354,7 @@ const StaffList: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl relative z-10 animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative z-10 animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm">
