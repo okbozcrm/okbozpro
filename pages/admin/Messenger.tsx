@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Search, User, MoreVertical, Phone, 
@@ -13,7 +12,7 @@ import { MOCK_EMPLOYEES } from '../../constants';
 interface Message {
   id: string;
   senderId: string;
-  senderName?: string; // Added for Group Chat context
+  senderName?: string;
   receiverId: string; // UserID or GroupID
   content: string;
   timestamp: string;
@@ -35,7 +34,7 @@ interface Contact {
   name: string;
   role: string;
   avatar?: string;
-  type: 'Admin' | 'Franchise' | 'Employee' | 'Group'; // Added Group
+  type: 'Admin' | 'Franchise' | 'Employee' | 'Group';
   corporateId?: string;
   online?: boolean;
   lastMessage?: string;
@@ -93,26 +92,20 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   useEffect(() => {
     let loadedContacts: Contact[] = [];
 
-    // A. Load Data Sources
     const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     let allStaff: any[] = [];
     
-    // Load Admin Staff
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
     allStaff = [...allStaff, ...adminStaff.map((s: any) => ({...s, owner: 'admin'}))];
 
-    // Load Corporate Staff
     corps.forEach(c => {
         const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
         allStaff = [...allStaff, ...cStaff.map((s: any) => ({...s, owner: c.email}))];
     });
 
-    // Helper to randomize online status for demo purposes
     const isOnline = () => Math.random() > 0.4; 
 
-    // B. Build Contact List based on Role
     if (isSuperAdmin) {
-        // Add Corporates
         corps.forEach(c => {
             loadedContacts.push({
                 id: c.email, 
@@ -123,7 +116,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 online: isOnline()
             });
         });
-        // Add All Employees
         allStaff.forEach(s => {
             loadedContacts.push({
                 id: s.id,
@@ -156,13 +148,11 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
     setContacts(loadedContacts);
 
-    // C. Load Groups
     const savedGroups = JSON.parse(localStorage.getItem('chat_groups_data') || '[]');
-    // Filter groups where I am a member
     const myGroups = savedGroups.filter((g: ChatGroup) => g.members.includes(sessionId));
     setGroups(myGroups);
 
-  }, [role, sessionId, isSuperAdmin, isGroupModalOpen]); // Reload when modal closes (new group)
+  }, [role, sessionId, isSuperAdmin, isGroupModalOpen]);
 
   // --- 2. Load Messages & Sync ---
   useEffect(() => {
@@ -177,7 +167,24 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       return () => clearInterval(interval);
   }, []);
 
-  // --- 3. Save Messages ---
+  // --- 3. Auto-scroll and Mark Read ---
+  useEffect(() => {
+    if (activeChatId) {
+        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+        
+        // Mark messages from other user in active chat as read
+        const unreadFromOthers = messages.some(m => m.senderId === activeChatId && m.receiverId === sessionId && !m.read);
+        if (unreadFromOthers) {
+            const updatedAll = messages.map(m => 
+                (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true } : m
+            );
+            localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
+            setMessages(updatedAll);
+        }
+    }
+  }, [messages, activeChatId, sessionId]);
+
+  // --- 4. Save Messages ---
   const saveMessage = (newMsg: Message) => {
       const updatedMessages = [...messages, newMsg];
       setMessages(updatedMessages);
@@ -190,18 +197,14 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       e.preventDefault();
       if (!inputText.trim() || !activeChatId) return;
 
-      // Get my name for group display
       let myName = 'Me';
       if(isSuperAdmin) myName = 'Admin';
       else {
-          const me = contacts.find(c => c.id === sessionId); // Won't find self in contacts usually, but handled by role logic
-          // Quick fix to find my name
           if (role === UserRole.CORPORATE) {
              const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
              const myCorp = corps.find((c:any) => c.email === sessionId);
              if(myCorp) myName = myCorp.companyName;
           } else {
-             // For employee
              const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
              const found = adminStaff.find((s:any) => s.id === sessionId);
              if(found) myName = found.name;
@@ -249,7 +252,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       const newGroup: ChatGroup = {
           id: `GRP-${Date.now()}`,
           name: newGroupName,
-          members: [sessionId, ...selectedGroupMembers], // Auto-add self
+          members: [sessionId, ...selectedGroupMembers],
           createdBy: sessionId,
           type: 'group'
       };
@@ -279,7 +282,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       }
   };
 
-  // --- File & Voice --- (Existing code preserved)
+  // --- File & Voice ---
   const handleFileSelect = () => fileInputRef.current?.click();
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && activeChatId) {
@@ -336,7 +339,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         mediaRecorder.start();
         setIsRecording(true);
         setRecordingDuration(0);
-        timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
+        timerRef.current = window.setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
     } catch (err) { console.error(err); alert("Microphone access denied."); }
   };
 
@@ -360,15 +363,13 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   };
 
   // --- Derived Data ---
-  
-  // Combine Contacts and Groups for the sidebar list
   const displayList = useMemo(() => {
       const groupItems: Contact[] = groups.map(g => ({
           id: g.id,
           name: g.name,
           role: 'Group',
           type: 'Group',
-          online: true, // Groups always accessible
+          online: true,
           corporateId: 'mixed'
       }));
 
@@ -378,18 +379,16 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
           c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
           c.role.toLowerCase().includes(searchTerm.toLowerCase())
       ).map(contact => {
-          // Find last message
           const chatMsgs = messages.filter(m => 
-              (m.receiverId === contact.id) || // Group Message
-              (m.senderId === sessionId && m.receiverId === contact.id) || // 1-on-1 sent
-              (m.senderId === contact.id && m.receiverId === sessionId) // 1-on-1 received
+              (m.receiverId === contact.id) || 
+              (m.senderId === sessionId && m.receiverId === contact.id) || 
+              (m.senderId === contact.id && m.receiverId === sessionId) 
           );
           
-          // Sort by time
           chatMsgs.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           
           const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
-          const unread = chatMsgs.filter(m => m.senderId !== sessionId && !m.read && m.receiverId === sessionId).length; // Unread logic for 1-on-1 mostly
+          const unread = chatMsgs.filter(m => m.senderId !== sessionId && !m.read && (m.receiverId === sessionId || contact.type === 'Group')).length; 
 
           let previewText = "Start a conversation";
           if (lastMsg) {
@@ -419,32 +418,14 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const activeMessages = useMemo(() => {
       if (!activeChatId) return [];
       
-      const chat = messages.filter(m => 
-          (m.receiverId === activeChatId) || // Group Messages
-          (m.senderId === sessionId && m.receiverId === activeChatId) || // 1-on-1 Sent
-          (m.senderId === activeChatId && m.receiverId === sessionId) // 1-on-1 Received
+      return messages.filter(m => 
+          (m.receiverId === activeChatId) || 
+          (m.senderId === sessionId && m.receiverId === activeChatId) || 
+          (m.senderId === activeChatId && m.receiverId === sessionId)
       ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      
-      // Mark as read logic (simplified)
-      if (chat.some(m => m.senderId !== sessionId && !m.read)) {
-          const updatedAll = messages.map(m => 
-             // Only mark 1-on-1 as read here to simplify group logic
-             (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true } : m
-          );
-          setTimeout(() => {
-             localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
-             setMessages(updatedAll);
-          }, 1000);
-      }
-      return chat;
   }, [activeChatId, messages, sessionId]);
 
   const activeContactProfile = displayList.find(c => c.id === activeChatId);
-
-  useEffect(() => {
-      scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeMessages]);
-
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -461,7 +442,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                     <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-600" /> Boz Chat
                     </h2>
-                    {/* Hide buttons for Employee */}
                     {role !== UserRole.EMPLOYEE && (
                         <div className="flex gap-2">
                             <button 
@@ -514,7 +494,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         {contact.type === 'Franchise' && <Building2 className="w-5 h-5" />}
                                         {contact.type === 'Employee' && <User className="w-5 h-5" />}
                                     </div>
-                                    {/* Online Indicator (Not for groups) */}
                                     {contact.type !== 'Group' && (
                                         <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${contact.online ? 'bg-green-500' : 'bg-gray-300'}`} />
                                     )}
@@ -618,12 +597,10 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         max-w-[75%] md:max-w-[60%] p-3 rounded-lg shadow-sm relative text-sm
                                         ${isMe ? 'bg-emerald-100 text-gray-800 rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none'}
                                     `}>
-                                        {/* Sender Name in Group Chat */}
                                         {activeContactProfile.type === 'Group' && !isMe && msg.senderName && (
                                             <p className="text-[10px] font-bold text-orange-600 mb-1">{msg.senderName}</p>
                                         )}
 
-                                        {/* Render Content Based on Type */}
                                         {msg.type === 'text' && (
                                             <p className="mb-1 leading-relaxed">{msg.content}</p>
                                         )}
@@ -649,7 +626,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         <div className="flex items-center justify-end gap-1 text-[10px] text-gray-500 opacity-80">
                                             <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                             {isMe && (
-                                                msg.read ? <CheckCheck className="w-3 h-3 text-blue-500" /> : <Check className="w-3 h-3" />
+                                                <CheckCheck className={`w-3 h-3 ${msg.read ? 'text-blue-500' : 'text-gray-400'}`} />
                                             )}
                                         </div>
                                     </div>
@@ -678,7 +655,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                             </div>
                         ) : (
                             <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                                {/* Hidden File Input */}
                                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
                                 
                                 <button type="button" onClick={handleFileSelect} className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
@@ -698,7 +674,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                             }
                                         }}
                                     />
-                                    {/* Mic only shows if text is empty */}
                                     {!inputText && (
                                         <button type="button" onClick={startRecording} className="text-gray-500 hover:text-red-500 transition-colors">
                                             <Mic className="w-5 h-5" />
@@ -719,7 +694,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                     </div>
                 </>
             ) : (
-                // Empty State
                 <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 text-center p-8 animate-in zoom-in duration-300">
                     <div className="w-32 h-32 bg-emerald-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
                         <MessageSquare className="w-16 h-16 text-emerald-500" />

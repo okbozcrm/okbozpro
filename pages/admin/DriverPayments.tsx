@@ -66,7 +66,8 @@ const DEFAULT_RULES: PaymentRules = {
 
 const DriverPayments: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = sessionId === 'admin';
+  const userRole = localStorage.getItem('user_role');
+  const isSuperAdmin = userRole === 'ADMIN';
 
   // --- State ---
   const [mainTab, setMainTab] = useState<'Payments' | 'Wallet'>('Payments'); 
@@ -78,6 +79,7 @@ const DriverPayments: React.FC = () => {
   const [rules, setRules] = useState<PaymentRules>(DEFAULT_RULES);
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [staffList, setStaffList] = useState<Employee[]>([]);
+  const [allBranches, setAllBranches] = useState<any[]>([]);
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false); // Compensation Modal
@@ -131,18 +133,13 @@ const DriverPayments: React.FC = () => {
     remarks: ''
   };
   const [walletForm, setWalletForm] = useState(initialWalletForm);
-  const [allBranches, setAllBranches] = useState<any[]>([]);
 
   // --- Load Data ---
-  useEffect(() => {
-    // 1. Load Rules (Global)
+  const loadAllData = () => {
+    // 1. Load Rules
     const savedRules = localStorage.getItem('driver_payment_rules');
     if (savedRules) {
-        try {
-            setRules(JSON.parse(savedRules));
-        } catch(e) {
-            setRules(DEFAULT_RULES);
-        }
+        try { setRules(JSON.parse(savedRules)); } catch(e) { setRules(DEFAULT_RULES); }
     }
 
     // 2. Load Corporates
@@ -157,8 +154,6 @@ const DriverPayments: React.FC = () => {
 
     if (isSuperAdmin) {
         // --- Admin View: Aggregate Everything ---
-        
-        // A. Payments
         const adminPay = JSON.parse(localStorage.getItem('driver_payment_records') || '[]');
         loadedPayments = [...adminPay];
         corps.forEach((c: any) => {
@@ -166,18 +161,13 @@ const DriverPayments: React.FC = () => {
             loadedPayments = [...loadedPayments, ...cPay];
         });
 
-        // B. Wallet
         const adminWalletRaw = JSON.parse(localStorage.getItem('driver_wallet_data') || '[]');
-        const adminWallet = adminWalletRaw.map((t: any) => ({ ...t, corporateId: t.corporateId || 'admin' }));
-        loadedWallet = [...adminWallet];
-
+        loadedWallet = [...adminWalletRaw.map((t: any) => ({ ...t, corporateId: 'admin' }))];
         corps.forEach((c: any) => {
             const cWalletRaw = JSON.parse(localStorage.getItem(`driver_wallet_data_${c.email}`) || '[]');
-            const cWallet = cWalletRaw.map((t: any) => ({ ...t, corporateId: t.corporateId || c.email }));
-            loadedWallet = [...loadedWallet, ...cWallet];
+            loadedWallet = [...loadedWallet, ...cWalletRaw.map((t: any) => ({ ...t, corporateId: c.email }))];
         });
 
-        // C. Staff
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
         loadedStaff = [...adminStaff];
         corps.forEach((c: any) => {
@@ -185,26 +175,31 @@ const DriverPayments: React.FC = () => {
             loadedStaff = [...loadedStaff, ...cStaff];
         });
 
-        // D. Branches
         const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
         loadedBranches = [...adminBranches];
         corps.forEach((c: any) => {
             const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
             loadedBranches = [...loadedBranches, ...cBranches];
         });
-
     } else {
-        // --- Franchise View: Scoped Data ---
+        // --- Franchise / Employee View: Scoped Data ---
+        
+        // Determine the corporate owner ID
+        let ownerId = sessionId;
+        if (userRole === 'EMPLOYEE') {
+            ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+        }
+
         const payKey = `driver_payment_records_${sessionId}`;
         const walletKey = `driver_wallet_data_${sessionId}`;
         const staffKey = `staff_data_${sessionId}`;
-        const branchKey = `branches_data_${sessionId}`;
+        
+        // Branches are stored under ownerId (Head Office 'admin' or Franchise 'email')
+        const branchKey = ownerId === 'admin' ? 'branches_data' : `branches_data_${ownerId}`;
 
         loadedPayments = JSON.parse(localStorage.getItem(payKey) || '[]');
-        
         const myWalletRaw = JSON.parse(localStorage.getItem(walletKey) || '[]');
         loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: sessionId }));
-        
         loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]');
         loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]');
     }
@@ -213,7 +208,13 @@ const DriverPayments: React.FC = () => {
     setWalletTransactions(loadedWallet);
     setStaffList(loadedStaff);
     setAllBranches(loadedBranches);
-  }, [isSuperAdmin, sessionId]);
+  };
+
+  useEffect(() => {
+    loadAllData();
+    window.addEventListener('storage', loadAllData);
+    return () => window.removeEventListener('storage', loadAllData);
+  }, [sessionId, userRole, isSuperAdmin]);
 
   // --- Computed Logic for Compensation Form ---
   const eligiblePaidKm = useMemo(() => {
@@ -277,14 +278,11 @@ const DriverPayments: React.FC = () => {
         details: details
     };
 
-    const updated = [newPayment, ...payments];
-    setPayments(updated);
-    
-    // Save to specific storage
     const key = isSuperAdmin ? 'driver_payment_records' : `driver_payment_records_${sessionId}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     localStorage.setItem(key, JSON.stringify([newPayment, ...existing]));
     
+    loadAllData();
     setIsModalOpen(false);
     setCompForm(prev => ({ 
         ...prev, 
@@ -335,7 +333,6 @@ const DriverPayments: React.FC = () => {
           return;
       }
 
-      // Determine Corporate ID and Branch Name
       let targetCorpId = isSuperAdmin ? walletForm.corporateId : sessionId;
       if (isSuperAdmin && !targetCorpId) targetCorpId = 'admin';
 
@@ -343,13 +340,9 @@ const DriverPayments: React.FC = () => {
       if (targetCorpId !== 'admin') {
           const corp = corporates.find(c => c.email === targetCorpId);
           if (corp) branchName = corp.companyName;
-      } else if (!isSuperAdmin) {
-          const me = corporates.find(c => c.email === sessionId);
-          branchName = me ? me.companyName : 'My Branch';
       }
 
       let status: 'Pending' | 'Approved' | 'Rejected' = isSuperAdmin ? 'Approved' : 'Pending';
-      
       if (editingWalletId) {
           const existing = walletTransactions.find(t => t.id === editingWalletId);
           if (existing) status = existing.status;
@@ -371,14 +364,6 @@ const DriverPayments: React.FC = () => {
           remarks: walletForm.remarks
       };
 
-      let updatedList;
-      if (editingWalletId) {
-          updatedList = walletTransactions.map(t => t.id === editingWalletId ? transactionData : t);
-      } else {
-          updatedList = [transactionData, ...walletTransactions];
-      }
-      setWalletTransactions(updatedList);
-
       const key = targetCorpId === 'admin' ? 'driver_wallet_data' : `driver_wallet_data_${targetCorpId}`;
       const existingStorage = JSON.parse(localStorage.getItem(key) || '[]');
       let newStorage;
@@ -389,6 +374,7 @@ const DriverPayments: React.FC = () => {
       }
       localStorage.setItem(key, JSON.stringify(newStorage));
 
+      loadAllData();
       setIsWalletModalOpen(false);
       alert(editingWalletId ? "Transaction Updated!" : (isSuperAdmin ? "Transaction Processed!" : "Request Sent for Approval!"));
   };
@@ -397,35 +383,22 @@ const DriverPayments: React.FC = () => {
       if (!isSuperAdmin) return;
       if (!window.confirm("Approve this wallet request?")) return;
 
-      const updated = walletTransactions.map(t => t.id === id ? { ...t, status: 'Approved' as const } : t);
-      setWalletTransactions(updated);
-
       const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
       const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Approved' } : t);
       localStorage.setItem(key, JSON.stringify(newStored));
+      loadAllData();
   };
 
   const handleRejectWallet = (id: string, corporateId: string) => {
       if (!isSuperAdmin) return;
       if (!window.confirm("Reject this wallet request?")) return;
 
-      const updated = walletTransactions.map(t => t.id === id ? { ...t, status: 'Rejected' as const } : t);
-      setWalletTransactions(updated);
-
       const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
       const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Rejected' } : t);
       localStorage.setItem(key, JSON.stringify(newStored));
-  };
-
-  const resetWalletFilters = () => {
-      setSearchTerm('');
-      setWalletFromDate('');
-      setWalletToDate('');
-      setWalletStatus('All');
-      setWalletType('All');
-      setWalletCorpFilter('All');
+      loadAllData();
   };
 
   // --- Computed Stats for Dashboard ---
@@ -616,7 +589,7 @@ const DriverPayments: React.FC = () => {
                       )}
 
                       <button 
-                          onClick={resetWalletFilters}
+                          onClick={() => { setSearchTerm(''); setWalletFromDate(''); setWalletToDate(''); setWalletStatus('All'); setWalletType('All'); setWalletCorpFilter('All'); }}
                           className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
                           title="Reset Filters"
                       >
@@ -819,9 +792,9 @@ const DriverPayments: React.FC = () => {
 
                     {/* Table */}
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
                             <h3 className="font-bold text-gray-800">Compensation History</h3>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button 
                                     onClick={() => setIsModalOpen(true)}
                                     className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm"
