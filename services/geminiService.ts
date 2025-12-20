@@ -1,10 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Safely initialize the AI client; assumes API_KEY is present in environment
-// @ts-ignore - process is not defined in browser, but usually injected by bundlers. Fallback to empty string if missing.
-const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : ''; 
-const ai = new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
+// FIX: Initializing the AI client using the direct process.env.API_KEY as per guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // 1. General Chat (Upgraded to gemini-3-pro-preview)
 export const generateGeminiResponse = async (prompt: string, systemInstruction?: string): Promise<string> => {
@@ -16,6 +14,7 @@ export const generateGeminiResponse = async (prompt: string, systemInstruction?:
         systemInstruction: systemInstruction,
       },
     });
+    // FIX: Accessing .text property directly (not a method) as per guidelines.
     return response.text || "I couldn't generate a response at this time.";
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -92,6 +91,7 @@ export const analyzeVideo = async (prompt: string, base64Video: string, mimeType
         ]
       }
     });
+    // FIX: Accessing .text property directly.
     return response.text || "Could not analyze video.";
   } catch (error) {
     console.error("Gemini Video Analysis Error:", error);
@@ -99,13 +99,13 @@ export const analyzeVideo = async (prompt: string, base64Video: string, mimeType
   }
 };
 
-// 5. Audio Transcription (gemini-2.5-flash)
+// 5. Audio Transcription (Upgraded to gemini-3-flash-preview)
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   try {
     const data = base64Audio.split(',')[1] || base64Audio;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType, data } },
@@ -113,6 +113,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
         ]
       }
     });
+    // FIX: Accessing .text property directly.
     return response.text || "No transcription generated.";
   } catch (error) {
     console.error("Gemini Audio Transcription Error:", error);
@@ -127,9 +128,11 @@ export const generateThinkingResponse = async (prompt: string): Promise<string> 
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
+        // FIX: gemini-3 series models support thinkingConfig.
         thinkingConfig: { thinkingBudget: 32768 }
       }
     });
+    // FIX: Accessing .text property directly.
     return response.text || "No response generated.";
   } catch (error) {
     console.error("Gemini Thinking Mode Error:", error);

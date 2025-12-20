@@ -88,6 +88,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
   }, [role]);
 
+  // Request browser notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // NEW: Background effect to check for due task reminders
   useEffect(() => {
     const checkTaskReminders = async () => {
@@ -107,15 +114,23 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                     !task.reminderTriggered && 
                     new Date(task.reminderTime) <= now) {
                     
-                    // Trigger System Notification
+                    // Trigger System Notification in Firestore
                     sendSystemNotification({
-                        type: 'system',
+                        type: 'task_reminder',
                         title: `Task Reminder: ${task.title}`,
-                        message: `Scheduled reminder for task: ${task.title}. Details: ${task.description.slice(0, 100)}...`,
+                        message: `It's time for your task: ${task.title}. Due date: ${new Date(task.endDate).toLocaleDateString()}`,
                         targetRoles: [role],
                         employeeId: sessionId || undefined,
                         link: role === UserRole.EMPLOYEE ? '/user/tasks' : '/admin/tasks'
                     });
+
+                    // Trigger Native Browser Notification
+                    if ("Notification" in window && Notification.permission === "granted") {
+                      new Notification(companyName, {
+                        body: `Reminder: ${task.title}`,
+                        icon: logoUrl || '/favicon.ico'
+                      });
+                    }
 
                     hasUpdate = true;
                     return { ...task, reminderTriggered: true };
@@ -133,12 +148,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
     };
 
-    // Check every 30 seconds
+    // Check every 30 seconds for higher precision
     const interval = setInterval(checkTaskReminders, 30000);
     checkTaskReminders(); // Initial check
 
     return () => clearInterval(interval);
-  }, [role]);
+  }, [role, companyName, logoUrl]);
 
   useEffect(() => {
     const checkChatMessages = () => {
@@ -383,7 +398,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               <Link
                 key={link.id}
                 to={link.path}
-                className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${currentPath === link.path ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750'}`}
+                className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${currentPath === link.path ? 'bg-emerald-50 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750'}`}
                 draggable={(role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar}
                 onDragStart={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragStart(e, index)}
                 onDragOver={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragOver(e)}
@@ -426,7 +441,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                         <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-gray-100 dark:divide-gray-700">
                             {notifications.length === 0 ? <p className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No new notifications.</p> : notifications.map(notif => (
                                 <div key={notif.id} onClick={() => handleNotificationClick(notif.id, notif.link)} className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${notif.read ? 'opacity-70' : 'font-medium bg-blue-50 dark:bg-blue-950'}`}>
-                                    <p className="text-sm text-gray-800 dark:text-white flex items-center gap-2">{notif.type === 'new_enquiry' && <Headset className="w-4 h-4 text-emerald-600" />}{notif.type === 'task_assigned' && <ClipboardList className="w-4 h-4 text-indigo-600" />}{notif.type === 'login' && <UserCircle className="w-4 h-4 text-blue-600" />}{notif.title}</p>
+                                    <p className="text-sm text-gray-800 dark:text-white flex items-center gap-2">
+                                      {notif.type === 'new_enquiry' && <Headset className="w-4 h-4 text-emerald-600" />}
+                                      {notif.type === 'task_assigned' && <ClipboardList className="w-4 h-4 text-indigo-600" />}
+                                      {notif.type === 'task_reminder' && <BellRing className="w-4 h-4 text-orange-500 animate-bounce" />}
+                                      {notif.type === 'login' && <UserCircle className="w-4 h-4 text-blue-600" />}
+                                      {notif.title}
+                                    </p>
                                     <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">{notif.message}</p>
                                     <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{new Date(notif.timestamp).toLocaleString()}</p>
                                 </div>

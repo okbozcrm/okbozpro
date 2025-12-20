@@ -192,7 +192,7 @@ export interface SalaryAdvanceRequest {
 // NEW: Notification Interface
 export interface Notification {
   id: string;
-  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry';
+  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry' | 'task_reminder';
   title: string;
   message: string;
   timestamp: string; // ISO string
