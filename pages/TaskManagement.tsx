@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Calendar, User, Clock, CheckCircle, AlertCircle, 
   Trash2, Search, Filter, MoreHorizontal, X, SlidersHorizontal, 
-  Pencil, Building2, Save, BarChart3, List, CalendarDays
+  Pencil, Building2, Save, BarChart3, List, CalendarDays, Bell
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';
@@ -22,8 +22,10 @@ interface Task {
   corporateName?: string; // Display name
   status: 'Todo' | 'In Progress' | 'Review' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
-  startDate: string; // Changed from single dueDate
-  endDate: string;   // Added endDate
+  startDate: string;
+  endDate: string;
+  reminderTime?: string; // NEW: ISO string for reminder
+  reminderTriggered?: boolean; // NEW: Track if notification already sent
   createdAt: string;
 }
 
@@ -88,6 +90,19 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     localStorage.setItem(key, JSON.stringify(tasks));
   }, [tasks, isSuperAdmin]);
 
+  // Handle storage events to update tasks when layout markers change
+  useEffect(() => {
+    const handleStorage = () => {
+      const key = isSuperAdmin ? 'tasks_data' : `tasks_data`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        setTasks(JSON.parse(saved));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [isSuperAdmin]);
+
   // --- UI State ---
   const [activeTab, setActiveTab] = useState<'Kanban' | 'Performance'>('Kanban');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,18 +115,17 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     title: '',
     description: '',
     corporateId: 'admin',
-    branchName: '', // Added branch filtering
+    branchName: '',
     assignedTo: '',
     priority: 'Medium',
     startDate: '',
     endDate: '',
+    reminderTime: '', // NEW
+    reminderEnabled: false, // NEW
     status: 'Todo'
   });
 
-  // Calculate available branches based on selected corporate
   const availableBranches = useMemo(() => {
-      // Logic to extract unique branches from staff or branches_data would go here
-      // For now, simplified mock logic or extraction from staff
       const staffInCorp = allStaff.filter(s => 
           formData.corporateId === 'admin' ? s.corporateId === 'admin' : s.corporateId === formData.corporateId
       );
@@ -121,31 +135,23 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
 
   const availableStaff = useMemo(() => {
     let filtered = allStaff;
-    
-    // Filter by Corporate
     if (formData.corporateId === 'admin') {
         filtered = filtered.filter(s => s.corporateId === 'admin');
     } else {
         filtered = filtered.filter(s => s.corporateId === formData.corporateId);
     }
-
-    // Filter by Branch (if selected)
     if (formData.branchName) {
         filtered = filtered.filter(s => s.branch === formData.branchName);
     }
-
     return filtered;
   }, [allStaff, formData.corporateId, formData.branchName]);
 
   // --- Handlers ---
 
   const resetForm = () => {
-    // Set default dates
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Format to YYYY-MM-DDTHH:mm for datetime-local input
     const formatDateTime = (date: Date) => date.toISOString().slice(0, 16);
 
     setFormData({
@@ -157,6 +163,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       priority: 'Medium',
       startDate: formatDateTime(now),
       endDate: formatDateTime(tomorrow),
+      reminderTime: '',
+      reminderEnabled: false,
       status: 'Todo'
     });
     setEditingTask(null);
@@ -189,11 +197,13 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       title: task.title,
       description: task.description,
       corporateId: task.corporateId || 'admin',
-      branchName: '', // Could be inferred from assigned staff if needed
+      branchName: '',
       assignedTo: task.assignedTo,
       priority: task.priority,
       startDate: task.startDate,
       endDate: task.endDate,
+      reminderTime: task.reminderTime || '',
+      reminderEnabled: !!task.reminderTime,
       status: task.status
     });
     setIsModalOpen(true);
@@ -213,6 +223,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     if (role === UserRole.CORPORATE) assignedByName = 'Manager';
     if (role === UserRole.EMPLOYEE) assignedByName = 'Self';
 
+    const finalReminderTime = formData.reminderEnabled ? formData.reminderTime : undefined;
+
     if (editingTask) {
       const updatedTasks = tasks.map(t => t.id === editingTask.id ? {
         ...t,
@@ -224,6 +236,8 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         priority: formData.priority as any,
         startDate: formData.startDate,
         endDate: formData.endDate,
+        reminderTime: finalReminderTime,
+        reminderTriggered: (finalReminderTime === t.reminderTime) ? t.reminderTriggered : false, // Reset if time changed
         status: formData.status as any
       } : t);
       setTasks(updatedTasks);
@@ -240,18 +254,19 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         priority: formData.priority as any,
         startDate: formData.startDate,
         endDate: formData.endDate,
+        reminderTime: finalReminderTime,
+        reminderTriggered: false,
         createdAt: new Date().toISOString()
       };
       setTasks([newTask, ...tasks]);
 
-      // Send targeted notification
       if (formData.assignedTo && formData.assignedTo !== currentSessionId) {
           sendSystemNotification({
               type: 'task_assigned',
               title: `New Task: ${newTask.title}`,
               message: `You have been assigned a new task.`,
               targetRoles: [UserRole.EMPLOYEE],
-              employeeId: formData.assignedTo, // Target specific employee
+              employeeId: formData.assignedTo,
               link: `/user/tasks`
           });
       }
@@ -283,7 +298,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
     }
   };
 
-  // --- Filtering & Stats ---
   const filteredTasks = tasks.filter(t => {
      if (role === UserRole.EMPLOYEE && t.assignedTo !== currentSessionId) return false;
      if (role === UserRole.CORPORATE && t.corporateId !== currentSessionId) return false;
@@ -296,38 +310,26 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
 
   const performanceStats = useMemo(() => {
     const stats: Record<string, { name: string, total: number, completed: number, pending: number, role: string }> = {};
-    
-    // Determine relevant staff to show
     let relevantStaff = allStaff;
     if (role === UserRole.CORPORATE) {
         relevantStaff = allStaff.filter(s => s.corporateId === currentSessionId);
     } else if (role === UserRole.EMPLOYEE) {
         relevantStaff = allStaff.filter(s => s.id === currentSessionId);
     }
-
     relevantStaff.forEach(emp => {
         const empTasks = tasks.filter(t => t.assignedTo === emp.id);
         const total = empTasks.length;
         const completed = empTasks.filter(t => t.status === 'Done').length;
         const pending = empTasks.filter(t => t.status !== 'Done').length;
-        
-        if (role === UserRole.ADMIN || total > 0) { // Admins see everyone, others see if active
-            stats[emp.id] = {
-                name: emp.name,
-                role: emp.role,
-                total,
-                completed,
-                pending
-            };
+        if (role === UserRole.ADMIN || total > 0) {
+            stats[emp.id] = { name: emp.name, role: emp.role, total, completed, pending };
         }
     });
-
     return Object.values(stats);
   }, [allStaff, tasks, role, currentSessionId]);
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Task Management</h2>
@@ -364,7 +366,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
 
       {activeTab === 'Kanban' ? (
         <>
-            {/* Toolbar */}
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex gap-4 items-center">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -388,7 +389,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                 </select>
             </div>
 
-            {/* Kanban Board */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden pb-2">
                 <div className="flex h-full min-w-[1000px] gap-6">
                 {COLUMNS.map(col => {
@@ -405,15 +405,19 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                         <div className="p-3 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
                         {colTasks.map(task => {
                             const assignee = getStaffDetails(task.assignedTo);
-                            const startDate = new Date(task.startDate);
                             const endDate = new Date(task.endDate);
+                            const hasReminder = !!task.reminderTime;
                             return (
                             <div key={task.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all group relative">
-                                {/* Header Badges */}
                                 <div className="flex justify-between items-start mb-2">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getPriorityColor(task.priority)} uppercase`}>
-                                    {task.priority}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getPriorityColor(task.priority)} uppercase`}>
+                                      {task.priority}
+                                  </span>
+                                  {hasReminder && (
+                                    <Bell className={`w-3.5 h-3.5 ${task.reminderTriggered ? 'text-gray-300' : 'text-orange-500 animate-pulse'}`} />
+                                  )}
+                                </div>
                                 <div className="flex gap-1">
                                     <button onClick={() => handleOpenEdit(task)} className="text-gray-300 hover:text-blue-500 p-1">
                                         <Pencil className="w-3.5 h-3.5" />
@@ -424,11 +428,9 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                 </div>
                                 </div>
 
-                                {/* Content */}
                                 <h4 className="font-bold text-gray-800 mb-1 text-sm leading-snug">{task.title}</h4>
                                 <p className="text-xs text-gray-500 mb-3 line-clamp-2">{task.description}</p>
 
-                                {/* Badges */}
                                 <div className="flex flex-wrap gap-1 mb-3">
                                     <div className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-medium border border-gray-200">
                                         <User className="w-3 h-3" /> By {task.assignedByName}
@@ -440,7 +442,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                     )}
                                 </div>
 
-                                {/* Footer */}
                                 <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                                 <div className="flex items-center gap-2">
                                     <img src={assignee.avatar || `https://ui-avatars.com/api/?name=${assignee.name}`} alt="" className="w-6 h-6 rounded-full" title={assignee.name} />
@@ -449,8 +450,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                         <span className="text-xs font-medium text-gray-600">{endDate.toLocaleDateString()}</span>
                                     </div>
                                 </div>
-                                
-                                {/* Status Change Menu */}
                                 <div className="relative group/menu">
                                     <button className="p-1 hover:bg-gray-100 rounded text-gray-400">
                                         <MoreHorizontal className="w-4 h-4" />
@@ -480,7 +479,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         </>
       ) : (
         <div className="flex-1 overflow-y-auto space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            {/* PERFORMANCE REPORT VIEW */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {performanceStats.map((stat, idx) => {
@@ -519,14 +517,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                             </div>
                         );
                     })}
-                    {performanceStats.length === 0 && (
-                        <div className="col-span-full py-12 text-center text-gray-500">
-                            No performance data available.
-                        </div>
-                    )}
                 </div>
-
-                {/* Comparative Chart (Admin Only) */}
                 {(role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-96">
                         <h3 className="font-bold text-gray-800 mb-6">Task Completion Overview</h3>
@@ -547,7 +538,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         </div>
       )}
 
-      {/* Edit/Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
@@ -556,8 +546,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                  <button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
               </div>
               <form onSubmit={handleSaveTask} className="p-6 space-y-5">
-                 
-                 {/* 1. Title Input */}
                  <div>
                     <input 
                       required 
@@ -568,8 +556,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                       placeholder="Task Title" 
                     />
                  </div>
-
-                 {/* 2. Description Input */}
                  <div>
                     <textarea 
                       rows={4} 
@@ -579,8 +565,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                       placeholder="Description"
                     />
                  </div>
-                 
-                 {/* 3. Row: Head Office & All Branches */}
                  {isSuperAdmin && (
                     <div className="flex gap-4">
                         <div className="flex-1">
@@ -609,8 +593,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                         </div>
                     </div>
                  )}
-
-                 {/* 4. Assign To */}
                  <div>
                     <select 
                        required 
@@ -625,8 +607,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                        ))}
                     </select>
                  </div>
-
-                 {/* 5. Row: Start Date & Time | End Date & Time */}
                  <div className="flex gap-4">
                     <div className="flex-1">
                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">START DATE & TIME</label>
@@ -650,7 +630,36 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                     </div>
                  </div>
 
-                 {/* 6. Row: Priority Buttons (Segmented) */}
+                 {/* REMINDER SECTION */}
+                 <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 space-y-3">
+                   <div className="flex items-center justify-between">
+                     <label className="flex items-center gap-2 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500" 
+                          checked={formData.reminderEnabled}
+                          onChange={e => setFormData({...formData, reminderEnabled: e.target.checked})}
+                        />
+                        <span className="text-sm font-bold text-orange-800 flex items-center gap-1.5">
+                           <Bell className="w-4 h-4" /> Set Reminder Notification
+                        </span>
+                     </label>
+                   </div>
+                   {formData.reminderEnabled && (
+                     <div className="animate-in fade-in slide-in-from-top-2">
+                       <label className="block text-[10px] font-bold text-orange-600 uppercase mb-1">Reminder Time</label>
+                       <input 
+                          type="datetime-local" 
+                          required 
+                          value={formData.reminderTime} 
+                          onChange={(e) => setFormData({...formData, reminderTime: e.target.value})} 
+                          className="w-full px-4 py-3 border border-orange-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-gray-700 bg-white" 
+                       />
+                       <p className="text-[10px] text-orange-500 mt-1.5">* You will receive an internal app notification at this time.</p>
+                     </div>
+                   )}
+                 </div>
+
                  <div className="flex gap-0 border border-gray-300 rounded-lg overflow-hidden">
                     {['Low', 'Medium', 'High'].map((p) => (
                        <button
@@ -667,8 +676,6 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                        </button>
                     ))}
                  </div>
-
-                 {/* 7. Footer: Create Task Button */}
                  <div className="pt-2">
                     <button type="submit" className="w-full bg-emerald-600 text-white py-3.5 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-md text-lg">
                        {editingTask ? 'Save Changes' : 'Create Task'}

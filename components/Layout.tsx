@@ -6,6 +6,7 @@ import { UserRole, Enquiry, CorporateAccount, Employee } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
+import { sendSystemNotification } from '../services/cloudService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -85,6 +86,58 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
+  }, [role]);
+
+  // NEW: Background effect to check for due task reminders
+  useEffect(() => {
+    const checkTaskReminders = async () => {
+        try {
+            const tasksJson = localStorage.getItem('tasks_data');
+            if (!tasksJson) return;
+            
+            const tasks: any[] = JSON.parse(tasksJson);
+            const now = new Date();
+            const sessionId = localStorage.getItem('app_session_id');
+            let hasUpdate = false;
+
+            const updatedTasks = tasks.map(task => {
+                // If task is assigned to me, has a reminder, and it's time
+                if (task.assignedTo === sessionId && 
+                    task.reminderTime && 
+                    !task.reminderTriggered && 
+                    new Date(task.reminderTime) <= now) {
+                    
+                    // Trigger System Notification
+                    sendSystemNotification({
+                        type: 'system',
+                        title: `Task Reminder: ${task.title}`,
+                        message: `Scheduled reminder for task: ${task.title}. Details: ${task.description.slice(0, 100)}...`,
+                        targetRoles: [role],
+                        employeeId: sessionId || undefined,
+                        link: role === UserRole.EMPLOYEE ? '/user/tasks' : '/admin/tasks'
+                    });
+
+                    hasUpdate = true;
+                    return { ...task, reminderTriggered: true };
+                }
+                return task;
+            });
+
+            if (hasUpdate) {
+                localStorage.setItem('tasks_data', JSON.stringify(updatedTasks));
+                // Signal TaskManagement component if it's currently rendered
+                window.dispatchEvent(new Event('storage'));
+            }
+        } catch (e) {
+            console.error("Task reminder background check failed", e);
+        }
+    };
+
+    // Check every 30 seconds
+    const interval = setInterval(checkTaskReminders, 30000);
+    checkTaskReminders(); // Initial check
+
+    return () => clearInterval(interval);
   }, [role]);
 
   useEffect(() => {
