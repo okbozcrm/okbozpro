@@ -229,7 +229,7 @@ declare global {
     google: any; 
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;
-    // FIX: Restored 'readonly' modifier to match the ambient declaration of 'aistudio' on the global Window object and resolve the identical modifiers conflict.
-    readonly aistudio: AIStudio;
+    /* FIX: Removed 'readonly' modifier to match the base Window declaration and resolve identical modifiers conflict. */
+    aistudio: AIStudio;
   }
 }

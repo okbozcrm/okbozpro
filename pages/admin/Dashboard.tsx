@@ -52,9 +52,33 @@ const Dashboard = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   
+  // NEW: Real-time update trigger
+  const [refreshToggle, setRefreshToggle] = useState(0);
+
   // --- Clock & Greeting State ---
   const [currentTime, setCurrentTime] = useState(new Date());
   const [franchiseName, setFranchiseName] = useState('Head Office');
+
+  // Sync Logic
+  useEffect(() => {
+    const triggerRefresh = () => setRefreshToggle(v => v + 1);
+    
+    const handleStorage = (e: StorageEvent) => {
+        if (e.key?.includes('attendance_data') || e.key?.includes('trips_data') || e.key?.includes('enquiries')) {
+            triggerRefresh();
+        }
+    };
+    
+    // Standard storage listener for other tabs
+    window.addEventListener('storage', handleStorage);
+    // Custom attendance listener for same-tab instant updates
+    window.addEventListener('attendance-updated', triggerRefresh);
+    
+    return () => {
+        window.removeEventListener('storage', handleStorage);
+        window.removeEventListener('attendance-updated', triggerRefresh);
+    };
+  }, []);
 
   // Clock Effect
   useEffect(() => {
@@ -199,7 +223,7 @@ const Dashboard = () => {
     if (savedApprovals) setPendingApprovals(JSON.parse(savedApprovals));
     else setPendingApprovals([]);
 
-  }, [isSuperAdmin, sessionId]);
+  }, [isSuperAdmin, sessionId, refreshToggle]);
 
   // --- 4. Filtering Logic ---
   
@@ -212,7 +236,7 @@ const Dashboard = () => {
       } else {
           return branches.filter(b => (b as any).corporateId === sessionId);
       }
-  }, [branches, filterCorporate, isSuperAdmin, sessionId]);
+  }, [branches, filterCorporate, isSuperAdmin, sessionId, refreshToggle]);
 
   // Filtered Data Sets (Final filter layer based on Dashboard UI controls)
   const filteredEmployees = useMemo(() => {
@@ -223,7 +247,7 @@ const Dashboard = () => {
           const matchBranch = filterBranch === 'All' || e.branch === filterBranch;
           return matchCorp && matchBranch;
       });
-  }, [employees, filterCorporate, filterBranch, isSuperAdmin]);
+  }, [employees, filterCorporate, filterBranch, isSuperAdmin, refreshToggle]);
 
   const filteredTrips = useMemo(() => {
       return trips.filter(t => {
@@ -240,7 +264,7 @@ const Dashboard = () => {
           }
           return matchCorp && matchBranch && matchDate;
       });
-  }, [trips, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth, isSuperAdmin]);
+  }, [trips, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth, isSuperAdmin, refreshToggle]);
 
   const filteredEnquiries = useMemo(() => {
       return enquiries.filter(e => {
@@ -257,7 +281,7 @@ const Dashboard = () => {
 
           return matchBranch && matchDate;
       });
-  }, [enquiries, filterBranch, filterType, selectedDate, selectedMonth]);
+  }, [enquiries, filterBranch, filterType, selectedDate, selectedMonth, refreshToggle]);
 
   // --- 5. Statistics Calculation ---
 
@@ -273,8 +297,10 @@ const Dashboard = () => {
 
       if (filterType === 'Daily') {
           filteredEmployees.forEach(emp => {
-              const data = getEmployeeAttendance(emp, targetYear, targetMonth);
-              const record = data.find(d => d.date === selectedDate);
+              const key = `attendance_data_${emp.id}_${targetYear}_${targetMonth}`;
+              const saved = localStorage.getItem(key);
+              const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, targetYear, targetMonth);
+              const record = data.find((d: any) => d.date === selectedDate);
               
               if (record) {
                   if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.HALF_DAY) {
@@ -295,7 +321,7 @@ const Dashboard = () => {
       }
 
       return { present, absent, late, onField };
-  }, [filteredEmployees, filterType, selectedDate, selectedMonth]);
+  }, [filteredEmployees, filterType, selectedDate, selectedMonth, refreshToggle]);
 
   // Trip Stats
   const tripStats = useMemo(() => {
@@ -303,7 +329,7 @@ const Dashboard = () => {
       const completed = filteredTrips.filter(t => t.bookingStatus === 'Completed').length;
       const revenue = filteredTrips.filter(t => t.bookingStatus === 'Completed').reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
       return { total, completed, revenue };
-  }, [filteredTrips]);
+  }, [filteredTrips, refreshToggle]);
 
   // Vehicle Stats
   const vehicleStats = useMemo(() => {
@@ -323,7 +349,7 @@ const Dashboard = () => {
       }, 0);
 
       return { total, booked, conversion, amount };
-  }, [filteredEnquiries]);
+  }, [filteredEnquiries, refreshToggle]);
 
   // Attendance Chart Data
   const attendanceChartData = useMemo(() => {
@@ -338,14 +364,17 @@ const Dashboard = () => {
 
           let p = 0;
           filteredEmployees.forEach(emp => {
-              const record = getEmployeeAttendance(emp, d.getFullYear(), d.getMonth()).find(r => r.date === dateStr);
+              const key = `attendance_data_${emp.id}_${d.getFullYear()}_${d.getMonth()}`;
+              const saved = localStorage.getItem(key);
+              const records = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, d.getFullYear(), d.getMonth());
+              const record = records.find((r: any) => r.date === dateStr);
               if (record && (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.HALF_DAY)) p++;
           });
 
           data.push({ name: dayName, present: p });
       }
       return data;
-  }, [selectedDate, filteredEmployees]);
+  }, [selectedDate, filteredEmployees, refreshToggle]);
 
   // Revenue Chart Data
   const vehicleChartData = useMemo(() => {
@@ -369,7 +398,7 @@ const Dashboard = () => {
           data.push({ name: monthLabel, revenue });
       }
       return data;
-  }, [filteredEnquiries]);
+  }, [filteredEnquiries, refreshToggle]);
 
   return (
     <div className="space-y-6">

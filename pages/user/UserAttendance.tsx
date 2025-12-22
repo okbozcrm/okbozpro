@@ -19,6 +19,26 @@ interface UserAttendanceProps {
   isAdmin?: boolean;
 }
 
+// Helper to convert "09:30 AM" to "09:30" (24h) for native time input
+const convertTo24Hour = (time12h?: string) => {
+  if (!time12h || time12h === '--:--') return '';
+  const [time, modifier] = time12h.split(' ');
+  let [hours, minutes] = time.split(':');
+  if (hours === '12') hours = '00';
+  if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
+  return `${hours.padStart(2, '0')}:${minutes}`;
+};
+
+// Helper to convert "13:30" to "01:30 PM" for display and storage
+const convertTo12Hour = (time24h?: string) => {
+  if (!time24h) return '';
+  let [hours, minutes] = time24h.split(':');
+  const h = parseInt(hours, 10);
+  const modifier = h >= 12 ? 'PM' : 'AM';
+  const displayHours = h % 12 || 12;
+  return `${displayHours.toString().padStart(2, '0')}:${minutes} ${modifier}`;
+};
+
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -29,6 +49,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  
+  const [refreshToggle, setRefreshToggle] = useState(0);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -44,6 +66,27 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const currentSessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = currentSessionId === 'admin';
   const [isPunchedIn, setIsPunchedIn] = useState(false);
+
+  // --- Real-time Sync Logic ---
+  useEffect(() => {
+    const triggerRefresh = () => setRefreshToggle(prev => prev + 1);
+    
+    // Sync via Storage (Other Tabs)
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key?.includes('attendance_data') || e.key === 'staff_data') {
+        triggerRefresh();
+      }
+    };
+
+    // Sync via Custom Event (Same Tab / Admin Panel Refresh)
+    window.addEventListener('storage', handleStorageUpdate);
+    window.addEventListener('attendance-updated', triggerRefresh);
+    
+    return () => {
+        window.removeEventListener('storage', handleStorageUpdate);
+        window.removeEventListener('attendance-updated', triggerRefresh);
+    };
+  }, []);
 
   // --- Data Loading ---
   useEffect(() => {
@@ -96,7 +139,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     };
 
     loadData();
-  }, [isAdmin, isSuperAdmin, currentSessionId]);
+  }, [isAdmin, isSuperAdmin, currentSessionId, refreshToggle]);
 
   // Load attendance data for the grid
   useEffect(() => {
@@ -112,7 +155,9 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     const today = new Date().toISOString().split('T')[0];
     const todayRecord = data.find((d: any) => d.date === today);
     setIsPunchedIn(!!(todayRecord && todayRecord.checkIn && !todayRecord.checkOut));
-  }, [selectedEmployee, selectedMonth]);
+  }, [selectedEmployee, selectedMonth, refreshToggle]);
+
+  // --- Derived Data Hooks (Ordered by Initialization Flow) ---
 
   const filteredStaffList = useMemo(() => {
     return employees.filter(emp => {
@@ -121,20 +166,26 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
         return matchesSearch && matchesCorp && matchesBranch;
     });
-  }, [employees, filterCorporate, filterBranch, filterSearch]);
+  }, [employees, filterCorporate, filterBranch, filterSearch, refreshToggle]);
 
-  const availableBranchesList = useMemo(() => {
-    if (filterCorporate === 'All') return branches;
-    return branches.filter(b => b.owner === filterCorporate);
-  }, [branches, filterCorporate]);
-
-  const handlePrevMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
+  const staffDailyLogs = useMemo(() => {
+    if (!isAdmin) return [];
+    
+    const date = new Date(selectedDate);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    return filteredStaffList.map(emp => {
+        const key = `attendance_data_${emp.id}_${year}_${month}`;
+        const saved = localStorage.getItem(key);
+        const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
+        const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED };
+        return {
+            ...emp,
+            dailyRecord: record
+        };
+    });
+  }, [filteredStaffList, selectedDate, isAdmin, refreshToggle]);
 
   const personalStats = useMemo(() => {
     if (!selectedEmployee || attendanceData.length === 0) return { present: 0, absent: 0, late: 0, halfDay: 0, leave: 0, off: 0 };
@@ -152,7 +203,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     });
 
     return { present, absent, late, halfDay, leave, off };
-  }, [attendanceData, selectedEmployee]);
+  }, [attendanceData, selectedEmployee, refreshToggle]);
 
   const dashboardStats = useMemo(() => {
     if (!isAdmin) {
@@ -166,16 +217,38 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             onField: personalStats.present 
         };
     }
+
+    const present = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT).length;
+    const absent = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length;
+    const late = staffDailyLogs.filter(l => l.dailyRecord.isLate).length;
+    const halfDay = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HALF_DAY).length;
+    const leave = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PAID_LEAVE).length;
+
     return { 
         total: filteredStaffList.length, 
-        present: Math.round(filteredStaffList.length * 0.85), 
-        absent: 0, 
-        late: 0, 
-        halfDay: 0, 
-        leave: 0, 
-        onField: 0 
+        present, 
+        absent, 
+        late, 
+        halfDay, 
+        leave, 
+        onField: present 
     };
-  }, [filteredStaffList, attendanceData, personalStats, isAdmin]);
+  }, [filteredStaffList, staffDailyLogs, attendanceData, personalStats, isAdmin, refreshToggle]);
+
+  const availableBranchesList = useMemo(() => {
+    if (filterCorporate === 'All') return branches;
+    return branches.filter(b => b.owner === filterCorporate);
+  }, [branches, filterCorporate, refreshToggle]);
+
+  // --- Handlers ---
+
+  const handlePrevMonth = () => {
+    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
 
   const handleEditClick = (record: DailyAttendance, empId?: string) => {
       if (!isAdmin) return; 
@@ -206,6 +279,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       
       localStorage.setItem(key, JSON.stringify(updatedMonthData));
       
+      // Notify all instances (Admin Panel / Current Tab)
+      window.dispatchEvent(new StorageEvent('storage', { key }));
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
+      
       if (targetEmpId === selectedEmployee?.id) {
           setAttendanceData(updatedMonthData);
       }
@@ -234,30 +311,15 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     });
 
     localStorage.setItem(key, JSON.stringify(updated));
+    
+    // Trigger instant refresh
+    window.dispatchEvent(new StorageEvent('storage', { key }));
+    window.dispatchEvent(new CustomEvent('attendance-updated'));
+    
     setAttendanceData(updated);
     setIsPunchedIn(action === 'In');
     alert(`Successfully Punched ${action}!`);
   };
-
-  // Helper for Daily Status View
-  const staffDailyLogs = useMemo(() => {
-    if (!isAdmin) return [];
-    
-    const date = new Date(selectedDate);
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    return filteredStaffList.map(emp => {
-        const key = `attendance_data_${emp.id}_${year}_${month}`;
-        const saved = localStorage.getItem(key);
-        const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
-        const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED };
-        return {
-            ...emp,
-            dailyRecord: record
-        };
-    });
-  }, [filteredStaffList, selectedDate, isAdmin]);
 
   const renderDailyStatus = () => (
     <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in fade-in duration-500">
@@ -505,7 +567,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
                                                 {day.checkIn}
                                             </div>
-                                            <div className="flex items-center gap-2 text-rose-500">
+                                            <div className="flex items-center gap-2 text-rose-50">
                                                 <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
                                                 {day.checkOut || '--:--'}
                                             </div>
@@ -717,20 +779,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                           <div>
                               <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check In</label>
                               <input 
-                                type="text" 
-                                value={editingRecord.checkIn || ''}
-                                onChange={(e) => setEditingRecord({...editingRecord, checkIn: e.target.value})}
-                                placeholder="09:30 AM"
+                                type="time" 
+                                value={convertTo24Hour(editingRecord.checkIn)}
+                                onChange={(e) => setEditingRecord({...editingRecord, checkIn: convertTo12Hour(e.target.value)})}
                                 className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-emerald-600 outline-none focus:ring-4 focus:ring-emerald-500/20 shadow-inner transition-all"
                               />
                           </div>
                           <div>
                               <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check Out</label>
                               <input 
-                                type="text" 
-                                value={editingRecord.checkOut || ''}
-                                onChange={(e) => setEditingRecord({...editingRecord, checkOut: e.target.value})}
-                                placeholder="06:30 PM"
+                                type="time" 
+                                value={convertTo24Hour(editingRecord.checkOut)}
+                                onChange={(e) => setEditingRecord({...editingRecord, checkOut: convertTo12Hour(e.target.value)})}
                                 className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-rose-500 outline-none focus:ring-4 focus:ring-rose-500/20 shadow-inner transition-all"
                               />
                           </div>
