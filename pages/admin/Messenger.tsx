@@ -16,7 +16,8 @@ interface Message {
   receiverId: string; // UserID or GroupID
   content: string;
   timestamp: string;
-  read: boolean;
+  delivered: boolean; // Message reached the recipient
+  read: boolean;      // Message was opened by recipient
   type: 'text' | 'image' | 'file' | 'audio';
   fileName?: string;
 }
@@ -88,7 +89,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- 1. Load Contacts & Groups ---
+  // --- 1. Initial Load Contacts & Groups ---
   useEffect(() => {
     let loadedContacts: Contact[] = [];
 
@@ -134,6 +135,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     } else if (role === UserRole.EMPLOYEE) {
         const me = allStaff.find(s => s.id === sessionId) || MOCK_EMPLOYEES.find(e => e.id === sessionId);
         const myOwnerId = me?.owner || (me as any)?.corporateId || 'admin';
+        
         loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', online: true });
         if (myOwnerId !== 'admin') {
             const myCorp = corps.find(c => c.email === myOwnerId);
@@ -152,9 +154,58 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     const myGroups = savedGroups.filter((g: ChatGroup) => g.members.includes(sessionId));
     setGroups(myGroups);
 
-  }, [role, sessionId, isSuperAdmin, isGroupModalOpen]);
+  }, [role, sessionId, isSuperAdmin]);
 
-  // --- 2. Load Messages & Sync ---
+  // --- 2. Live Status & Delivery Sync ---
+  // Background loop to handle delivery logic when people come online
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+        // Toggle some contacts online/offline randomly to simulate real life
+        setContacts(prev => prev.map(c => {
+            if (c.id === 'admin') return c; 
+            const shouldToggle = Math.random() > 0.95;
+            return shouldToggle ? { ...c, online: !c.online } : c;
+        }));
+
+        // Check for messages that need to be "Delivered" or "Read"
+        setMessages(prev => {
+            let hasChanged = false;
+            const updated = prev.map(m => {
+                const target = contacts.find(c => c.id === (m.senderId === sessionId ? m.receiverId : m.senderId));
+                const isGroup = m.receiverId.startsWith('GRP-');
+
+                // 1. Deliver pending outgoing messages if recipient is online
+                if (m.senderId === sessionId && !m.delivered) {
+                    if (isGroup || target?.online) {
+                        hasChanged = true;
+                        return { ...m, delivered: true };
+                    }
+                }
+
+                // 2. Simulate read receipts for delivered messages if recipient is online
+                if (m.senderId === sessionId && m.delivered && !m.read) {
+                    // Random 10% chance to "read" every loop if online
+                    if (isGroup || (target?.online && Math.random() > 0.9)) {
+                        hasChanged = true;
+                        return { ...m, read: true };
+                    }
+                }
+
+                return m;
+            });
+
+            if (hasChanged) {
+                localStorage.setItem('internal_messages_data', JSON.stringify(updated));
+                return updated;
+            }
+            return prev;
+        });
+    }, 4000);
+
+    return () => clearInterval(syncInterval);
+  }, [contacts, sessionId]);
+
+  // --- 3. Message Loading ---
   useEffect(() => {
       const loadMessages = () => {
           const saved = localStorage.getItem('internal_messages_data');
@@ -167,16 +218,16 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       return () => clearInterval(interval);
   }, []);
 
-  // --- 3. Auto-scroll and Mark Read ---
+  // --- 4. Auto-scroll and Mark Read (Incoming) ---
   useEffect(() => {
     if (activeChatId) {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
         
-        // Mark messages from other user in active chat as read
+        // When I open a chat, mark all messages FROM the other user to ME as read
         const unreadFromOthers = messages.some(m => m.senderId === activeChatId && m.receiverId === sessionId && !m.read);
         if (unreadFromOthers) {
             const updatedAll = messages.map(m => 
-                (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true } : m
+                (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true, delivered: true } : m
             );
             localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
             setMessages(updatedAll);
@@ -184,7 +235,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     }
   }, [messages, activeChatId, sessionId]);
 
-  // --- 4. Save Messages ---
+  // --- 5. Action Logic ---
   const saveMessage = (newMsg: Message) => {
       const updatedMessages = [...messages, newMsg];
       setMessages(updatedMessages);
@@ -192,7 +243,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // --- Handlers ---
   const handleSendMessage = (e: React.FormEvent) => {
       e.preventDefault();
       if (!inputText.trim() || !activeChatId) return;
@@ -211,6 +261,9 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
           }
       }
 
+      const target = contacts.find(c => c.id === activeChatId);
+      const isOnline = target?.online || activeChatId.startsWith('GRP-');
+
       const newMsg: Message = {
           id: Date.now().toString(),
           senderId: sessionId,
@@ -218,6 +271,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
           receiverId: activeChatId,
           content: inputText,
           timestamp: new Date().toISOString(),
+          delivered: !!isOnline,
           read: false,
           type: 'text'
       };
@@ -291,6 +345,8 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         reader.onload = () => {
             const base64 = reader.result as string;
             const isImage = file.type.startsWith('image/');
+            const target = contacts.find(c => c.id === activeChatId);
+            
             const newMsg: Message = {
                 id: Date.now().toString(),
                 senderId: sessionId,
@@ -298,6 +354,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 content: base64,
                 fileName: file.name,
                 timestamp: new Date().toISOString(),
+                delivered: !!(target?.online || activeChatId.startsWith('GRP-')),
                 read: false,
                 type: isImage ? 'image' : 'file'
             };
@@ -321,12 +378,14 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
             reader.onloadend = () => {
                 if (activeChatId) {
                     const base64 = reader.result as string;
+                    const target = contacts.find(c => c.id === activeChatId);
                     const newMsg: Message = {
                         id: Date.now().toString(),
                         senderId: sessionId,
                         receiverId: activeChatId,
                         content: base64,
                         timestamp: new Date().toISOString(),
+                        delivered: !!(target?.online || activeChatId.startsWith('GRP-')),
                         read: false,
                         type: 'audio'
                     };
@@ -495,7 +554,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         {contact.type === 'Employee' && <User className="w-5 h-5" />}
                                     </div>
                                     {contact.type !== 'Group' && (
-                                        <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${contact.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                        <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white transition-colors duration-500 ${contact.online ? 'bg-green-500' : 'bg-gray-300'}`} />
                                     )}
                                 </div>
                                 <div>
@@ -556,7 +615,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                     {activeContactProfile.type === 'Group' ? <Users className="w-5 h-5"/> : activeContactProfile.name.charAt(0)}
                                 </div>
                                 {activeContactProfile.type !== 'Group' && (
-                                    <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${activeContactProfile.online ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white transition-colors duration-500 ${activeContactProfile.online ? 'bg-green-500' : 'bg-gray-300'}`} />
                                 )}
                             </div>
                             <div>
@@ -626,7 +685,15 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                                         <div className="flex items-center justify-end gap-1 text-[10px] text-gray-500 opacity-80">
                                             <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                             {isMe && (
-                                                <CheckCheck className={`w-3 h-3 ${msg.read ? 'text-blue-500' : 'text-gray-400'}`} />
+                                                <div className="flex items-center ml-1">
+                                                    {msg.read ? (
+                                                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                                    ) : msg.delivered ? (
+                                                        <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
+                                                    ) : (
+                                                        <Check className="w-3.5 h-3.5 text-gray-400" />
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Settings, Loader2, ArrowRight, ArrowRightLeft, 
@@ -122,8 +121,11 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [allBranches, setAllBranches] = useState<any[]>([]);
   const [allStaff, setAllStaff] = useState<any[]>([]);
   
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+
   const [assignment, setAssignment] = useState({
-    corporateId: '',
+    corporateId: isSuperAdmin ? 'admin' : sessionId,
     branchName: '',
     staffId: ''
   });
@@ -139,9 +141,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleData, setScheduleData] = useState({ date: '', time: '' });
-
-  const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = sessionId === 'admin';
 
   const [enquiries, setEnquiries] = useState<Enquiry[]>(getInitialEnquiries);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -194,14 +193,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
       setAllBranches(branches);
       setAllStaff(staff);
-      
-      // Default assignment based on login
-      setAssignment(prev => ({ 
-          ...prev, 
-          corporateId: isSuperAdmin ? 'admin' : sessionId,
-          branchName: '', // Default to empty
-          staffId: ''
-      }));
   }, [isSuperAdmin, sessionId]);
 
   const filteredBranches = useMemo(() => {
@@ -224,7 +215,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           if (filterCorporate === 'admin') return allBranches.filter(b => b.owner === 'admin');
           return allBranches.filter(b => b.owner === filterCorporate);
       } else {
-          // Franchise View: Only show branches owned by them
           return allBranches.filter(b => b.owner === sessionId);
       }
   }, [allBranches, filterCorporate, isSuperAdmin, sessionId]);
@@ -246,13 +236,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       if (originalAuthFailure) originalAuthFailure();
     };
 
-    const scriptId = 'google-maps-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
-
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsMapReady(true);
       return;
     }
+
+    const scriptId = 'google-maps-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
 
     if (!script) {
         script = document.createElement('script');
@@ -264,10 +254,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             if (window.google && window.google.maps && window.google.maps.places) {
               setIsMapReady(true);
             } else {
-              setTimeout(() => setMapError("Google Maps 'places' library failed to load."), 0);
+              setMapError("Google Maps 'places' library failed to load.");
             }
         };
-        script.onerror = () => setTimeout(() => setMapError("Network error: Failed to load Google Maps script."), 0);
+        script.onerror = () => setMapError("Network error: Failed to load Google Maps script.");
         document.head.appendChild(script);
     } else {
         script.addEventListener('load', () => {
@@ -287,7 +277,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    // Determine the destination based on trip type
     let destination: google.maps.LatLngLiteral | null = null;
     let isRoundTrip = false;
     let isOutstation = false;
@@ -317,7 +306,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
                     const formattedDist = distanceInKm.toFixed(1);
 
-                    // Update State based on trip type
                     setTransportDetails(prev => ({ 
                         ...prev, 
                         [isOutstation ? 'estTotalKm' : 'estKm']: formattedDist 
@@ -342,7 +330,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleAddPackage = () => {
     if (!newPackage.name || !newPackage.priceSedan) {
-        setTimeout(() => alert("Please fill in package name and Sedan price."), 0);
+        alert("Please fill in package name and Sedan price.");
         return;
     }
     
@@ -359,7 +347,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         );
         setRentalPackages(updatedPackages);
         setEditingPackageId(null);
-        setTimeout(() => alert("Package updated successfully!"), 0);
+        alert("Package updated successfully!");
     } else {
         const pkg: RentalPackage = {
             id: `pkg-${Date.now()}`,
@@ -370,7 +358,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             priceSuv: parseFloat(newPackage.priceSuv) || 0,
         };
         setRentalPackages([...rentalPackages, pkg]);
-        setTimeout(() => alert("Package added successfully!"), 0);
+        alert("Package added successfully!");
     }
     setShowAddPackage(false);
     setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' });
@@ -405,7 +393,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         setEditingPackageId(null);
         setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' });
       }
-      setTimeout(() => alert("Package removed."), 0);
+      alert("Package removed.");
     }
   };
 
@@ -500,7 +488,7 @@ Book now with OK BOZ Transport!`;
 
   const saveOrder = async (status: OrderStatus, scheduleInfo?: { date: string, time: string, priority?: 'Hot' | 'Warm' | 'Cold' }) => {
       if (!customerDetails.name || !customerDetails.phone) {
-          setTimeout(() => alert("Please enter Customer Name and Phone."), 0);
+          alert("Please enter Customer Name and Phone.");
           return;
       }
 
@@ -519,7 +507,7 @@ Book now with OK BOZ Transport!`;
       }
       
       if (!detailsText.trim()) {
-        setTimeout(() => alert("Please enter requirements/details for the enquiry."), 0);
+        alert("Please enter requirements/details for the enquiry.");
         return;
       }
 
@@ -531,10 +519,9 @@ Book now with OK BOZ Transport!`;
           outcome: 'Completed'
       };
 
-      // Ensure assignment.corporateId is correctly set for visibility
       let finalAssignedCorporateId = assignment.corporateId;
       if (!isSuperAdmin) {
-          finalAssignedCorporateId = sessionId; // Force current session for franchise users
+          finalAssignedCorporateId = sessionId; 
       } else if (!finalAssignedCorporateId) {
           finalAssignedCorporateId = 'admin';
       }
@@ -606,30 +593,22 @@ Book now with OK BOZ Transport!`;
             link: `/admin/customer-care`
         });
 
-        // Targeted Notification to Assigned Staff
         if (assignment.staffId && assignment.staffId !== sessionId) {
             sendSystemNotification({
                 type: 'task_assigned',
                 title: `New Enquiry Assigned: ${updatedEnquiry.id}`,
                 message: `You have been assigned a new customer enquiry for ${updatedEnquiry.name}.`,
                 targetRoles: [UserRole.EMPLOYEE],
-                employeeId: assignment.staffId, // Specific targeting
+                employeeId: assignment.staffId, 
                 link: `/user/customer-care`
             });
         }
       }
 
       setEnquiries(newEnquiriesList);
-      try {
-        localStorage.setItem('global_enquiries_data', JSON.stringify(newEnquiriesList));
-      } catch (error) {
-        console.error("Error saving enquiries to local storage:", error);
-        setTimeout(() => alert("Error saving data. Local storage might be full or corrupted."), 0);
-      }
+      localStorage.setItem('global_enquiries_data', JSON.stringify(newEnquiriesList));
 
-      setTimeout(() => {
-          alert(`${enquiryCategory === 'Transport' ? 'Order' : 'Enquiry'} ${status} Successfully!`);
-      }, 0);
+      alert(`${enquiryCategory === 'Transport' ? 'Order' : 'Enquiry'} ${status} Successfully!`);
       
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
       setTransportDetails({ drop: '', estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
@@ -646,7 +625,7 @@ Book now with OK BOZ Transport!`;
 
   const handleBookNow = () => {
       if (!customerDetails.name || !customerDetails.phone) {
-          setTimeout(() => alert("Please enter Customer Name and Phone."), 0);
+          alert("Please enter Customer Name and Phone.");
           return;
       }
       saveOrder('Order Accepted');
@@ -654,7 +633,7 @@ Book now with OK BOZ Transport!`;
 
   const handleOpenSchedule = () => {
       if (!customerDetails.name || !customerDetails.phone) {
-          setTimeout(() => alert("Please enter Customer Name and Phone."), 0);
+          alert("Please enter Customer Name and Phone.");
           return;
       }
       setIsScheduleModalOpen(true);
@@ -662,7 +641,7 @@ Book now with OK BOZ Transport!`;
 
   const confirmSchedule = () => {
       if (!scheduleData.date || !scheduleData.time) {
-          setTimeout(() => alert("Please select both Date and Time."), 0);
+          alert("Please select both Date and Time.");
           return;
       }
       saveOrder('Scheduled', { ...scheduleData, priority: generalFollowUpPriority });
@@ -670,7 +649,7 @@ Book now with OK BOZ Transport!`;
 
   const handleSaveGeneralFollowUp = () => {
     if (!customerDetails.name || !customerDetails.phone) {
-        setTimeout(() => alert("Please enter Customer Name and Phone."), 0);
+        alert("Please enter Customer Name and Phone.");
         return;
     }
     saveOrder('Scheduled', { 
@@ -693,7 +672,7 @@ Book now with OK BOZ Transport!`;
       setGeneralFollowUpTime('10:00');
       setGeneralFollowUpPriority('Warm');
 
-      setTimeout(() => alert("Form cleared."), 0);
+      alert("Form cleared.");
   };
 
   const handleStatusUpdate = async (id: string, newStatus: OrderStatus) => {
@@ -716,12 +695,7 @@ Book now with OK BOZ Transport!`;
       });
       
       setEnquiries(updatedList);
-      try {
-        localStorage.setItem('global_enquiries_data', JSON.stringify(updatedList));
-      } catch (error) {
-        console.error("Error saving enquiries to local storage on status update:", error);
-        setTimeout(() => alert("Error saving data. Local storage might be full or corrupted."), 0);
-      }
+      localStorage.setItem('global_enquiries_data', JSON.stringify(updatedList));
 
       if (updatedEnquiryItem) {
           sendSystemNotification({
@@ -736,7 +710,6 @@ Book now with OK BOZ Transport!`;
 
     } catch (error) {
       console.error("Error in handleStatusUpdate:", error);
-      setTimeout(() => alert("An error occurred while updating status. See console for details."), 0);
     }
   };
 
@@ -769,23 +742,23 @@ Book now with OK BOZ Transport!`;
           nights: order.transportData.nights || '0',
         });
         setEstimatedCost(order.estimatedPrice || 0);
-      } else {
-          setTripType('Local');
-          setVehicleType('Sedan');
-          setOutstationSubType('RoundTrip');
-          setTransportDetails({ drop: '', estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
-          setEstimatedCost(0);
       }
 
-      setAssignment(prev => ({
-          ...prev,
+      setAssignment({
+          corporateId: order.assignedCorporate || (isSuperAdmin ? 'admin' : sessionId),
+          branchName: order.assignedBranch || '',
           staffId: order.assignedTo || ''
-      }));
+      });
 
-      if (order.enquiryCategory === 'General' && order.nextFollowUp) {
-          setGeneralFollowUpDate(order.nextFollowUp.split('T')[0]);
-          setGeneralFollowUpTime(order.nextFollowUp.split('T')[1]);
+      if (order.nextFollowUp) {
+          const dt = new Date(order.nextFollowUp);
+          setGeneralFollowUpDate(dt.toISOString().split('T')[0]);
+          setGeneralFollowUpTime(dt.toTimeString().slice(0, 5));
           setGeneralFollowUpPriority(order.priority || 'Warm');
+          setScheduleData({ 
+            date: dt.toISOString().split('T')[0], 
+            time: dt.toTimeString().slice(0, 5) 
+          });
       }
 
       const cleanNumber = order.phone.replace(/\D/g, '');
@@ -797,19 +770,14 @@ Book now with OK BOZ Transport!`;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error("Error in handleEditOrder:", error);
-      setTimeout(() => alert("An error occurred while preparing the form for edit. See console for details."), 0);
     }
   };
 
   const dashboardStats = useMemo(() => {
-      // Filter stats based on role
       const relevantEnquiries = enquiries.filter(e => {
           if (isSuperAdmin) return true;
-          // Corporate Filter: Check if enquiry is assigned to this corporate
           const isAssignedToCorp = e.assignedCorporate === sessionId;
-          // Or if assigned to a staff member belonging to this corporate
           const isAssignedToCorpStaff = e.assignedTo && allStaff.find(s => s.id === e.assignedTo)?.owner === sessionId;
-          
           return isAssignedToCorp || isAssignedToCorpStaff;
       });
 
@@ -824,19 +792,15 @@ Book now with OK BOZ Transport!`;
       return { total, accepted, assigned, completed, cancelled, scheduled, todaysFollowUps };
   }, [enquiries, isSuperAdmin, sessionId, allStaff]);
 
-  // Enhanced Filtering Logic
   const filteredOrders = useMemo(() => {
       return enquiries.filter(e => {
-          // 1. Text Search (Name, Phone, ID, Details)
           const matchesSearch = e.name.toLowerCase().includes(filterSearch.toLowerCase()) || 
                                 e.phone.includes(filterSearch) || 
                                 e.id.toLowerCase().includes(filterSearch.toLowerCase()) ||
                                 e.details.toLowerCase().includes(filterSearch.toLowerCase());
           
-          // 2. Status Filter
           const matchesStatus = filterStatus === 'All' || e.status === filterStatus;
           
-          // 3. Date / Month Filter
           let matchesDate = true;
           if (filterDateType === 'Date') {
               matchesDate = (e.date === filterDate || e.createdAt.startsWith(filterDate));
@@ -844,31 +808,23 @@ Book now with OK BOZ Transport!`;
               matchesDate = (e.date?.startsWith(filterMonth) || e.createdAt.startsWith(filterMonth));
           }
 
-          // 4. Corporate & Branch Filter
-          // Logic:
-          // - If assignedCorporate is set, use that.
-          // - Else if assignedTo is set, resolve staff's owner.
-          // - Else fall back to 'admin' or unassigned.
           let recordCorporateId = e.assignedCorporate;
           if (!recordCorporateId && e.assignedTo) {
               const staff = allStaff.find(s => s.id === e.assignedTo);
               if (staff) recordCorporateId = staff.owner;
           }
-          if (!recordCorporateId) recordCorporateId = 'admin'; // Assume Head Office if not tagged
+          if (!recordCorporateId) recordCorporateId = 'admin';
 
-          // Filter by Current User Role Context
           if (!isSuperAdmin && recordCorporateId !== sessionId) {
-              return false; // Corporate user sees ONLY their data
+              return false;
           }
 
-          // Admin specific filters
           let matchesCorporate = true;
           if (isSuperAdmin && filterCorporate !== 'All') {
               if (filterCorporate === 'admin') matchesCorporate = recordCorporateId === 'admin';
               else matchesCorporate = recordCorporateId === filterCorporate;
           }
 
-          // Branch Filter
           let matchesBranch = true;
           if (filterBranch !== 'All') {
               matchesBranch = e.assignedBranch === filterBranch;
@@ -920,13 +876,11 @@ Book now with OK BOZ Transport!`;
     setIsPhoneChecked(true);
   };
 
-  // Helper to get assigned staff info
   const getAssignedStaff = (id?: string) => {
     if (!id) return null;
     return allStaff.find(e => e.id === id);
   };
 
-  // Reset filter branch when corporate changes
   const handleCorporateFilterChange = (newCorp: string) => {
       setFilterCorporate(newCorp);
       setFilterBranch('All');
@@ -1025,7 +979,6 @@ Book now with OK BOZ Transport!`;
                   </div>
                   
                   <div className="flex gap-2 flex-wrap items-center w-full md:w-auto">
-                      {/* Date Filter Controls */}
                       <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                           <button onClick={() => setFilterDateType('All')} className={`px-3 py-1 text-xs rounded transition-colors ${filterDateType === 'All' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500'}`}>All</button>
                           <button onClick={() => setFilterDateType('Month')} className={`px-3 py-1 text-xs rounded transition-colors ${filterDateType === 'Month' ? 'bg-white shadow text-emerald-600 font-bold' : 'text-gray-500'}`}>Month</button>
@@ -1189,7 +1142,6 @@ Book now with OK BOZ Transport!`;
 
       {showSettings && (
         <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 mb-6">
-           {/* ... Settings Content (unchanged) ... */}
            <div className="flex items-center justify-between mb-4">
              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Fare Configuration</h3>
              <div className="bg-white border border-gray-300 rounded-lg p-1 flex">
@@ -1322,7 +1274,6 @@ Book now with OK BOZ Transport!`;
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                  {/* ... Customer Info and Form Inputs (unchanged) ... */}
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
                       <User className="w-4 h-4" /> Customer Info
                   </h3>
@@ -1362,7 +1313,6 @@ Book now with OK BOZ Transport!`;
                       </div>
                   )}
                   
-                  {/* Enquiry Category Toggle */}
                   <div className="flex gap-4 mb-4 border-b border-gray-100 pb-4">
                       <button 
                           onClick={() => setEnquiryCategory('Transport')}
@@ -1407,7 +1357,6 @@ Book now with OK BOZ Transport!`;
                               </div>
                           )}
                           <div className="space-y-3 pt-2">
-                            {/* General Enquiry Assignment */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
                                     <Building2 className="w-3 h-3" /> Assign To
@@ -1494,7 +1443,6 @@ Book now with OK BOZ Transport!`;
                       </div>
                   ) : (
                       <div className="space-y-4 mt-2 border-t border-gray-100 pt-4">
-                          {/* ... Transport form fields (unchanged) ... */}
                           <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                               <h4 className="text-sm font-bold text-gray-700">Trip Details</h4>
                               <div className="flex gap-2">
@@ -1665,13 +1613,11 @@ Book now with OK BOZ Transport!`;
           </div>
 
           <div className="space-y-6">
-              {/* Estimate Card & Message ... */}
               <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                   <div className="relative z-10">
                       <p className="text-slate-400 text-xs uppercase font-bold mb-1">Estimated Cost</p>
                       <h3 className="text-4xl font-bold mb-4">₹{estimatedCost.toLocaleString()}</h3>
                       <div className="text-sm text-slate-300 border-t border-slate-700 pt-3">
-                          {/* Replaced p tag with span */}
                           <span>{enquiryCategory === 'Transport' ? "Base calculation only. Tolls & Parking extra." : "General Enquiry. No estimate."}</span>
                       </div>
                   </div>
@@ -1686,7 +1632,7 @@ Book now with OK BOZ Transport!`;
                           <MessageCircle className="w-4 h-4 text-emerald-500" /> Generated Message
                       </h4>
                       <button 
-                          onClick={() => {navigator.clipboard.writeText(generatedMessage); setTimeout(() => alert("Copied!"), 0);}}
+                          onClick={() => {navigator.clipboard.writeText(generatedMessage); alert("Copied!")}}
                           className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                       >
                           <Copy className="w-3 h-3" /> Copy

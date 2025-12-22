@@ -21,7 +21,6 @@ export interface Employee {
   department: string;
   avatar: string;
   joiningDate: string;
-  // Optional detailed fields
   email?: string;
   phone?: string;
   branch?: string;
@@ -36,35 +35,38 @@ export interface Employee {
   ifsc?: string;
   password?: string;
   liveTracking?: boolean;
-  allowRemotePunch?: boolean;
   
   // Profile Management
-  profileEditCount?: number; // Tracks number of times employee edited profile
+  profileEditCount?: number;
 
   // Personal Details
   gender?: string;
   bloodGroup?: string;
   maritalStatus?: string;
-  address?: string; // Home Address
+  address?: string; 
   
   // Emergency Contact
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
 
+  // Shift & Timing
+  shift?: string;
+
   attendanceConfig?: {
-    gpsGeofencing: boolean;
-    qrScan: boolean;
-    manualPunch: boolean;
-    manualPunchMode?: 'Branch' | 'Anywhere'; // New configuration
+    punchMethod: 'Manual' | 'QR' | 'Disabled';
+    locationRestriction: 'Branch' | 'Anywhere';
+    gpsGeofencing?: boolean; // Legacy compat
+    qrScan?: boolean; // Legacy compat
+    manualPunch?: boolean; // Legacy compat
   };
 
   // Access Permissions
-  moduleAccess?: string[]; // Array of module IDs (e.g., ['reports', 'trips'])
+  moduleAccess?: string[]; 
 }
 
 export interface DailyAttendance {
-  date: string; // ISO date string YYYY-MM-DD
+  date: string; 
   status: AttendanceStatus;
   isLate?: boolean;
   checkIn?: string;
@@ -96,14 +98,14 @@ export interface Partner {
 export interface CorporateAccount {
   id: string;
   companyName: string;
-  email: string; // Used as username
+  email: string; 
   password: string;
   phone: string;
   city: string;
   status: 'Active' | 'Inactive';
   createdAt: string;
-  profitSharingPercentage?: number; // Added for Profit Sharing Logic (0-100)
-  partners?: Partner[]; // Added for multiple partners
+  profitSharingPercentage?: number; 
+  partners?: Partner[]; 
 }
 
 export interface HistoryLog {
@@ -112,38 +114,30 @@ export interface HistoryLog {
   message: string;
   date: string;
   duration?: string;
-  outcome?: string; // Connected, Missed, Voicemail, etc.
+  outcome?: string; 
 }
-
-// Re-using common types from CustomerCare/VehicleEnquiries for Enquiry interface
-type TripType = 'Local' | 'Rental' | 'Outstation';
-type OutstationSubType = 'RoundTrip' | 'OneWay';
-type VehicleType = 'Sedan' | 'SUV';
-type EnquiryCategory = 'Transport' | 'General';
-
 
 export interface Enquiry {
   id: string;
   type: 'Customer' | 'Vendor';
-  initialInteraction: 'Incoming' | 'Outgoing'; // New: To distinguish between incoming calls vs. employee-initiated outgoing
+  initialInteraction: 'Incoming' | 'Outgoing';
   name: string;
   phone: string;
   city: string;
   email?: string;
-  details: string; // The query/requirement
+  details: string; 
   status: 'New' | 'In Progress' | 'Converted' | 'Closed' | 'Booked' | 'Scheduled' | 'Order Accepted' | 'Driver Assigned' | 'Completed' | 'Cancelled';
-  isExistingVendor?: boolean; // If they were found in the vendor DB
-  vendorId?: string; // Link to vendor if exists
-  assignedTo?: string; // Employee ID
+  isExistingVendor?: boolean; 
+  vendorId?: string; 
+  assignedTo?: string; 
   createdAt: string;
   nextFollowUp?: string;
   history: HistoryLog[];
-  date?: string; // ADDED
-  // New fields for structured transport data
-  enquiryCategory?: EnquiryCategory;
-  tripType?: TripType;
-  vehicleType?: VehicleType;
-  outstationSubType?: OutstationSubType; // Only for Outstation
+  date?: string; 
+  enquiryCategory?: 'Transport' | 'General';
+  tripType?: 'Local' | 'Rental' | 'Outstation';
+  vehicleType?: 'Sedan' | 'SUV';
+  outstationSubType?: 'RoundTrip' | 'OneWay'; 
   transportData?: {
     drop?: string;
     estKm?: string;
@@ -155,7 +149,6 @@ export interface Enquiry {
     nights?: string;
   };
   estimatedPrice?: number;
-  // Added priority field to Enquiry interface
   priority?: 'Hot' | 'Warm' | 'Cold';
   assignedCorporate?: string;
   assignedBranch?: string;
@@ -164,14 +157,14 @@ export interface Enquiry {
 export interface DocumentFile {
   id: string;
   name: string;
-  type: string; // 'pdf', 'image', 'doc', etc.
+  type: string; 
   size: string;
   category: 'General' | 'Contract' | 'ID Proof' | 'Report' | 'Policy';
   uploadedBy: string;
   uploadDate: string;
-  url: string; // Mock URL or Base64
+  url: string; 
   visibility: 'Public' | 'Private' | 'AdminOnly';
-  ownerId?: string; // Corporate ID or Employee ID ownership
+  ownerId?: string; 
 }
 
 export interface SalaryAdvanceRequest {
@@ -179,45 +172,40 @@ export interface SalaryAdvanceRequest {
   employeeId: string;
   employeeName: string;
   amountRequested: number;
-  amountApproved: number; // Editable by Admin
+  amountApproved: number; 
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected' | 'Paid';
   requestDate: string;
   paymentDate?: string;
-  paymentMode?: string; // Cash, Bank Transfer, UPI
-  corporateId?: string; // For syncing to correct dashboard
+  paymentMode?: string; 
+  corporateId?: string; 
 }
 
-// NEW: Notification Interface
 export interface Notification {
   id: string;
   type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry';
   title: string;
   message: string;
-  timestamp: string; // ISO string
+  timestamp: string; 
   read: boolean;
-  targetRoles: UserRole[]; // e.g., [UserRole.ADMIN, UserRole.CORPORATE]
-  corporateId?: string; // Optional: target a specific corporate (email)
-  employeeId?: string;  // Optional: target a specific employee (id)
-  link?: string;        // Optional: path to navigate to
+  targetRoles: UserRole[]; 
+  corporateId?: string; 
+  employeeId?: string;  
+  link?: string;        
 }
 
-// NEW: Driver Activity Log Interface
 export interface DriverActivityLog {
-  id: string; // Unique ID for the log entry (e.g., driverId-date)
+  id: string; 
   driverId: string;
   driverName: string;
-  date: string; // YYYY-MM-DD
-  onlineMinutes: number; // Total minutes online for that day
-  offlineMinutes: number; // Total minutes offline for that day (rest of shift, or gap)
-  totalShiftMinutes: number; // Configured total shift duration for that day in minutes (e.g., 9 hours = 540 mins)
+  date: string; 
+  onlineMinutes: number; 
+  offlineMinutes: number; 
+  totalShiftMinutes: number; 
 }
 
 
 declare global {
-  /**
-   * Interface for the AI Studio API key selection tool.
-   */
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
@@ -229,23 +217,19 @@ declare global {
         lat: number;
         lng: number;
       }
-      // Add minimal declarations for other Google Maps classes used directly or for type inference
       class Geocoder {}
       class Map {}
       class Marker {}
       enum Animation {}
       class InfoWindow {}
-      class LatLng {} // For e.latLng methods
+      class LatLng {} 
     }
   }
   interface Window {
-    google: any; // Keep this for broader compatibility with runtime access to window.google
+    google: any; 
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;
-    /**
-     * The aistudio property is expected to be of type AIStudio as per environment requirements.
-     */
-    /* FIX: Removed readonly modifier to fix 'All declarations of aistudio must have identical modifiers' error during interface merging with ambient declarations. */
-    aistudio: AIStudio;
+    // FIX: Restored 'readonly' modifier to match the ambient declaration of 'aistudio' on the global Window object and resolve the identical modifiers conflict.
+    readonly aistudio: AIStudio;
   }
 }

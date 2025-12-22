@@ -5,33 +5,22 @@ import {
   MapPin, Eye, EyeOff, Smartphone, ScanLine, MousePointerClick, Heart, Home, 
   AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode, ChevronDown, 
   IndianRupee, Fingerprint, Shield, UserCheck, Layers, FileCheck, CheckSquare, Square,
-  Circle, Dot, DollarSign, Plane
+  Circle, Dot, DollarSign, Plane, Building, UserPlus, Info
 } from 'lucide-react'; 
-import { Employee, Branch, UserRole } from '../../types';
+import { Employee, UserRole } from '../../types';
 import ContactDisplay from '../../components/ContactDisplay';
-
-interface Shift {
-    id: number;
-    name: string;
-    start: string;
-    end: string;
-}
 
 interface DisplayEmployee extends Employee {
     franchiseName?: string;
     franchiseId?: string;
 }
 
-const formatDateDisplay = (dateString: string) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
+const BLOOD_GROUPS = ['Select Blood Group', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const GENDERS = ['Select Gender', 'Male', 'Female', 'Other'];
+const MARITAL_STATUS = ['Select Status', 'Single', 'Married', 'Divorced', 'Widowed'];
+const PAYMENT_CYCLES = ['Monthly', 'Weekly', 'Daily', 'Bi-Weekly'];
 
-const PERMISSION_MODULES = [
+const MODULE_PERMISSIONS = [
   { id: 'reports', label: 'Reports & Analytics' },
   { id: 'trips', label: 'Trip Booking' },
   { id: 'driver-payments', label: 'Driver Payments' },
@@ -41,122 +30,82 @@ const PERMISSION_MODULES = [
   { id: 'finance', label: 'Finance & Expenses' }
 ];
 
-const BLOOD_GROUPS = ['Select Blood Group', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-const GENDERS = ['Select Gender', 'Male', 'Female', 'Other'];
-const MARITAL_STATUS = ['Select Status', 'Single', 'Married', 'Divorced', 'Widowed'];
-const PAYMENT_CYCLES = ['Monthly', 'Weekly', 'Daily', 'Bi-Weekly'];
-const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
 const StaffList: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
+  // --- Core State ---
   const [employees, setEmployees] = useState<DisplayEmployee[]>(() => {
-    if (isSuperAdmin) {
-        let allData: DisplayEmployee[] = [];
-        const adminData = localStorage.getItem('staff_data');
-        if (adminData) {
-            try { 
-                allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'Head Office', franchiseId: 'admin'}))];
+    let allData: DisplayEmployee[] = [];
+    const adminData = localStorage.getItem('staff_data');
+    if (adminData) {
+        try { 
+            allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'Head Office', franchiseId: 'admin'}))];
+        } catch (e) {}
+    }
+    const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    corporates.forEach((corp: any) => {
+        const cData = localStorage.getItem(`staff_data_${corp.email}`);
+        if (cData) {
+            try {
+                allData = [...allData, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
             } catch (e) {}
         }
-        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporates.forEach((corp: any) => {
-            const cData = localStorage.getItem(`staff_data_${corp.email}`);
-            if (cData) {
-                try {
-                    allData = [...allData, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
-                } catch (e) {}
-            }
-        });
-        return allData;
-    } else {
-        const key = `staff_data_${sessionId}`;
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : [];
-    }
+    });
+    return allData;
   });
 
-  const [branches, setBranches] = useState<any[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
   const [corporates, setCorporates] = useState<any[]>([]);
-  const [filterCorporate, setFilterCorporate] = useState('All');
-  const [filterBranch, setFilterBranch] = useState('All');
-  const [selectedDepartment, setSelectedDepartment] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [branches, setBranches] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Configuration from Admin Settings
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
-  const [globalLeaveTypes, setGlobalLeaveTypes] = useState<any[]>([]);
+  const [shiftOptions, setShiftOptions] = useState<any[]>([]);
 
   useEffect(() => {
     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     setCorporates(corps);
 
-    let allBranches: any[] = [];
+    let allB: any[] = [];
     if (isSuperAdmin) {
-        const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        allBranches = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
+        const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
+        allB = [...adminB.map((b: any) => ({...b, owner: 'admin'}))];
         corps.forEach((c: any) => {
-            const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            allBranches = [...allBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
+            const cB = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+            allB = [...allB, ...cB.map((b: any) => ({...b, owner: c.email}))];
         });
     } else {
-        const saved = localStorage.getItem(`branches_data_${sessionId}`);
-        if (saved) allBranches = JSON.parse(saved);
+        allB = JSON.parse(localStorage.getItem(`branches_data_${sessionId}`) || '[]');
     }
-    setBranches(allBranches);
+    setBranches(allB);
 
     const DEPT_KEY = isSuperAdmin ? 'company_departments' : `company_departments_${sessionId}`;
     const ROLE_KEY = isSuperAdmin ? 'company_roles' : `company_roles_${sessionId}`;
     const SHIFT_KEY = isSuperAdmin ? 'company_shifts' : `company_shifts_${sessionId}`;
-    const LEAVE_KEY = isSuperAdmin ? 'company_leave_types' : `company_leave_types_${sessionId}`;
 
-    setDepartmentOptions(JSON.parse(localStorage.getItem(DEPT_KEY) || '["Sales", "Operations"]'));
-    setRoleOptions(JSON.parse(localStorage.getItem(ROLE_KEY) || '["Manager", "Executive"]'));
-    setShifts(JSON.parse(localStorage.getItem(SHIFT_KEY) || '[{"id":1,"name":"General","start":"09:30","end":"18:30"}]'));
-    setGlobalLeaveTypes(JSON.parse(localStorage.getItem(LEAVE_KEY) || '[]'));
-
+    setDepartmentOptions(JSON.parse(localStorage.getItem(DEPT_KEY) || '["Operations", "Sales", "HR"]'));
+    setRoleOptions(JSON.parse(localStorage.getItem(ROLE_KEY) || '["Manager", "Supervisor", "Driver"]'));
+    setShiftOptions(JSON.parse(localStorage.getItem(SHIFT_KEY) || '[{"name":"General Shift (09:30 - 18:30)"}]'));
   }, [isSuperAdmin, sessionId]);
 
-  const availableBranches = useMemo(() => {
-      if (!isSuperAdmin) return branches;
-      if (filterCorporate === 'All') return branches;
-      if (filterCorporate === 'admin') return branches.filter((b: any) => b.corporateId === 'admin');
-      return branches.filter((b: any) => b.corporateId === filterCorporate);
-  }, [branches, filterCorporate, isSuperAdmin]);
-
-  useEffect(() => {
-    if (!isSuperAdmin) {
-        localStorage.setItem(`staff_data_${sessionId}`, JSON.stringify(employees));
-    } else {
-        const headOfficeStaff = employees.filter(e => e.franchiseId === 'admin');
-        const cleanStaff = headOfficeStaff.map(({franchiseName, franchiseId, ...rest}) => rest);
-        localStorage.setItem('staff_data', JSON.stringify(cleanStaff));
-    }
-  }, [employees, isSuperAdmin, sessionId]);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const csvInputRef = useRef<HTMLInputElement>(null);
-  
-  const getInitialFormState = () => {
-    const isAutoTrackGlobal = localStorage.getItem(isSuperAdmin ? 'company_auto_live_track' : `company_auto_live_track_${sessionId}`) === 'true';
-    return {
-        firstName: '', lastName: '', email: '', password: 'user123', phone: '',
-        department: '', role: '', branch: '', paymentCycle: 'Monthly', salary: '',
-        joiningDate: new Date().toISOString().split('T')[0], status: 'Active',
-        workingHours: '', weekOff: 'Sunday', aadhar: '', pan: '', accountNumber: '', ifsc: '',
-        liveTracking: isAutoTrackGlobal, 
-        gender: '', bloodGroup: '', maritalStatus: '', address: '',
-        emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
-        punchMethod: 'Manual' as 'Manual' | 'QR' | 'Anywhere',
-        locationRestriction: 'Anywhere' as 'Branch' | 'Anywhere',
-        moduleAccess: [] as string[],
-        leaveBalances: globalLeaveTypes.reduce((acc: any, curr: any) => ({ ...acc, [curr.code]: curr.days }), {})
-    };
-  };
+  const getInitialFormState = () => ({
+    firstName: '', lastName: '', email: '', password: 'user123', phone: '',
+    gender: '', bloodGroup: '', maritalStatus: '', address: '',
+    emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
+    department: '', role: '', branch: '', status: 'Active', shift: '', weekOff: 'Sunday',
+    salary: '', paymentCycle: 'Monthly', accountNumber: '', ifsc: '', pan: '', aadhar: '',
+    joiningDate: new Date().toISOString().split('T')[0],
+    liveTracking: false,
+    punchMethod: 'Manual' as 'Manual' | 'QR' | 'Disabled',
+    locationRestriction: 'Anywhere' as 'Branch' | 'Anywhere',
+    moduleAccess: [] as string[],
+    franchiseId: isSuperAdmin ? 'admin' : sessionId
+  });
 
   const [formData, setFormData] = useState(getInitialFormState());
 
@@ -166,176 +115,295 @@ const StaffList: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
-  const generateNewEmployeeId = () => {
-    let maxId = 0;
-    employees.forEach(emp => {
-      const match = emp.id.match(/^BOZ(\d+)$/);
-      if (match) maxId = Math.max(maxId, parseInt(match[1], 10));
-    });
-    return `BOZ${String(maxId + 1).padStart(4, '0')}`;
+  const togglePermission = (id: string) => {
+    setFormData(prev => ({
+        ...prev,
+        moduleAccess: prev.moduleAccess.includes(id) 
+            ? prev.moduleAccess.filter(m => m !== id)
+            : [...prev.moduleAccess, id]
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.firstName || !formData.role) return;
-
-    const attendanceConfig = {
-        gpsGeofencing: formData.punchMethod === 'Manual' && formData.locationRestriction === 'Branch',
-        qrScan: formData.punchMethod === 'QR',
-        manualPunch: formData.punchMethod === 'Manual' || formData.punchMethod === 'Anywhere',
-        manualPunchMode: formData.locationRestriction
-    };
-
-    const payload = {
-        ...formData,
-        name: `${formData.firstName} ${formData.lastName}`,
-        attendanceConfig
-    };
-
-    if (editingId) {
-      setEmployees(prev => prev.map(emp => emp.id === editingId ? { ...emp, ...payload } : emp));
-    } else {
-      const newEmployee: DisplayEmployee = {
-        ...payload,
-        id: generateNewEmployeeId(),
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=10b981&color=fff`,
-        franchiseId: isSuperAdmin ? 'admin' : sessionId
-      };
-      setEmployees(prev => [...prev, newEmployee]);
+    if (!formData.firstName || !formData.phone || !formData.role) {
+        alert("Please fill in all mandatory fields.");
+        return;
     }
+
+    const payload: DisplayEmployee = {
+        ...formData,
+        id: editingId || `BOZ${Date.now().toString().slice(-4)}`,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName)}&background=10b981&color=fff`,
+        attendanceConfig: {
+            punchMethod: formData.punchMethod,
+            locationRestriction: formData.locationRestriction
+        }
+    };
+
+    let updatedList: DisplayEmployee[];
+    if (editingId) {
+        updatedList = employees.map(emp => emp.id === editingId ? payload : emp);
+    } else {
+        updatedList = [payload, ...employees];
+    }
+
+    setEmployees(updatedList);
+    
+    // Sync back to specific storage
+    const targetId = formData.franchiseId || 'admin';
+    const storageKey = targetId === 'admin' ? 'staff_data' : `staff_data_${targetId}`;
+    const filteredForStorage = updatedList.filter(e => (e.franchiseId || 'admin') === targetId);
+    const cleanForStorage = filteredForStorage.map(({franchiseName, franchiseId, ...rest}) => rest);
+    localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
+
     setIsModalOpen(false);
-    setFormData(getInitialFormState());
-    setEditingId(null);
+    alert(editingId ? "Staff profile updated!" : "New staff member onboarded!");
   };
 
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDept = selectedDepartment === 'All' || emp.department === selectedDepartment;
-    const matchesStatus = selectedStatus === 'All' || (emp.status || 'Active') === selectedStatus;
-    const matchesCorporate = isSuperAdmin ? (filterCorporate === 'All' || (emp.franchiseId || 'admin') === filterCorporate) : true;
-    const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
-    return matchesSearch && matchesDept && matchesStatus && matchesCorporate && matchesBranch;
-  });
+  const filteredEmployees = employees.filter(emp => 
+    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    emp.role.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div><h2 className="text-2xl font-bold text-gray-800">Staff Management</h2><p className="text-gray-500">{isSuperAdmin ? "All branches management" : "Manage your franchise team"}</p></div>
-        <div className="flex gap-2">
-            <input type="file" accept=".csv" ref={csvInputRef} className="hidden" onChange={() => {}} />
-            <button onClick={() => csvInputRef.current?.click()} className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"><Upload className="w-5 h-5" /> Import CSV</button>
-            <button onClick={() => { setEditingId(null); setFormData(getInitialFormState()); setIsModalOpen(true); }} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"><Plus className="w-5 h-5" /> Add Staff</button>
-        </div>
+        <div><h2 className="text-2xl font-bold text-gray-800">Staff Management</h2><p className="text-gray-500">Manage and onboard your workforce</p></div>
+        <button onClick={() => { setEditingId(null); setFormData(getInitialFormState()); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-100 transition-all transform active:scale-95"><UserPlus className="w-5 h-5" /> Add Staff</button>
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col xl:flex-row gap-4">
-        <div className="flex-1 relative min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" /><input type="text" placeholder="Search staff..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
-        <div className="flex gap-2 md:gap-4 overflow-x-auto pb-2 xl:pb-0">
-          {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"><option value="All">All Corporates</option><option value="admin">Head Office</option>{corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}</select>)}
-          <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"><option value="All">All Branches</option>{availableBranches.map((b, i) => (<option key={i} value={b.name}>{b.name}</option>))}</select>
-          <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"><option value="All">All Departments</option>{departmentOptions.map(dept => (<option key={dept} value={dept}>{dept}</option>))}</select>
-          <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"><option value="All">All Status</option><option value="Active">Active</option><option value="Probation">Probation</option><option value="Inactive">Inactive</option></select>
-        </div>
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+        <div className="flex-1 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" /><input type="text" placeholder="Search by name, role or phone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm" /></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEmployees.map((employee) => (
-          <div key={employee.id} className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group ${employee.status === 'Inactive' ? 'opacity-70' : ''}`}>
+        {filteredEmployees.map((emp) => (
+          <div key={emp.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all group relative">
+            {isSuperAdmin && emp.franchiseName && (
+                <div className="absolute top-3 right-3 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1">
+                    <Building2 className="w-3 h-3" /> {emp.franchiseName}
+                </div>
+            )}
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <div className="relative"><img src={employee.avatar} alt={employee.name} className="w-16 h-16 rounded-full object-cover border-2 border-emerald-100" />{employee.liveTracking && (<div className="absolute -bottom-1 -right-1 bg-red-500 text-white rounded-full p-1 border-2 border-white shadow-sm"><Navigation className="w-3 h-3" /></div>)}</div>
+                <img src={emp.avatar} alt="" className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-50 shadow-sm" />
                 <div className="flex gap-1">
-                    <button onClick={() => { setEditingId(employee.id); setFormData({ ...getInitialFormState(), ...employee, firstName: employee.name.split(' ')[0], lastName: employee.name.split(' ').slice(1).join(' ') }); setIsModalOpen(true); }} className="text-gray-400 hover:text-emerald-600 p-2 transition-colors"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => setEmployees(prev => prev.filter(e => e.id !== employee.id))} className="text-gray-400 hover:text-red-600 p-2 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => { setEditingId(emp.id); setFormData({ ...getInitialFormState(), ...emp, firstName: emp.name.split(' ')[0], lastName: emp.name.split(' ').slice(1).join(' ') }); setIsModalOpen(true); }} className="text-gray-400 hover:text-emerald-600 p-2"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => setEmployees(prev => prev.filter(e => e.id !== emp.id))} className="text-gray-400 hover:text-red-600 p-2"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-gray-800">{employee.name}</h3>
-              <p className="text-emerald-600 font-medium text-sm mb-1">{employee.role}</p>
-              <p className="text-gray-500 text-xs mb-4">{employee.department} Dept • Joined {formatDateDisplay(employee.joiningDate)}</p>
-              <div className="space-y-2 pt-2 border-t border-gray-50">
-                  <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400" /><ContactDisplay type="phone" value={employee.phone || ''} /></div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-400" /><ContactDisplay type="email" value={employee.email || ''} className="truncate" /></div>
+              <h3 className="text-lg font-bold text-gray-900">{emp.name}</h3>
+              <p className="text-emerald-600 font-bold text-sm mb-1">{emp.role}</p>
+              <p className="text-gray-400 text-xs font-medium">{emp.department} • Joined {new Date(emp.joiningDate).toLocaleDateString()}</p>
+              <div className="mt-4 pt-4 border-t border-gray-50 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-300" /><ContactDisplay type="phone" value={emp.phone || ''} /></div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-300" /><ContactDisplay type="email" value={emp.email || ''} className="truncate" /></div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
+      {/* --- STAFF MANAGEMENT MODAL (FINAL VERSION) --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-10 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8 animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-3xl shrink-0">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Staff Details' : 'Add New Staff'}</h3>
-                <p className="text-gray-400 text-xs mt-0.5">{editingId ? 'Update employee information' : 'Onboard a new member to your team'}</p>
+                <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Staff Details' : 'Onboard New Staff'}</h3>
+                <p className="text-gray-400 text-xs mt-0.5">{editingId ? 'Update employee information' : 'Create a new employee profile'}</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-300 hover:text-gray-500 transition-colors p-1"><X className="w-6 h-6" /></button>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-300 hover:text-gray-500 transition-colors p-2 rounded-full hover:bg-gray-50"><X className="w-6 h-6" /></button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-12">
+                
+                {/* 1. PERSONAL INFORMATION */}
                 <section className="space-y-6">
-                  <h4 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50"><User className="w-3.5 h-3.5" /> Personal Information</h4>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">First Name</label><input name="firstName" required value={formData.firstName} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="First Name" /></div>
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">Last Name</label><input name="lastName" value={formData.lastName} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="Last Name" /></div>
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">Email Address</label><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="example@email.com" /></div></div>
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">Phone Number</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input name="phone" required value={formData.phone} onChange={handleInputChange} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" placeholder="+91..." /></div></div>
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">Password</label><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" /><input name="password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleInputChange} className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
-                    <div className="space-y-1.5"><label className="text-xs font-semibold text-gray-600">Date of Joining</label><div className="relative"><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /><input name="joiningDate" type="date" value={formData.joiningDate} onChange={handleInputChange} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 outline-none" /></div></div>
+                  <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <User className="w-3.5 h-3.5" /> Personal Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">First Name</label><input name="firstName" required value={formData.firstName} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="Enter First Name" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Last Name</label><input name="lastName" value={formData.lastName} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="Enter Last Name" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Email Address</label><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" /><input name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="name@okboz.com" /></div></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Phone Number</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" /><input name="phone" required value={formData.phone} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="+91 00000 00000" /></div></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Password</label><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-4 h-4" /><input name="password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleInputChange} className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Date of Joining</label><div className="relative"><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" /><input name="joiningDate" type="date" value={formData.joiningDate} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" /></div></div>
                   </div>
                 </section>
 
+                {/* 2. EXTENDED PERSONAL DETAILS */}
                 <section className="space-y-6">
-                  <h4 className="text-[10px] font-bold text-purple-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50"><Briefcase className="w-3.5 h-3.5" /> Employment Details</h4>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="relative"><label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department</label><select name="department" value={formData.department} onChange={handleInputChange} className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none appearance-none pr-10"><option value="">Select Department</option>{departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}</select><ChevronDown className="absolute right-3 bottom-3 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    <div className="relative"><label className="text-xs font-semibold text-gray-600 mb-1.5 block">Job Role</label><select name="role" value={formData.role} onChange={handleInputChange} className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none appearance-none pr-10"><option value="">Select Role</option>{roleOptions.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown className="absolute right-3 bottom-3 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    <div className="relative"><label className="text-xs font-semibold text-gray-600 mb-1.5 block">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none appearance-none pr-10"><option value="">Select Branch</option>{availableBranches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 bottom-3 w-4 h-4 text-gray-400 pointer-events-none" /></div>
-                    <div className="relative"><label className="text-xs font-semibold text-gray-600 mb-1.5 block">Status</label><select name="status" value={formData.status} onChange={handleInputChange} className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none appearance-none pr-10"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Probation">Probation</option></select><ChevronDown className="absolute right-3 bottom-3 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                  <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <Heart className="w-3.5 h-3.5" /> Extended Personal Details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{GENDERS.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Blood Group</label><select name="bloodGroup" value={formData.bloodGroup} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{BLOOD_GROUPS.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Marital Status</label><select name="maritalStatus" value={formData.maritalStatus} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{MARITAL_STATUS.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                    <div className="md:col-span-3 space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Home Address</label><textarea name="address" rows={2} value={formData.address} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="Enter residential address" /></div>
                   </div>
                 </section>
 
-                {globalLeaveTypes.length > 0 && (
-                  <section className="space-y-6">
-                    <h4 className="text-[10px] font-bold text-orange-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50"><Plane className="w-3.5 h-3.5" /> Leave Allocation</h4>
-                    <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl">
-                      {globalLeaveTypes.map(lt => (
-                        <div key={lt.code} className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase">{lt.name} ({lt.code})</label>
-                          <input 
-                            type="number" 
-                            className="w-full p-2 border rounded-lg text-sm" 
-                            value={formData.leaveBalances[lt.code]} 
-                            onChange={(e) => setFormData({...formData, leaveBalances: { ...formData.leaveBalances, [lt.code]: e.target.value }})}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
+                {/* 3. EMERGENCY CONTACT */}
                 <section className="space-y-6">
-                  <h4 className="text-[10px] font-bold text-orange-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50"><FileCheck className="w-3.5 h-3.5" /> Documents & Settings</h4>
-                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                  <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <AlertCircle className="w-3.5 h-3.5" /> Emergency Contact
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Contact Name</label><input name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="Name" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Contact Phone</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" /><input name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="+91..." /></div></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Relationship</label><input name="emergencyContactRelation" value={formData.emergencyContactRelation} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="e.g. Spouse, Father" /></div>
+                  </div>
+                </section>
+
+                {/* 4. EMPLOYMENT DETAILS */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <Briefcase className="w-3.5 h-3.5" /> Employment Details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Department</label><select name="department" value={formData.department} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Job Role</label><select name="role" value={formData.role} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{roleOptions.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{branches.map(b => <option key={b.id || b.name} value={b.name}>{b.name}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Status</label><select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Probation">Probation</option></select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Shift / Working Hours</label><select name="shift" value={formData.shift} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select Shift</option>{shiftOptions.map((s, idx) => <option key={idx} value={s.name}>{s.name}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Weekly Off</label><select name="weekOff" value={formData.weekOff} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option>Sunday</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Rotation</option></select></div>
+                  </div>
+                </section>
+
+                {/* 5. COMPENSATION */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <DollarSign className="w-3.5 h-3.5" /> Compensation
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Monthly Salary (CTC)</label><div className="relative"><IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input name="salary" type="number" value={formData.salary} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all" placeholder="0" /></div></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Payment Cycle</label><select name="paymentCycle" value={formData.paymentCycle} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{PAYMENT_CYCLES.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Bank Account Number</label><input name="accountNumber" value={formData.accountNumber} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all" placeholder="XXXXXXXXXXXXXX" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">IFSC Code</label><input name="ifsc" value={formData.ifsc} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all font-mono" placeholder="ABCD0123456" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">PAN Number</label><input name="pan" value={formData.pan} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all font-mono" placeholder="ABCDE1234F" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Aadhar Number</label><input name="aadhar" value={formData.aadhar} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all" placeholder="1234 5678 9012" /></div>
+                  </div>
+                </section>
+
+                {/* 6. DOCUMENTS & SETTINGS */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <FileCheck className="w-3.5 h-3.5" /> Documents & Settings
+                  </h4>
+                  <div className="bg-gray-50 p-8 rounded-[2rem] border border-gray-100 space-y-8">
+                      {/* Live Tracking Checkbox */}
                       <div className="flex items-start gap-4">
-                          <input type="checkbox" name="liveTracking" id="liveTracking" checked={formData.liveTracking} onChange={handleInputChange} className="mt-1 w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-                          <label htmlFor="liveTracking" className="cursor-pointer"><span className="block text-sm font-bold text-gray-800">Enable Live Tracking</span><span className="text-[10px] text-gray-400 font-medium">Track location during shift hours (Mandatory for Marketing/Sales)</span></label>
+                          <input type="checkbox" name="liveTracking" id="liveTracking" checked={formData.liveTracking} onChange={handleInputChange} className="mt-1 w-5 h-5 rounded-md border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shadow-sm" />
+                          <label htmlFor="liveTracking" className="cursor-pointer">
+                              <span className="block text-sm font-bold text-gray-800">Enable Live Tracking</span>
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Track location during shift hours (Mandatory for Marketing/Sales)</span>
+                          </label>
                       </div>
+
+                      {/* Attendance Config (RADIO GROUP) */}
                       <div className="space-y-4">
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Attendance Configuration</label>
-                          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 shadow-sm">
-                              <label className="flex items-center gap-3 cursor-pointer group"><input type="radio" name="punchMethod" value="Manual" checked={formData.punchMethod === 'Manual'} onChange={handleInputChange} className="w-4 h-4 text-emerald-600" /><div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Manual Button (Branch GPS Restricted)</span><span className="text-[10px] text-gray-400">Punch only works within configured branch radius.</span></div></label>
-                              <label className="flex items-center gap-3 cursor-pointer group"><input type="radio" name="punchMethod" value="QR" checked={formData.punchMethod === 'QR'} onChange={handleInputChange} className="w-4 h-4 text-emerald-600" /><div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Require QR Scan</span><span className="text-[10px] text-gray-400">Scan physical QR code placed at branch.</span></div></label>
-                              <label className="flex items-center gap-3 cursor-pointer group"><input type="radio" name="punchMethod" value="Anywhere" checked={formData.punchMethod === 'Anywhere'} onChange={handleInputChange} className="w-4 h-4 text-emerald-600" /><div className="flex flex-col"><span className="text-sm font-bold text-gray-700">Web Punch <span className="font-normal text-emerald-500">(Work From Anywhere)</span></span><span className="text-[10px] text-gray-400">Allows marking attendance without location restriction.</span></div></label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Attendance Configuration</label>
+                          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6 shadow-sm">
+                              {/* Option 1: Manual Button */}
+                              <div className="space-y-4">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <input type="radio" name="punchMethod" value="Manual" checked={formData.punchMethod === 'Manual'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Web Punch Method (Manual Button)</span>
+                                    </div>
+                                </label>
+                                {formData.punchMethod === 'Manual' && (
+                                    <div className="pl-8 space-y-3 animate-in slide-in-from-left-2 duration-200">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location Restriction:</p>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input type="radio" name="locationRestriction" value="Branch" checked={formData.locationRestriction === 'Branch'} onChange={handleInputChange} className="w-4 h-4 text-emerald-500" />
+                                                <span className="text-xs font-bold text-gray-600">Restrict to Branch (GPS Geofencing)</span>
+                                            </label>
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input type="radio" name="locationRestriction" value="Anywhere" checked={formData.locationRestriction === 'Anywhere'} onChange={handleInputChange} className="w-4 h-4 text-emerald-500" />
+                                                <span className="text-xs font-bold text-gray-600">Allow Work From Anywhere</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                              </div>
+
+                              {/* Option 2: QR Scan */}
+                              <label className="flex items-center gap-3 cursor-pointer group">
+                                  <input type="radio" name="punchMethod" value="QR" checked={formData.punchMethod === 'QR'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
+                                  <div className="flex flex-col">
+                                      <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Require QR Scan <span className="text-xs font-normal text-gray-400">(Scan Branch Code)</span></span>
+                                  </div>
+                              </label>
+
+                              {/* Option 3: Disabled */}
+                              <label className="flex items-center gap-3 cursor-pointer group">
+                                  <input type="radio" name="punchMethod" value="Disabled" checked={formData.punchMethod === 'Disabled'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
+                                  <div className="flex flex-col">
+                                      <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Disabled (No Web Punch)</span>
+                                  </div>
+                              </label>
                           </div>
                       </div>
                   </div>
                 </section>
+
+                {/* 7. MODULE ACCESS PERMISSIONS */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <Layers className="w-3.5 h-3.5" /> Module Access Permissions
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {MODULE_PERMISSIONS.map(module => (
+                      <div 
+                        key={module.id} 
+                        onClick={() => togglePermission(module.id)}
+                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer shadow-sm ${formData.moduleAccess.includes(module.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-100 hover:border-gray-200'}`}
+                      >
+                         {formData.moduleAccess.includes(module.id) ? (
+                            <div className="bg-indigo-600 text-white p-1 rounded-md shadow-inner"><CheckSquare className="w-4 h-4" /></div>
+                         ) : (
+                            <div className="text-gray-200 p-1"><Square className="w-4 h-4" /></div>
+                         )}
+                         <span className={`text-sm font-bold ${formData.moduleAccess.includes(module.id) ? 'text-indigo-900' : 'text-gray-600'}`}>{module.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start gap-3">
+                     <Info className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider leading-relaxed">Default access: Customer Care, Tasks, Vendor Attachment, My Profile, My Attendance. Check boxes above to grant extra permissions.</p>
+                  </div>
+                </section>
+
+                {/* 8. UPLOAD DOCUMENTS */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <Upload className="w-3.5 h-3.5" /> Upload Documents
+                  </h4>
+                  <div className="border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all cursor-pointer group">
+                      <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:text-emerald-600 transition-all">
+                        <Upload className="w-8 h-8 text-slate-300" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-800">Click to upload files</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">ID Proofs, Contracts, Photos (Max 5MB)</p>
+                  </div>
+                </section>
+
             </form>
             
-            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end items-center gap-6">
-              <button onClick={() => setIsModalOpen(false)} className="text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors">Cancel</button>
-              <button onClick={handleSubmit} className="px-10 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform active:scale-95">Update Profile</button>
+            {/* Footer Buttons */}
+            <div className="p-8 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end items-center gap-8 shrink-0">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest">Cancel</button>
+              <button onClick={handleSubmit} className="px-12 py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Update Profile</button>
             </div>
           </div>
         </div>

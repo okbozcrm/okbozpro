@@ -6,7 +6,8 @@ import {
   MessageSquare, Plus, Trash2, Edit2, CheckCircle, 
   MapPin as MapPinIcon, Briefcase as BriefcaseIcon,
   ToggleLeft, ToggleRight, Save, UploadCloud, Search,
-  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen, X
+  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen, X,
+  QrCode, Crosshair, MousePointer2, Globe
 } from 'lucide-react';
 
 type SettingCategory = 
@@ -31,13 +32,23 @@ const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: any, 
   </div>
 );
 
-const ToggleSwitch = ({ label, checked, onChange }: { label: string, checked: boolean, onChange: () => void }) => (
-  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-    <span className="font-medium text-gray-700">{label}</span>
+const ToggleSwitch = ({ label, checked, onChange, icon: Icon, sublabel }: { label: string, checked: boolean, onChange: () => void, icon?: any, sublabel?: string }) => (
+  <div className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 group hover:border-emerald-200 transition-all">
+    <div className="flex gap-3">
+        {Icon && (
+            <div className={`p-2 rounded-lg ${checked ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                <Icon className="w-5 h-5" />
+            </div>
+        )}
+        <div>
+            <span className="font-bold text-gray-700 block">{label}</span>
+            {sublabel && <span className="text-xs text-gray-500 mt-0.5 block">{sublabel}</span>}
+        </div>
+    </div>
     <button 
       type="button"
       onClick={onChange}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-emerald-500' : 'bg-gray-300'}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none mt-1 ${checked ? 'bg-emerald-500' : 'bg-gray-300'}`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
     </button>
@@ -212,7 +223,6 @@ const DepartmentsAndRoles = () => {
   );
 };
 
-/* FIX: Added missing CustomFields component to fix 'Cannot find name CustomFields' error. */
 const CustomFields = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="Custom Fields" icon={Settings2} desc="Add custom data fields to employee profiles." />
@@ -222,7 +232,6 @@ const CustomFields = () => (
   </div>
 );
 
-/* FIX: Added missing InactiveEmployees component to fix 'Cannot find name InactiveEmployees' error. */
 const InactiveEmployees = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="Inactive Employees" icon={UserX} desc="View and manage former staff records." />
@@ -232,7 +241,6 @@ const InactiveEmployees = () => (
   </div>
 );
 
-/* FIX: Added missing ShiftsAndBreaks component to fix 'Cannot find name ShiftsAndBreaks' error. */
 const ShiftsAndBreaks = () => (
   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
     <SectionHeader title="Shifts & Breaks" icon={Clock} desc="Configure working hours and break durations." />
@@ -242,17 +250,78 @@ const ShiftsAndBreaks = () => (
   </div>
 );
 
-/* FIX: Added missing AttendanceModes component to fix 'Cannot find name AttendanceModes' error. */
-const AttendanceModes = () => (
-  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-    <SectionHeader title="Attendance Modes" icon={Smartphone} desc="Configure how staff can mark their attendance." />
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="p-6 text-center py-12 text-gray-500">
-        <p>Settings for GPS, QR, and Manual punch modes.</p>
-      </div>
-    </div>
-  </div>
-);
+const AttendanceModes = () => {
+    const sessionId = localStorage.getItem('app_session_id') || 'admin';
+    const isSuperAdmin = sessionId === 'admin';
+    const MODE_KEY = isSuperAdmin ? 'global_attendance_modes' : `global_attendance_modes_${sessionId}`;
+
+    const [modes, setModes] = useState(() => {
+        try {
+            const saved = localStorage.getItem(MODE_KEY);
+            return saved ? JSON.parse(saved) : { 
+                qrScan: true, 
+                gpsGeofencing: true, 
+                manualPunch: true,
+                remotePunch: false 
+            };
+        } catch (e) {
+            return { qrScan: true, gpsGeofencing: true, manualPunch: true, remotePunch: false };
+        }
+    });
+
+    const handleToggle = (key: keyof typeof modes) => {
+        const updated = { ...modes, [key]: !modes[key] };
+        setModes(updated);
+        localStorage.setItem(MODE_KEY, JSON.stringify(updated));
+        // If franchise, also update root for staff list defaults
+        if (!isSuperAdmin) localStorage.setItem('global_attendance_modes', JSON.stringify(updated));
+    };
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <SectionHeader title="Attendance Modes" icon={Smartphone} desc="Configure default punch-in protocols for your workforce." />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ToggleSwitch 
+                    label="QR Code Scanning" 
+                    sublabel="Require staff to scan physical branch QR code"
+                    checked={modes.qrScan} 
+                    onChange={() => handleToggle('qrScan')} 
+                    icon={QrCode}
+                />
+                <ToggleSwitch 
+                    label="GPS Geofencing" 
+                    sublabel="Restrict punch-in within branch radius"
+                    checked={modes.gpsGeofencing} 
+                    onChange={() => handleToggle('gpsGeofencing')} 
+                    icon={Crosshair}
+                />
+                <ToggleSwitch 
+                    label="Manual Web Punch" 
+                    sublabel="Enable large punch buttons on mobile/web"
+                    checked={modes.manualPunch} 
+                    onChange={() => handleToggle('manualPunch')} 
+                    icon={MousePointer2}
+                />
+                <ToggleSwitch 
+                    label="Work From Anywhere" 
+                    sublabel="Disable location restrictions for remote staff"
+                    checked={modes.remotePunch} 
+                    onChange={() => handleToggle('remotePunch')} 
+                    icon={Globe}
+                />
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3 mt-4">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-sm text-amber-800">
+                    <p className="font-bold mb-1">Protocol Synchronization</p>
+                    <p>These settings define the company-wide default. You can still set specific exceptions for individual employees (e.g., Marketing/Field staff) in their <strong>Staff Profile</strong>.</p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const CustomPaidLeaves = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -299,7 +368,7 @@ const CustomPaidLeaves = () => {
               <div className="font-bold text-gray-800">{leave.name} ({leave.code})</div>
               <div className="text-xs text-gray-500">{leave.days} days per year</div>
             </div>
-            <button type="button" onClick={() => setLeaves(leaves.filter(l => l.id !== leave.id))} className="text-gray-400 hover:text-red-600 p-2"><Trash2 className="w-4 h-4" /></button>
+            <button type="button" onClick={() => setLeaves(leaves.filter(l => l.id !== leave.id))} className="text-gray-400 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>
           </div>
         ))}
       </div>
