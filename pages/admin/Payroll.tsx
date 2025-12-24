@@ -3,6 +3,16 @@ import { DollarSign, Save, Download, Filter, Search, Calculator, RefreshCw, Chec
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest } from '../../types';
 
+// FIX: Added formatCurrency helper to resolve "Cannot find name 'formatCurrency'" error
+const formatCurrency = (amount: number) => {
+  return amount.toLocaleString('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+
 interface PayrollEntry {
   employeeId: string;
   basicSalary: number;
@@ -50,31 +60,59 @@ const Payroll: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
-  const [employees, setEmployees] = useState<ExtendedEmployee[]>(() => {
-    let all: ExtendedEmployee[] = [];
-    if (isSuperAdmin) {
-        const adminData = localStorage.getItem('staff_data');
-        if (adminData) all = JSON.parse(adminData).map((e: any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}));
-        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporates.forEach((corp: any) => {
-            const cData = localStorage.getItem(`staff_data_${corp.email}`);
-            if (cData) all = [...all, ...JSON.parse(cData).map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
-        });
-    } else {
-        const saved = localStorage.getItem(`staff_data_${sessionId}`);
-        if (saved) all = JSON.parse(saved);
-    }
-    return all;
-  });
+  const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
+
+  const loadData = () => {
+      // 1. Load History
+      let allHistory: any[] = [];
+      const rootHistory = localStorage.getItem('payroll_history');
+      if (rootHistory) allHistory = JSON.parse(rootHistory);
+      
+      if (isSuperAdmin) {
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          setCorporatesList(corps);
+          corps.forEach((c: any) => {
+              const cHistory = localStorage.getItem(`payroll_history_${c.email}`);
+              if (cHistory) allHistory = [...allHistory, ...JSON.parse(cHistory)];
+          });
+      }
+      setHistory(allHistory.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+      // 2. Load Advances
+      let allAdvances: any[] = [];
+      const rootAdv = localStorage.getItem('salary_advances');
+      if (rootAdv) allAdvances = JSON.parse(rootAdv);
+      if (isSuperAdmin) {
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          corps.forEach((c: any) => {
+              const cAdv = localStorage.getItem(`salary_advances_${c.email}`);
+              if (cAdv) allAdvances = [...allAdvances, ...JSON.parse(cAdv)];
+          });
+      }
+      setAdvances(allAdvances);
+
+      // 3. Load Employees
+      let allEmp: ExtendedEmployee[] = [];
+      if (isSuperAdmin) {
+          const adminData = localStorage.getItem('staff_data');
+          if (adminData) allEmp = JSON.parse(adminData).map((e: any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}));
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          corps.forEach((corp: any) => {
+              const cData = localStorage.getItem(`staff_data_${corp.email}`);
+              if (cData) allEmp = [...allEmp, ...JSON.parse(cData).map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
+          });
+      } else {
+          const saved = localStorage.getItem(`staff_data_${sessionId}`);
+          if (saved) allEmp = JSON.parse(saved);
+      }
+      setEmployees(allEmp);
+  };
 
   useEffect(() => {
-    const loadData = () => {
-        setAdvances(JSON.parse(localStorage.getItem('salary_advances') || '[]'));
-        setHistory(JSON.parse(localStorage.getItem('payroll_history') || '[]'));
-        if (isSuperAdmin) setCorporatesList(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
-    };
     loadData();
-  }, [isSuperAdmin]);
+    window.addEventListener('storage', loadData);
+    return () => window.removeEventListener('storage', loadData);
+  }, [isSuperAdmin, sessionId]);
 
   const departments = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))], [employees]);
   const branchOptions = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.branch).filter(Boolean)))], [employees]);
@@ -130,7 +168,7 @@ const Payroll: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold text-gray-800">Payroll Management</h2><p className="text-gray-500">Manage salaries and advances</p></div>
+        <div><h2 className="text-2xl font-bold text-gray-800">Payroll Management</h2><p className="text-gray-500">View and aggregate company-wide payroll</p></div>
         <div className="flex bg-gray-100 p-1 rounded-lg">
             {['Salary', 'Advances', 'History'].map(t => (
                 <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-600'}`}>{t}</button>
@@ -153,8 +191,20 @@ const Payroll: React.FC = () => {
                     {departments.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
             </div>
-            {/* FIX: Explicitly cast 's' to 'number' in reduce function to resolve 'unknown' type errors. */}
-            <button onClick={() => { localStorage.setItem('payroll_history', JSON.stringify([{ id: Date.now(), name: `Payroll ${selectedMonth}`, date: new Date().toISOString(), totalAmount: Object.values(payrollData).reduce((s: number, e) => s + calculateNetPay(e as PayrollEntry), 0), employeeCount: employees.length, data: payrollData }, ...history])); alert("Payroll saved!"); }} className="bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold">Save Payroll</button>
+            <button 
+                onClick={() => { 
+                    const netTotal = Object.values(payrollData).reduce((s: number, e) => s + calculateNetPay(e as PayrollEntry), 0);
+                    const record = { id: Date.now().toString(), name: `Payroll ${selectedMonth}`, date: new Date().toISOString(), totalAmount: netTotal, employeeCount: filteredEmployees.length, data: payrollData };
+                    const key = isSuperAdmin ? 'payroll_history' : `payroll_history_${sessionId}`;
+                    const currentHistory = JSON.parse(localStorage.getItem(key) || '[]');
+                    localStorage.setItem(key, JSON.stringify([record, ...currentHistory]));
+                    loadData();
+                    alert("Payroll batch saved!"); 
+                }} 
+                className="bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-emerald-600 transition-colors"
+            >
+                Save Batch
+            </button>
         </div>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -167,7 +217,7 @@ const Payroll: React.FC = () => {
                         if (!data) return null;
                         return (
                             <tr key={emp.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4"><div><div className="font-bold">{emp.name}</div><div className="text-xs text-gray-500">{emp.role}</div></div></td>
+                                <td className="px-6 py-4"><div><div className="font-bold">{emp.name}</div><div className="text-xs text-gray-500">{emp.role} {isSuperAdmin && `• ${emp.corporateName}`}</div></div></td>
                                 <td className="px-4 py-4">{data.payableDays}/{data.totalDays}</td>
                                 <td className="px-4 py-4">₹{(data.basicSalary + data.allowances).toLocaleString()}</td>
                                 <td className="px-4 py-4 text-red-500">-₹{data.advanceDeduction}</td>
@@ -180,6 +230,30 @@ const Payroll: React.FC = () => {
             </table>
         </div>
       </div>
+      )}
+      
+      {activeTab === 'History' && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 bg-gray-50 border-b border-gray-100 font-bold text-gray-800">Payroll Batch History</div>
+              <div className="divide-y divide-gray-100">
+                  {history.map(batch => (
+                      <div key={batch.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-4">
+                              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><History className="w-5 h-5"/></div>
+                              <div>
+                                  <p className="font-bold text-gray-800">{batch.name}</p>
+                                  <p className="text-xs text-gray-500">Processed on {new Date(batch.date).toLocaleString()} • {batch.employeeCount} Staff</p>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <p className="font-bold text-gray-900">{formatCurrency(batch.totalAmount)}</p>
+                              <button className="text-xs text-indigo-600 font-bold hover:underline">View Breakdown</button>
+                          </div>
+                      </div>
+                  ))}
+                  {history.length === 0 && <div className="p-12 text-center text-gray-400">No payroll history found.</div>}
+              </div>
+          </div>
       )}
     </div>
   );
