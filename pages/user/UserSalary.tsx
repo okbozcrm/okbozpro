@@ -1,9 +1,25 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance } from '../../types';
+
+// Helper to convert "09:30 AM" to total minutes from midnight
+const timeToMinutes = (timeStr?: string) => {
+  if (!timeStr || timeStr === '--:--') return 0;
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3].toUpperCase();
+
+  if (hours === 12) hours = 0;
+  if (modifier === 'PM') hours += 12;
+  
+  return hours * 60 + minutes;
+};
 
 const UserSalary: React.FC = () => {
   const [user, setUser] = useState<Employee | null>(null);
@@ -146,6 +162,8 @@ const UserSalary: React.FC = () => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
     let payableDays = 0;
+    let totalWorkMinutes = 0;
+
     attendance.forEach(day => {
         if (day.status === AttendanceStatus.PRESENT || 
             day.status === AttendanceStatus.WEEK_OFF || 
@@ -154,7 +172,19 @@ const UserSalary: React.FC = () => {
         } else if (day.status === AttendanceStatus.HALF_DAY) {
             payableDays += 0.5;
         }
+
+        // Calculate actual working hours
+        if (day.checkIn && day.checkOut) {
+            const start = timeToMinutes(day.checkIn);
+            const end = timeToMinutes(day.checkOut);
+            if (end > start) {
+                totalWorkMinutes += (end - start);
+            }
+        }
     });
+
+    const totalHours = Math.floor(totalWorkMinutes / 60);
+    const remainingMins = totalWorkMinutes % 60;
 
     const perDaySalary = monthlyCtc / daysInMonth;
     const grossEarned = Math.round(perDaySalary * payableDays);
@@ -185,6 +215,7 @@ const UserSalary: React.FC = () => {
         grossEarned,
         workingDays: daysInMonth,
         paidDays: payableDays,
+        totalWorkTime: `${totalHours}h ${remainingMins}m`,
         payoutDate: payoutDateStr,
         status: 'Active',
         earnings: [
@@ -348,7 +379,7 @@ const UserSalary: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-sm mt-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-8">
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
                 <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Payout Date</p>
                 <p className="font-semibold text-lg">{salaryData.payoutDate}</p>
@@ -356,6 +387,10 @@ const UserSalary: React.FC = () => {
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
                 <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Paid Days</p>
                 <p className="font-semibold text-lg">{salaryData.paidDays} / {salaryData.workingDays}</p>
+              </div>
+              <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
+                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Work Hours</p>
+                <p className="font-semibold text-lg flex items-center gap-1.5"><Timer className="w-4 h-4 text-emerald-300" />{salaryData.totalWorkTime}</p>
               </div>
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
                  <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Deductions</p>

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, List, CheckCircle, XCircle, 
@@ -71,14 +72,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   useEffect(() => {
     const triggerRefresh = () => setRefreshToggle(prev => prev + 1);
     
-    // Sync via Storage (Other Tabs)
+    // Sync via Storage
     const handleStorageUpdate = (e: StorageEvent) => {
-      if (e.key?.includes('attendance_data') || e.key === 'staff_data') {
+      if (!e.key || e.key.includes('attendance_data') || e.key === 'staff_data') {
         triggerRefresh();
       }
     };
 
-    // Sync via Custom Event (Same Tab / Admin Panel Refresh)
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('attendance-updated', triggerRefresh);
     
@@ -119,7 +119,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 const cData = localStorage.getItem(`staff_data_${c.email}`);
                 if(cData) allStaff = [...allStaff, ...JSON.parse(cData).map((e: any) => ({...e, corporateId: c.email}))];
             });
-            if (allStaff.length === 0) allStaff = MOCK_EMPLOYEES.map(e => ({...e, corporateId: 'admin'}));
         } else {
             const adminData = localStorage.getItem('staff_data');
             if (adminData) allStaff = [...allStaff, ...JSON.parse(adminData).map((e: any) => ({...e, corporateId: 'admin'}))];
@@ -127,9 +126,9 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 const cData = localStorage.getItem(`staff_data_${c.email}`);
                 if(cData) allStaff = [...allStaff, ...JSON.parse(cData).map((e: any) => ({...e, corporateId: c.email}))];
             });
-            
-            if (allStaff.length === 0) allStaff = MOCK_EMPLOYEES.map(e => ({...e, corporateId: 'admin'}));
         }
+        
+        if (allStaff.length === 0) allStaff = MOCK_EMPLOYEES.map(e => ({...e, corporateId: 'admin'}));
         setEmployees(allStaff);
 
         if (!selectedEmployee && allStaff.length > 0) {
@@ -157,7 +156,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     setIsPunchedIn(!!(todayRecord && todayRecord.checkIn && !todayRecord.checkOut));
   }, [selectedEmployee, selectedMonth, refreshToggle]);
 
-  // --- Derived Data Hooks (Ordered by Initialization Flow) ---
+  // --- Derived Data Hooks ---
 
   const filteredStaffList = useMemo(() => {
     return employees.filter(emp => {
@@ -178,6 +177,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     return filteredStaffList.map(emp => {
         const key = `attendance_data_${emp.id}_${year}_${month}`;
         const saved = localStorage.getItem(key);
+        // Force reading disk value to ensure updates reflect
         const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
         const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED };
         return {
@@ -187,35 +187,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     });
   }, [filteredStaffList, selectedDate, isAdmin, refreshToggle]);
 
-  const personalStats = useMemo(() => {
-    if (!selectedEmployee || attendanceData.length === 0) return { present: 0, absent: 0, late: 0, halfDay: 0, leave: 0, off: 0 };
-    
-    let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, off = 0;
-    
-    attendanceData.forEach(day => {
-        if (day.status === AttendanceStatus.PRESENT) {
-            present++;
-            if (day.isLate) late++;
-        } else if (day.status === AttendanceStatus.ABSENT) absent++;
-        else if (day.status === AttendanceStatus.HALF_DAY) halfDay++;
-        else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
-        else if (day.status === AttendanceStatus.WEEK_OFF) off++;
-    });
-
-    return { present, absent, late, halfDay, leave, off };
-  }, [attendanceData, selectedEmployee, refreshToggle]);
-
   const dashboardStats = useMemo(() => {
     if (!isAdmin) {
-        return { 
-            total: attendanceData.length, 
-            present: personalStats.present, 
-            absent: personalStats.absent, 
-            late: personalStats.late, 
-            halfDay: personalStats.halfDay, 
-            leave: personalStats.leave, 
-            onField: personalStats.present 
-        };
+        let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0;
+        attendanceData.forEach(day => {
+            if (day.status === AttendanceStatus.PRESENT) { present++; if (day.isLate) late++; }
+            else if (day.status === AttendanceStatus.ABSENT) absent++;
+            else if (day.status === AttendanceStatus.HALF_DAY) halfDay++;
+            else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
+        });
+        return { total: attendanceData.length, present, absent, late, halfDay, leave, onField: present };
     }
 
     const present = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT).length;
@@ -224,16 +205,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     const halfDay = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HALF_DAY).length;
     const leave = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PAID_LEAVE).length;
 
-    return { 
-        total: filteredStaffList.length, 
-        present, 
-        absent, 
-        late, 
-        halfDay, 
-        leave, 
-        onField: present 
-    };
-  }, [filteredStaffList, staffDailyLogs, attendanceData, personalStats, isAdmin, refreshToggle]);
+    return { total: filteredStaffList.length, present, absent, late, halfDay, leave, onField: present };
+  }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, refreshToggle]);
 
   const availableBranchesList = useMemo(() => {
     if (filterCorporate === 'All') return branches;
@@ -242,13 +215,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   // --- Handlers ---
 
-  const handlePrevMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
+  const handlePrevMonth = () => setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const handleNextMonth = () => setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
 
   const handleEditClick = (record: DailyAttendance, empId?: string) => {
       if (!isAdmin) return; 
@@ -279,14 +247,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       
       localStorage.setItem(key, JSON.stringify(updatedMonthData));
       
-      // Notify all instances (Admin Panel / Current Tab)
-      window.dispatchEvent(new StorageEvent('storage', { key }));
+      // Dispatch storage event to trigger global refresh
+      window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('attendance-updated'));
-      
-      if (targetEmpId === selectedEmployee?.id) {
-          setAttendanceData(updatedMonthData);
-      }
-      
+      setRefreshToggle(v => v + 1);
       setIsEditModalOpen(false);
   };
 
@@ -312,11 +276,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
     localStorage.setItem(key, JSON.stringify(updated));
     
-    // Trigger instant refresh
-    window.dispatchEvent(new StorageEvent('storage', { key }));
+    // Dispatch storage event to trigger global refresh (Admin Dashboard/Daily Status)
+    window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('attendance-updated'));
     
     setAttendanceData(updated);
+    setRefreshToggle(v => v + 1);
     setIsPunchedIn(action === 'In');
     alert(`Successfully Punched ${action}!`);
   };
@@ -326,25 +291,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-gray-50/30">
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
-                        <Calendar className="w-5 h-5" />
-                    </div>
-                    <input 
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="bg-transparent border-none outline-none font-black text-gray-800 text-sm appearance-none cursor-pointer"
-                    />
+                    <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600"><Calendar className="w-5 h-5" /></div>
+                    <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none outline-none font-black text-gray-800 text-sm appearance-none cursor-pointer" />
                 </div>
                 <div className="h-8 w-px bg-gray-200"></div>
                 <div className="flex gap-2">
                     <span className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black border border-emerald-100">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        {staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT).length} Present
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div> {dashboardStats.present} Present
                     </span>
                     <span className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-black border border-rose-100">
-                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                        {staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length} Absent
+                        <div className="w-2 h-2 rounded-full bg-rose-500"></div> {dashboardStats.absent} Absent
                     </span>
                 </div>
             </div>
@@ -352,11 +308,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             <div className="flex gap-4">
                 {isSuperAdmin && (
                     <div className="relative group">
-                        <select 
-                            value={filterCorporate}
-                            onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }}
-                            className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm"
-                        >
+                        <select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm">
                             <option value="All">Corporate: All</option>
                             <option value="admin">Head Office</option>
                             {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
@@ -366,11 +318,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     </div>
                 )}
                 <div className="relative group">
-                    <select 
-                        value={filterBranch}
-                        onChange={(e) => setFilterBranch(e.target.value)}
-                        className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm"
-                    >
+                    <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-sm">
                         <option value="All">Branch: All</option>
                         {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                     </select>
@@ -383,80 +331,21 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         <div className="overflow-x-auto">
             <table className="w-full text-left">
                 <thead className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
-                    <tr>
-                        <th className="px-10 py-8">Staff Name</th>
-                        <th className="px-10 py-8">Branch / Shift</th>
-                        <th className="px-10 py-8">Check In</th>
-                        <th className="px-10 py-8">Check Out</th>
-                        <th className="px-10 py-8 text-center">Status</th>
-                        <th className="px-10 py-8 text-right">Action</th>
-                    </tr>
+                    <tr><th className="px-10 py-8">Staff Name</th><th className="px-10 py-8">Branch / Shift</th><th className="px-10 py-8">Check In</th><th className="px-10 py-8">Check Out</th><th className="px-10 py-8 text-center">Status</th><th className="px-10 py-8 text-right">Action</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                     {staffDailyLogs.map((log, i) => (
                         <tr key={i} className="hover:bg-gray-50/50 transition-all group">
-                            <td className="px-10 py-8">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-lg border border-emerald-100 shadow-sm">
-                                        {log.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <p className="font-black text-gray-800 tracking-tight">{log.name}</p>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{log.role}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-10 py-8">
-                                <p className="font-bold text-gray-600 text-sm">{log.branch || 'Head Office'}</p>
-                                <p className="text-[10px] text-gray-400 font-black">{log.workingHours || '09:30 - 18:30'}</p>
-                            </td>
-                            <td className="px-10 py-8">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-200'}`}></div>
-                                    <span className={`text-lg font-black ${log.dailyRecord.checkIn ? 'text-gray-800' : 'text-gray-300'}`}>
-                                        {log.dailyRecord.checkIn || '--:--'}
-                                    </span>
-                                    {log.dailyRecord.isLate && (
-                                        <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100 uppercase tracking-wider">Late</span>
-                                    )}
-                                </div>
-                            </td>
-                            <td className="px-10 py-8">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkOut ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-gray-200'}`}></div>
-                                    <span className={`text-lg font-black ${log.dailyRecord.checkOut ? 'text-gray-800' : 'text-gray-300'}`}>
-                                        {log.dailyRecord.checkOut || '--:--'}
-                                    </span>
-                                </div>
-                            </td>
-                            <td className="px-10 py-8 text-center">
-                                <span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
-                                    log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                    log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                                    'bg-gray-100 text-gray-500 border-gray-200'
-                                }`}>
-                                    {log.dailyRecord.status.replace('_', ' ')}
-                                </span>
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                                <button 
-                                    onClick={() => handleEditClick(log.dailyRecord, log.id)}
-                                    className="p-3 hover:bg-white rounded-2xl text-gray-400 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 hover:shadow-md"
-                                >
-                                    <Edit2 className="w-5 h-5" />
-                                </button>
-                            </td>
+                            <td className="px-10 py-8"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-lg border border-emerald-100 shadow-sm">{log.name.charAt(0)}</div><div><p className="font-black text-gray-800 tracking-tight">{log.name}</p><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{log.role}</p></div></div></td>
+                            <td className="px-10 py-8"><p className="font-bold text-gray-600 text-sm">{log.branch || 'Head Office'}</p><p className="text-[10px] text-gray-400 font-black">{log.workingHours || '09:30 - 18:30'}</p></td>
+                            <td className="px-10 py-8"><div className="flex items-center gap-3"><div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-200'}`}></div><span className={`text-lg font-black ${log.dailyRecord.checkIn ? 'text-gray-800' : 'text-gray-300'}`}>{log.dailyRecord.checkIn || '--:--'}</span>{log.dailyRecord.isLate && <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100 uppercase tracking-wider">Late</span>}</div></td>
+                            <td className="px-10 py-8"><div className="flex items-center gap-3"><div className={`w-2 h-2 rounded-full ${log.dailyRecord.checkOut ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-gray-200'}`}></div><span className={`text-lg font-black ${log.dailyRecord.checkOut ? 'text-gray-800' : 'text-gray-300'}`}>{log.dailyRecord.checkOut || '--:--'}</span></div></td>
+                            <td className="px-10 py-8 text-center"><span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>{log.dailyRecord.status.replace('_', ' ')}</span></td>
+                            <td className="px-10 py-8 text-right"><button onClick={() => handleEditClick(log.dailyRecord, log.id)} className="p-3 hover:bg-white rounded-2xl text-gray-400 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 hover:shadow-md"><Edit2 className="w-5 h-5" /></button></td>
                         </tr>
                     ))}
                     {staffDailyLogs.length === 0 && (
-                        <tr>
-                            <td colSpan={6} className="py-32 text-center">
-                                <div className="flex flex-col items-center gap-4 text-gray-300">
-                                    <Users className="w-16 h-16 opacity-20" />
-                                    <p className="font-black uppercase tracking-[0.3em] text-sm">No staff records found for this criteria.</p>
-                                </div>
-                            </td>
-                        </tr>
+                        <tr><td colSpan={6} className="py-32 text-center"><div className="flex flex-col items-center gap-4 text-gray-300"><Users className="w-16 h-16 opacity-20" /><p className="font-black uppercase tracking-[0.3em] text-sm">No staff records found for this criteria.</p></div></td></tr>
                     )}
                 </tbody>
             </table>
@@ -470,58 +359,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             <div className="flex items-center gap-4">
                 {isAdmin && (
                     <div className="relative group">
-                        <select 
-                            value={selectedEmployee?.id}
-                            onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)}
-                            className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all"
-                        >
+                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all">
                             {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                            {filteredStaffList.length === 0 && <option value="">No staff found</option>}
                         </select>
                         <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
                     </div>
                 )}
-
                 <div className="flex items-center gap-1 bg-white border border-gray-100 rounded-[1.5rem] p-1.5 shadow-sm">
                     <button onClick={handlePrevMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronLeft className="w-6 h-6"/></button>
-                    <span className="px-6 text-sm font-black uppercase tracking-[0.2em] text-gray-800 min-w-[200px] text-center">
-                        {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </span>
+                    <span className="px-6 text-sm font-black uppercase tracking-[0.2em] text-gray-800 min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                     <button onClick={handleNextMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronRight className="w-6 h-6"/></button>
                 </div>
             </div>
-
-            {isAdmin && (
-                <div className="flex gap-4">
-                    {isSuperAdmin && (
-                        <div className="relative group">
-                            <select 
-                                value={filterCorporate}
-                                onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }}
-                                className="pl-12 pr-10 py-4 bg-gray-50 border-none rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-inner"
-                            >
-                                <option value="All">Corporate: All</option>
-                                <option value="admin">Head Office</option>
-                                {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
-                            </select>
-                            <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                        </div>
-                    )}
-                    <div className="relative group">
-                        <select 
-                            value={filterBranch}
-                            onChange={(e) => setFilterBranch(e.target.value)}
-                            className="pl-12 pr-10 py-4 bg-gray-50 border-none rounded-[1.5rem] text-xs font-black text-gray-500 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[180px] appearance-none cursor-pointer shadow-inner"
-                        >
-                            <option value="All">Branch: All</option>
-                            {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                        </select>
-                    <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                </div>
-            )}
         </div>
         
         <div className="p-8 md:p-12">
@@ -529,58 +378,41 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
                     <div key={day} className={`bg-white py-8 text-center text-[12px] font-black tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-gray-400'}`}>{day}</div>
                 ))}
-                
-                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => (
-                    <div key={`pad-${i}`} className="bg-white min-h-[180px] opacity-10"></div>
-                ))}
-
+                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-white min-h-[180px] opacity-10"></div>)}
                 {attendanceData.map((day, idx) => {
                     const isWeekend = new Date(day.date).getDay() === 0;
                     const isToday = day.date === todayDateStr;
-                    
                     return (
-                        <div 
-                            key={idx} 
-                            onClick={() => handleEditClick(day)}
-                            className={`bg-white p-6 min-h-[180px] flex flex-col gap-4 relative transition-all hover:bg-emerald-50/20 group ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10 bg-emerald-50/10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}
-                        >
-                            <div className="flex justify-between items-start">
-                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'}`}>{new Date(day.date).getDate()}</span>
-                                {day.status !== AttendanceStatus.NOT_MARKED ? (
-                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${
-                                        day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                        day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' :
-                                        'bg-rose-50 text-rose-600 border-rose-100'
-                                    }`}>
-                                        {day.status.replace('_', ' ')}
-                                    </span>
-                                ) : isWeekend ? (
-                                    <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span>
-                                ) : null}
-                            </div>
-                            
-                            {(day.checkIn || isWeekend) && (
-                                <div className="mt-auto space-y-2.5 p-3 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md">
-                                    {day.checkIn ? (
-                                        <>
-                                            <div className="flex items-center gap-2 text-emerald-600">
-                                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                                                {day.checkIn}
-                                            </div>
-                                            <div className="flex items-center gap-2 text-rose-50">
-                                                <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
-                                                {day.checkOut || '--:--'}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-gray-300 text-center py-2">--:--</div>
-                                    )}
+                        <div key={idx} onClick={() => handleEditClick(day)} className={`bg-white p-6 min-h-[180px] flex flex-col gap-4 relative transition-all hover:bg-emerald-50/20 group ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10 bg-emerald-50/10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
+                            {/* ON FIELD Watermark */}
+                            {day.status === AttendanceStatus.PRESENT && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden select-none opacity-[0.03] transform -rotate-12">
+                                    <span className="text-4xl font-black whitespace-nowrap">ON FIELD</span>
                                 </div>
                             )}
-
-                            {isToday && (
-                                <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+                            <div className="flex justify-between items-start z-10">
+                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'}`}>{new Date(day.date).getDate()}</span>
+                                {day.status !== AttendanceStatus.NOT_MARKED ? (
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{day.status.replace('_', ' ')}</span>
+                                ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : null}
+                            </div>
+                            {(day.checkIn || isWeekend) && (
+                                <div className="mt-auto space-y-2.5 p-3 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
+                                    {day.checkIn ? (
+                                        <>
+                                          <div className="flex items-center gap-2 text-emerald-600">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                                            {day.checkIn}
+                                          </div>
+                                          <div className="flex items-center gap-2 text-rose-600">
+                                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
+                                            {day.checkOut || '--:--'}
+                                          </div>
+                                        </>
+                                    ) : <div className="text-gray-300 text-center py-2">--:--</div>}
+                                </div>
                             )}
+                            {isToday && <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500 animate-ping z-10"></div>}
                         </div>
                     );
                 })}
@@ -591,47 +423,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   return (
     <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
-      
-      {/* Header */}
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4">
-           <div className="p-3 bg-emerald-50 rounded-2xl">
-              <Calendar className="w-8 h-8 text-emerald-600" /> 
-           </div>
-           <div>
-              <h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2>
-              <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">
-                  {isAdmin ? "Track daily shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}
-              </p>
-           </div>
-        </div>
-
-        {isAdmin && (
-            <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
-                {['Dashboard', 'Daily Status'].map((tab) => {
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab as any)}
-                            className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            {tab === 'Daily Status' ? (
-                                <div className="flex items-center gap-2">
-                                    <Timer className="w-4 h-4" /> Daily Status
-                                </div>
-                            ) : tab}
-                        </button>
-                    );
-                })}
-            </div>
-        )}
+        <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 rounded-2xl"><Calendar className="w-8 h-8 text-emerald-600" /></div><div><h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2><p className="text-gray-400 text-sm font-bold uppercase tracking-widest">{isAdmin ? "Track daily shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}</p></div></div>
+        {isAdmin && <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">{['Dashboard', 'Daily Status'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab === 'Daily Status' ? <div className="flex items-center gap-2"><Timer className="w-4 h-4" /> Daily Status</div> : tab}</button>)}</div>}
       </div>
 
-      {/* --- DASHBOARD VIEW (PERSONAL OR TEAM) --- */}
       {activeTab === 'Dashboard' && (
           <div className="space-y-8 animate-in zoom-in-95 duration-500">
-              
-              {/* KPI CARDS */}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                   {[
                       { label: isAdmin ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
@@ -642,176 +440,22 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                       { label: 'HALF DAY', val: dashboardStats.halfDay, icon: Activity, color: 'text-amber-700', bg: 'bg-amber-50' },
                       { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-indigo-700', bg: 'bg-indigo-50' },
                   ].map((kpi, i) => (
-                      <div key={i} className={`${kpi.bg} p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-32`}>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p>
-                          <div className="flex justify-between items-end">
-                              <h4 className={`text-4xl font-black ${kpi.color}`}>{kpi.val}</h4>
-                              <kpi.icon className={`w-7 h-7 opacity-20 ${kpi.color}`} />
-                          </div>
-                      </div>
+                      <div key={i} className={`${kpi.bg} p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-32`}><p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-4xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-7 h-7 opacity-20 ${kpi.color}`} /></div></div>
                   ))}
               </div>
 
-              {/* PUNCH CARD FOR EMPLOYEES */}
               {!isAdmin && selectedEmployee && (
-                  <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
-                      <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
-                      <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
-                          <div className="text-center md:text-left space-y-10">
-                              <div className="space-y-2">
-                                <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
-                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Ready for today's shift?</p>
-                              </div>
-                              <div className="inline-flex items-center gap-8 px-12 py-8 bg-emerald-50 rounded-[3rem] border border-emerald-100 transition-all hover:scale-105 shadow-[0_20px_40px_rgba(16,185,129,0.1)]">
-                                  <Clock className="w-12 h-12 text-emerald-600" />
-                                  <span className="text-7xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">
-                                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                              </div>
-                          </div>
-
-                          <button 
-                              onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
-                              className={`relative w-72 h-72 rounded-full shadow-[0_60px_100px_rgba(0,0,0,0.15)] flex flex-col items-center justify-center text-white transition-all transform hover:scale-110 active:scale-90 overflow-hidden group ${isPunchedIn ? 'bg-gradient-to-br from-rose-500 via-red-600 to-red-800 shadow-red-200' : 'bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 shadow-emerald-200'}`}
-                          >
-                              <Fingerprint className="w-24 h-24 mb-4 group-hover:scale-125 transition-transform duration-500" />
-                              <span className="text-2xl font-black uppercase tracking-[0.2em]">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
-                              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                          </button>
-                      </div>
-                  </div>
+                  <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group"><div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div><div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16"><div className="text-center md:text-left space-y-10"><div className="space-y-2"><h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3><p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Ready for today's shift?</p></div><div className="inline-flex items-center gap-8 px-12 py-8 bg-emerald-50 rounded-[3rem] border border-emerald-100 transition-all hover:scale-105 shadow-[0_20px_40px_rgba(16,185,129,0.1)]"><Clock className="w-12 h-12 text-emerald-600" /><span className="text-7xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div></div><button onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')} className={`relative w-72 h-72 rounded-full shadow-[0_60px_100px_rgba(0,0,0,0.15)] flex flex-col items-center justify-center text-white transition-all transform hover:scale-110 active:scale-90 overflow-hidden group ${isPunchedIn ? 'bg-gradient-to-br from-rose-500 via-red-600 to-red-800 shadow-red-200' : 'bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 shadow-emerald-200'}`}><Fingerprint className="w-24 h-24 mb-4 group-hover:scale-125 transition-transform duration-500" /><span className="text-2xl font-black uppercase tracking-[0.2em]">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span><div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div></button></div></div>
               )}
-
-              {/* MONTHLY SUMMARY CALENDAR ON DASHBOARD (For All Roles) */}
               {renderMonthlyCalendar()}
-
-              {/* Recent Activity / Log Table (Only for Admin) */}
-              {isAdmin && (
-                <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
-                    <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
-                                <Navigation className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-2xl font-black text-gray-800 tracking-tighter">Recent Attendance Logs</h3>
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
-                                <tr>
-                                    <th className="px-10 py-8">Date</th>
-                                    <th className="px-10 py-8">Punch In</th>
-                                    <th className="px-10 py-8">Status</th>
-                                    <th className="px-10 py-8">Punch Out</th>
-                                    <th className="px-10 py-8 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {attendanceData.filter(d => d.checkIn).slice(-5).reverse().map((log, i) => (
-                                    <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-10 py-8 font-bold text-gray-600">{log.date}</td>
-                                        <td className="px-10 py-8 font-black text-emerald-600 text-lg">{log.checkIn}</td>
-                                        <td className="px-10 py-8">
-                                            <div className={`flex items-center gap-3 px-5 py-2.5 text-[11px] font-black rounded-2xl border w-fit uppercase shadow-sm ${
-                                                log.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
-                                            }`}>
-                                                {log.status}
-                                            </div>
-                                        </td>
-                                        <td className="px-10 py-8 font-black text-rose-500 text-lg">{log.checkOut || '--:--'}</td>
-                                        <td className="px-10 py-8 text-right">
-                                            <button className="text-sm font-black text-gray-400 hover:text-emerald-600 transition-colors flex items-center gap-2 justify-end group-hover:translate-x-1 duration-300">
-                                                View Details <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {attendanceData.filter(d => d.checkIn).length === 0 && (
-                                    <tr>
-                                        <td colSpan={5} className="py-24 text-center">
-                                            <div className="flex flex-col items-center gap-3 text-gray-300">
-                                                <AlertTriangle className="w-12 h-12 opacity-30" />
-                                                <p className="font-black uppercase tracking-widest">No recent records found.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-              )}
           </div>
       )}
 
-      {/* --- DAILY STATUS TAB (Admin Only) --- */}
       {isAdmin && activeTab === 'Daily Status' && renderDailyStatus()}
 
-      {/* --- EDIT ATTENDANCE MODAL (Admin Only) --- */}
       {isEditModalOpen && editingRecord && isAdmin && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
-                  <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                      <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Edit Attendance - {editingRecord.date}</h3>
-                      <button onClick={() => setIsEditModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-2xl transition-all text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
-                  </div>
-                  <div className="p-10 space-y-10">
-                      <div>
-                          <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Status</label>
-                          <div className="relative group">
-                            <select 
-                                value={editingRecord.status}
-                                onChange={(e) => setEditingRecord({...editingRecord, status: e.target.value as any})}
-                                className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-sm font-black text-gray-800 outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer shadow-inner transition-all"
-                            >
-                                <option value={AttendanceStatus.PRESENT}>PRESENT</option>
-                                <option value={AttendanceStatus.ABSENT}>ABSENT</option>
-                                <option value={AttendanceStatus.HALF_DAY}>HALF DAY</option>
-                                <option value={AttendanceStatus.PAID_LEAVE}>PAID LEAVE</option>
-                                <option value={AttendanceStatus.WEEK_OFF}>WEEK OFF</option>
-                            </select>
-                            <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 pointer-events-none group-hover:text-emerald-500" />
-                          </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-8">
-                          <div>
-                              <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check In</label>
-                              <input 
-                                type="time" 
-                                value={convertTo24Hour(editingRecord.checkIn)}
-                                onChange={(e) => setEditingRecord({...editingRecord, checkIn: convertTo12Hour(e.target.value)})}
-                                className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-emerald-600 outline-none focus:ring-4 focus:ring-emerald-500/20 shadow-inner transition-all"
-                              />
-                          </div>
-                          <div>
-                              <label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check Out</label>
-                              <input 
-                                type="time" 
-                                value={convertTo24Hour(editingRecord.checkOut)}
-                                onChange={(e) => setEditingRecord({...editingRecord, checkOut: convertTo12Hour(e.target.value)})}
-                                className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-rose-500 outline-none focus:ring-4 focus:ring-rose-500/20 shadow-inner transition-all"
-                              />
-                          </div>
-                      </div>
-
-                      <div className="pt-8 flex gap-5">
-                          <button 
-                            onClick={() => setIsEditModalOpen(false)}
-                            className="flex-1 py-5 bg-gray-100 text-gray-500 rounded-[1.75rem] font-black text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-sm"
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            onClick={handleSaveChanges}
-                            className="flex-[1.5] py-5 bg-emerald-600 text-white rounded-[1.75rem] font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95"
-                          >
-                            Save Changes
-                          </button>
-                      </div>
-                  </div>
-              </div>
+              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100"><div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50"><h3 className="text-2xl font-black text-gray-900 tracking-tighter">Edit Attendance - {editingRecord.date}</h3><button onClick={() => setIsEditModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-2xl transition-all text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button></div><div className="p-10 space-y-10"><div><label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Status</label><div className="relative group"><select value={editingRecord.status} onChange={(e) => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-sm font-black text-gray-800 outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer shadow-inner transition-all"><option value={AttendanceStatus.PRESENT}>PRESENT</option><option value={AttendanceStatus.ABSENT}>ABSENT</option><option value={AttendanceStatus.HALF_DAY}>HALF DAY</option><option value={AttendanceStatus.PAID_LEAVE}>PAID LEAVE</option><option value={AttendanceStatus.WEEK_OFF}>WEEK OFF</option></select><ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 pointer-events-none group-hover:text-emerald-500" /></div></div><div className="grid grid-cols-2 gap-8"><div><label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check In</label><input type="time" value={convertTo24Hour(editingRecord.checkIn)} onChange={(e) => setEditingRecord({...editingRecord, checkIn: convertTo12Hour(e.target.value)})} className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-emerald-600 outline-none focus:ring-4 focus:ring-emerald-500/20 shadow-inner transition-all" /></div><div><label className="block text-[12px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Check Out</label><input type="time" value={convertTo24Hour(editingRecord.checkOut)} onChange={(e) => setEditingRecord({...editingRecord, checkOut: convertTo12Hour(e.target.value)})} className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] text-lg font-black text-rose-500 outline-none focus:ring-4 focus:ring-rose-500/20 shadow-inner transition-all" /></div></div><div className="pt-8 flex gap-5"><button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-5 bg-gray-100 text-gray-500 rounded-[1.75rem] font-black text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-sm">Cancel</button><button onClick={handleSaveChanges} className="flex-[1.5] py-5 bg-emerald-600 text-white rounded-[1.75rem] font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Save Changes</button></div></div></div>
           </div>
       )}
     </div>
