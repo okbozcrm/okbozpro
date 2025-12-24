@@ -2,14 +2,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest } from '../../types';
+import { getEmployeeAttendance } from '../../constants';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance } from '../../types';
 
 const UserSalary: React.FC = () => {
   const [user, setUser] = useState<Employee | null>(null);
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ amount: '', reason: '' });
   const [advanceHistory, setAdvanceHistory] = useState<SalaryAdvanceRequest[]>([]);
+  const [refreshToggle, setRefreshToggle] = useState(0);
 
   // Payout Settings State
   const [payoutSettings, setPayoutSettings] = useState({
@@ -17,10 +18,8 @@ const UserSalary: React.FC = () => {
       globalDay: '5'
   });
 
-  // Helper to safely calculate payout date (handles Feb 30 -> Feb 28/29)
+  // Helper to safely calculate payout date
   const getSafePayoutDate = (year: number, monthIndex: number, targetDay: number): Date => {
-    // Get the last day of the specific month
-    // monthIndex + 1, day 0 gives the last day of monthIndex
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const safeDay = Math.min(targetDay, daysInMonth);
     return new Date(year, monthIndex, safeDay);
@@ -28,45 +27,55 @@ const UserSalary: React.FC = () => {
 
   // Helper to find employee by ID across all storage locations
   const findEmployeeById = (id: string): Employee | undefined => {
-      // 1. Check Admin Staff
       try {
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
         let found = adminStaff.find((e: any) => e.id === id);
         if (found) return found;
       } catch(e) {}
 
-      // 2. Check Corporate Staff
       try {
         const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
         for (const corp of corporates) {
-            const cStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
+            const key = `staff_data_${corp.email}`;
+            const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
             const found = cStaff.find((e: any) => e.id === id);
             if (found) return found;
         }
       } catch(e) {}
 
-      // 3. Check Mocks
-      return MOCK_EMPLOYEES.find(e => e.id === id);
+      return undefined;
   };
 
-  // Resolve Logged In User & Load Advances & Payout Settings
+  // Resolve Logged In User & Load Settings with Storage Listener
   useEffect(() => {
-      const storedSessionId = localStorage.getItem('app_session_id');
-      if (storedSessionId) {
-          const found = findEmployeeById(storedSessionId);
-          setUser(found || MOCK_EMPLOYEES[0]);
-      } else {
-          setUser(MOCK_EMPLOYEES[0]);
-      }
+      const loadUserAndSettings = () => {
+          const storedSessionId = localStorage.getItem('app_session_id');
+          if (storedSessionId) {
+              const found = findEmployeeById(storedSessionId);
+              setUser(found || null);
+          }
 
-      // Load Payout Settings
-      try {
-          const dates = JSON.parse(localStorage.getItem('company_payout_dates') || '{}');
-          const globalDay = localStorage.getItem('company_global_payout_day') || '5';
-          setPayoutSettings({ dates, globalDay });
-      } catch(e) {
-          console.error("Error loading payout settings", e);
-      }
+          try {
+              const dates = JSON.parse(localStorage.getItem('company_payout_dates') || '{}');
+              const globalDay = localStorage.getItem('company_global_payout_day') || '5';
+              setPayoutSettings({ dates, globalDay });
+          } catch(e) {
+              console.error("Error loading payout settings", e);
+          }
+          setRefreshToggle(v => v + 1);
+      };
+
+      loadUserAndSettings();
+      
+      // SYNC: Listen for Admin updates to staff_data or payroll settings
+      const handleStorage = (e: StorageEvent) => {
+          if (e.key?.includes('staff_data') || e.key?.includes('payout') || e.key?.includes('attendance_data')) {
+              loadUserAndSettings();
+          }
+      };
+
+      window.addEventListener('storage', handleStorage);
+      return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   // Load Advance History
@@ -81,8 +90,9 @@ const UserSalary: React.FC = () => {
       
       loadAdvances();
       
-      // Listen for changes
-      const handleStorageChange = () => loadAdvances();
+      const handleStorageChange = (e: StorageEvent) => {
+          if (e.key === 'salary_advances') loadAdvances();
+      };
       window.addEventListener('storage', handleStorageChange);
       return () => window.removeEventListener('storage', handleStorageChange);
   }, [user]);
@@ -105,12 +115,10 @@ const UserSalary: React.FC = () => {
           reason: advanceForm.reason,
           status: 'Pending',
           requestDate: new Date().toISOString(),
-          corporateId: '' 
       };
 
       const existing = JSON.parse(localStorage.getItem('salary_advances') || '[]');
-      const updated = [newRequest, ...existing];
-      localStorage.setItem('salary_advances', JSON.stringify(updated));
+      localStorage.setItem('salary_advances', JSON.stringify([newRequest, ...existing]));
       
       setAdvanceHistory(prev => [newRequest, ...prev]);
       setIsAdvanceModalOpen(false);
@@ -118,13 +126,24 @@ const UserSalary: React.FC = () => {
       alert("Advance request submitted successfully!");
   };
 
-  // Dynamically calculate salary based on this month's attendance
+  // Dynamically calculate salary based on REAL attendance logs
   const salaryData = useMemo(() => {
     if (!user) return null;
 
-    const monthlyCtc = parseFloat(user.salary || '65000');
-    const attendance = getEmployeeAttendance(user, 2025, 10); // Using Nov 2025 mock context
-    const daysInMonth = 30;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+
+    const monthlyCtc = parseFloat(user.salary || '0');
+    
+    // 1. Try to load REAL punched data
+    const attendanceKey = `attendance_data_${user.id}_${year}_${month}`;
+    const savedAttendance = localStorage.getItem(attendanceKey);
+    const attendance: DailyAttendance[] = savedAttendance 
+        ? JSON.parse(savedAttendance) 
+        : getEmployeeAttendance(user, year, month);
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     
     let payableDays = 0;
     attendance.forEach(day => {
@@ -144,33 +163,30 @@ const UserSalary: React.FC = () => {
     const hra = Math.round(grossEarned * 0.3);
     const allowances = Math.round(grossEarned * 0.2);
     
-    // Auto-Deduct Paid Advances for this month
     const paidAdvances = advanceHistory
         .filter(a => a.status === 'Paid')
         .reduce((sum, item) => sum + (item.amountApproved || 0), 0);
 
     const netPay = grossEarned - paidAdvances;
 
-    // Determine Payout Date from Admin Settings
+    // Determine Payout Date
     let payoutDay = parseInt(payoutSettings.globalDay) || 5;
     if (user.department && payoutSettings.dates[user.department]) {
         payoutDay = parseInt(payoutSettings.dates[user.department]) || payoutDay;
     }
     
-    // Context is Salary Month Nov 2025 -> Payout Month Dec 2025
-    // Safe date calculation (e.g., if Payout is 31st, Dec has 31, so it works. 
-    // If it was Feb, getSafePayoutDate handles it)
-    const payoutDateObj = getSafePayoutDate(2025, 11, payoutDay); // 11 is December
+    // Payout is for previous month (if looking at current calendar)
+    const payoutDateObj = getSafePayoutDate(year, month, payoutDay); 
     const payoutDateStr = payoutDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
     return {
-        month: 'November 2025',
+        month: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         netPay,
         grossEarned,
         workingDays: daysInMonth,
         paidDays: payableDays,
         payoutDate: payoutDateStr,
-        status: 'Pending',
+        status: 'Active',
         earnings: [
             { label: 'Basic Salary', amount: basicSalary },
             { label: 'HRA', amount: hra },
@@ -178,13 +194,12 @@ const UserSalary: React.FC = () => {
         ],
         deductions: paidAdvances > 0 ? [{ label: 'Salary Advance Rec.', amount: paidAdvances }] : []
     };
-  }, [user, advanceHistory, payoutSettings]);
+  }, [user, advanceHistory, payoutSettings, refreshToggle]);
 
   // Generate History based on Joining Date
   const salaryHistory = useMemo(() => {
     if (!user) return [];
 
-    // Determine configured day for history dates consistency
     let payoutDay = parseInt(payoutSettings.globalDay) || 5;
     if (user.department && payoutSettings.dates[user.department]) {
         payoutDay = parseInt(payoutSettings.dates[user.department]) || payoutDay;
@@ -192,26 +207,19 @@ const UserSalary: React.FC = () => {
 
     const history = [];
     const joinDate = new Date(user.joiningDate);
-    // Start of the joining month
     const joinMonthStart = new Date(joinDate.getFullYear(), joinDate.getMonth(), 1); 
     
-    // Assuming "Today" in app context is Nov 2025 for consistency with dashboard
-    const contextToday = new Date(2025, 10, 15); // Nov 15, 2025
-    let iteratorDate = new Date(contextToday.getFullYear(), contextToday.getMonth() - 1, 1); // Start from previous month (Oct 2025)
+    const today = new Date();
+    let iteratorDate = new Date(today.getFullYear(), today.getMonth() - 1, 1); 
 
-    // Generate up to 6 months of history
     for (let i = 0; i < 6; i++) {
-        // Stop if the iterator month is before the joining month
         if (iteratorDate < joinMonthStart) break;
 
         const monthStr = iteratorDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         const baseAmount = parseFloat(user.salary || '0');
-        
         let amount = baseAmount;
         
-        // If this is the joining month, maybe partial?
         if (iteratorDate.getMonth() === joinDate.getMonth() && iteratorDate.getFullYear() === joinDate.getFullYear()) {
-             // Pro-rate for joining month
              const daysInMonth = new Date(iteratorDate.getFullYear(), iteratorDate.getMonth() + 1, 0).getDate();
              const daysWorked = daysInMonth - joinDate.getDate() + 1;
              if (daysWorked < daysInMonth) {
@@ -219,14 +227,10 @@ const UserSalary: React.FC = () => {
              }
         }
 
-        // Payout is typically the next month. 
-        // E.g. Salary for Oct is paid in Nov.
         const payoutMonthIndex = iteratorDate.getMonth() + 1; 
         const payoutYear = iteratorDate.getFullYear() + (payoutMonthIndex > 11 ? 1 : 0);
-        // Normalize month index if it rolled over (0-11)
-        const normalizedPayoutMonthIndex = payoutMonthIndex > 11 ? 0 : payoutMonthIndex;
-
-        const payoutDate = getSafePayoutDate(payoutYear, normalizedPayoutMonthIndex, payoutDay);
+        const normPayoutMonthIndex = payoutMonthIndex > 11 ? 0 : payoutMonthIndex;
+        const payoutDate = getSafePayoutDate(payoutYear, normPayoutMonthIndex, payoutDay);
 
         history.push({
             month: monthStr,
@@ -235,15 +239,20 @@ const UserSalary: React.FC = () => {
             date: payoutDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
         });
 
-        // Move back one month
         iteratorDate.setMonth(iteratorDate.getMonth() - 1);
     }
 
     return history;
-  }, [user, payoutSettings]);
+  }, [user, payoutSettings, refreshToggle]);
 
   if (!user || !salaryData) {
-      return <div className="p-8 text-center text-gray-500">Loading salary details...</div>;
+      return (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+              <Clock className="w-12 h-12 mb-4 opacity-20" />
+              <p className="font-bold">Loading your salary structure...</p>
+              <p className="text-xs">Ensure your profile has been completed by HR.</p>
+          </div>
+      );
   }
 
   const totalEarnings = salaryData.earnings.reduce((acc, curr) => acc + curr.amount, 0);
@@ -255,7 +264,7 @@ const UserSalary: React.FC = () => {
   }));
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">My Salary</h2>
@@ -283,7 +292,7 @@ const UserSalary: React.FC = () => {
                           Advance amount will be deducted from your next salary payout.
                       </div>
                       <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Amount Required (₹)</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount Required (₹)</label>
                           <input 
                               type="number" 
                               required 
@@ -296,7 +305,7 @@ const UserSalary: React.FC = () => {
                           />
                       </div>
                       <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason</label>
                           <textarea 
                               required
                               rows={3}
@@ -314,38 +323,8 @@ const UserSalary: React.FC = () => {
           </div>
       )}
 
-      {/* Advance History (Only show if exists) */}
-      {advanceHistory.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-100 bg-gray-50 font-bold text-gray-800 text-sm">Advance Requests History</div>
-              <div className="p-4 space-y-3">
-                  {advanceHistory.map(req => (
-                      <div key={req.id} className="flex justify-between items-center p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
-                          <div>
-                              <div className="font-bold text-gray-800">₹{req.amountRequested.toLocaleString()} <span className="text-gray-400 font-normal text-xs">for {req.reason}</span></div>
-                              <div className="text-xs text-gray-500">{new Date(req.requestDate).toDateString()}</div>
-                          </div>
-                          <div className="text-right">
-                              <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                  req.status === 'Paid' ? 'bg-green-100 text-green-700' : 
-                                  req.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                                  req.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                  'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                  {req.status}
-                              </span>
-                              {req.status === 'Paid' && (
-                                  <div className="text-[10px] text-gray-400 mt-1">Approved: ₹{req.amountApproved}</div>
-                              )}
-                          </div>
-                      </div>
-                  ))}
-              </div>
-          </div>
-      )}
-
+      {/* Dashboard Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Current Salary Card */}
         <div className="md:col-span-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
           <div className="absolute -top-6 -right-6 p-8 opacity-10 rotate-12">
             <DollarSign className="w-48 h-48" />
@@ -371,52 +350,41 @@ const UserSalary: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-4 text-sm mt-8">
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                <p className="text-emerald-100 text-xs mb-1 opacity-80">Payout Date</p>
+                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Payout Date</p>
                 <p className="font-semibold text-lg">{salaryData.payoutDate}</p>
               </div>
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                <p className="text-emerald-100 text-xs mb-1 opacity-80">Paid Days</p>
+                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Paid Days</p>
                 <p className="font-semibold text-lg">{salaryData.paidDays} / {salaryData.workingDays}</p>
               </div>
               <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                 <p className="text-emerald-100 text-xs mb-1 opacity-80">Deductions</p>
+                 <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Deductions</p>
                  <p className="font-semibold text-lg text-white">₹{totalDeductions}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Stats / Trends */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col h-full">
            <div className="mb-auto">
-             <h4 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+             <h4 className="font-semibold text-gray-800 mb-1 flex items-center gap-2 uppercase text-xs tracking-widest">
                <TrendingUp className="w-4 h-4 text-emerald-500" /> Income Trend
              </h4>
-             <p className="text-xs text-gray-500">Salary history since joining</p>
+             <p className="text-xs text-gray-400">Monthly breakdown</p>
            </div>
            
            <div className="h-48 mt-4">
              {chartData.length > 0 ? (
                <ResponsiveContainer width="100%" height="100%">
                  <BarChart data={chartData}>
-                   <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      fontSize={12} 
-                      tick={{fill: '#9ca3af'}} 
-                      dy={10}
-                   />
-                   <Tooltip 
-                      cursor={{fill: '#f3f4f6'}}
-                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}
-                   />
+                   <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} tick={{fill: '#9ca3af'}} dy={10} />
+                   <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
                    <Bar dataKey="amount" fill="#10b981" radius={[4, 4, 4, 4]} barSize={32} />
                  </BarChart>
                </ResponsiveContainer>
              ) : (
-                <div className="h-full flex items-center justify-center text-gray-400 text-xs italic">
-                    No history data available yet.
+                <div className="h-full flex items-center justify-center text-gray-300 text-xs italic">
+                    Waiting for history...
                 </div>
              )}
            </div>
@@ -424,17 +392,17 @@ const UserSalary: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Salary Structure */}
+        {/* Structure */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
             <h3 className="font-bold text-gray-800">Salary Breakdown</h3>
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">Monthly</span>
+            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">CTC: ₹{user.salary || '0'}</span>
           </div>
           
-          <div className="p-5 space-y-6">
+          <div className="p-6 space-y-6">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                 <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Earnings</h4>
+              <div className="flex items-center justify-between mb-4">
+                 <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Earnings (Current Month)</h4>
                  <span className="text-xs text-gray-400">Amount (₹)</span>
               </div>
               <div className="space-y-3">
@@ -444,16 +412,16 @@ const UserSalary: React.FC = () => {
                     <span className="font-medium text-gray-900">₹{item.amount.toLocaleString()}</span>
                   </div>
                 ))}
-                <div className="flex justify-between text-sm pt-3 border-t border-dashed border-gray-200 mt-2">
-                  <span className="font-semibold text-gray-700">Gross Earnings</span>
-                  <span className="font-bold text-gray-900">₹{totalEarnings.toLocaleString()}</span>
+                <div className="flex justify-between text-sm pt-4 border-t border-dashed border-gray-200 mt-2">
+                  <span className="font-bold text-gray-700">Gross Earnings</span>
+                  <span className="font-black text-gray-900 text-lg">₹{totalEarnings.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-3">
-                 <h4 className="text-xs font-bold text-red-500 uppercase tracking-wider">Deductions</h4>
+              <div className="flex items-center justify-between mb-4 pt-2">
+                 <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest">Deductions</h4>
                  <span className="text-xs text-gray-400">Amount (₹)</span>
               </div>
               <div className="space-y-3">
@@ -465,31 +433,27 @@ const UserSalary: React.FC = () => {
                     </div>
                     ))
                 ) : (
-                    <div className="text-sm text-gray-400 italic text-center py-2">No deductions applied</div>
+                    <div className="text-sm text-gray-400 italic py-2">No active deductions</div>
                 )}
-                <div className="flex justify-between text-sm pt-3 border-t border-dashed border-gray-200 mt-2">
-                  <span className="font-semibold text-gray-700">Total Deductions</span>
-                  <span className="font-bold text-red-600">-₹{totalDeductions.toLocaleString()}</span>
-                </div>
               </div>
             </div>
             
-            <div className="bg-emerald-50 rounded-xl p-4 flex justify-between items-center border border-emerald-100">
-               <div className="flex flex-col">
-                  <span className="text-sm text-emerald-800 font-medium">Total Net Payable</span>
-                  <span className="text-xs text-emerald-600">Calculated after all deductions</span>
+            <div className="bg-emerald-50 rounded-2xl p-5 flex justify-between items-center border border-emerald-100 shadow-inner">
+               <div>
+                  <span className="text-sm text-emerald-800 font-bold uppercase tracking-wide">Net Monthly Pay</span>
+                  <p className="text-xs text-emerald-600">Post-deduction estimation</p>
                </div>
-               <span className="font-bold text-2xl text-emerald-700">₹{salaryData.netPay.toLocaleString()}</span>
+               <span className="font-black text-3xl text-emerald-700">₹{salaryData.netPay.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        {/* Payslip History */}
+        {/* Payslips */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
           <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
             <h3 className="font-bold text-gray-800">Payslip History</h3>
-            <button className="text-sm text-emerald-600 font-medium hover:underline flex items-center gap-1">
-               View All
+            <button className="text-xs font-bold text-emerald-600 hover:underline uppercase tracking-wider">
+               Archived
             </button>
           </div>
           <div className="divide-y divide-gray-100 flex-1 overflow-auto max-h-[400px]">
@@ -497,39 +461,34 @@ const UserSalary: React.FC = () => {
                 salaryHistory.map((slip, idx) => (
                 <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group cursor-pointer">
                     <div className="flex items-center gap-4">
-                    <div className="bg-indigo-50 p-2.5 rounded-lg text-indigo-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
-                        <FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-gray-800 text-sm">Salary Slip - {slip.month}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${slip.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {slip.status.toUpperCase()}
-                        </span>
-                        <p className="text-xs text-gray-400">Credited on {slip.date}</p>
+                        <div className="bg-indigo-50 p-2.5 rounded-xl text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                            <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-gray-800 text-sm">Salary Slip - {slip.month}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded tracking-tighter ${slip.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'}`}>
+                                {slip.status.toUpperCase()}
+                            </span>
+                            <p className="text-[11px] text-gray-400">{slip.date}</p>
+                            </div>
                         </div>
                     </div>
-                    </div>
                     <div className="flex items-center gap-4">
-                    <span className="font-bold text-gray-700">₹{slip.amount.toLocaleString()}</span>
-                    <button className="text-gray-400 hover:text-emerald-600 p-2 rounded-full hover:bg-emerald-50 transition-colors" title="Download PDF">
-                        <Download className="w-4 h-4" />
-                    </button>
+                        <span className="font-black text-gray-700 text-sm">₹{slip.amount.toLocaleString()}</span>
+                        <button className="text-gray-300 hover:text-emerald-600 p-2 rounded-full transition-colors">
+                            <Download className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
                 ))
             ) : (
-                <div className="p-8 text-center text-gray-400">
-                    <p className="text-sm italic">No salary history available.</p>
-                    <p className="text-xs mt-1">Payslips will appear here after your first month.</p>
+                <div className="p-12 text-center text-gray-400">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p className="text-sm italic">No generated slips found.</p>
                 </div>
             )}
           </div>
-          {salaryHistory.length > 0 && (
-            <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
-                <button className="text-sm text-gray-500 hover:text-gray-800 font-medium transition-colors">Load more history</button>
-            </div>
-          )}
         </div>
       </div>
     </div>
