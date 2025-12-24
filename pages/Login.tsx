@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck, Download } from 'lucide-react';
 import { useBranding } from '../context/BrandingContext';
 import { sendSystemNotification, HARDCODED_FIREBASE_CONFIG } from '../services/cloudService'; // Import sendSystemNotification
-import { Notification } from '../types'; // Import Notification type
+import { BozNotification } from '../types'; 
 
 interface LoginProps {
   onLogin: (role: UserRole) => void;
@@ -142,7 +141,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 localStorage.setItem('logged_in_employee_corporate_id', corporateOwnerId);
 
                 // Send login notification
-                const loginNotification: Omit<Notification, 'id' | 'timestamp' | 'read'> = {
+                const loginNotification: Omit<BozNotification, 'id' | 'timestamp' | 'read'> = {
                     type: 'login',
                     title: 'Employee Logged In',
                     message: `${employeeName} (${employeeId}) has logged in.`,
@@ -162,8 +161,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
     };
 
     setTimeout(() => {
-      // Call the async actions without await, allowing setTimeout to complete
-      // and let the async actions run in the background.
       executePostLoginActions();
     }, 800);
   };
@@ -205,7 +202,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 The all-in-one platform for attendance, payroll, and field force management.
               </p>
               
-              <div className={`inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full w-fit backdrop-blur-md border border-white/20 ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-gray-300'}`}>
+              <div className={`inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full w-fit backdrop-blur-md border border-white/20 ${isConnected ? 'bg-emerald-50/20 text-emerald-300' : 'bg-white/10 text-gray-300'}`}>
                   <Cloud className="w-4 h-4" /> 
                   {isConnected ? 'Cloud Connected' : 'Local Mode'}
               </div>

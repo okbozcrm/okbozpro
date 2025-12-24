@@ -8,7 +8,7 @@ import {
   transcribeAudio, generateThinkingResponse 
 } from '../../services/geminiService';
 
-/* FIX: Updated aspect ratios to match supported values (1:1, 3:4, 4:3, 9:16, 16:9) */
+/* Strictly supported aspect ratios for nano banana series */
 const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9"];
 
 const GenAITools: React.FC = () => {
@@ -18,10 +18,9 @@ const GenAITools: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasPaidKey, setHasPaidKey] = useState(false);
 
-  // Check for API key selection status on mount and when switching to tools that require it
   useEffect(() => {
     const checkKey = async () => {
-        if (window.aistudio) {
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
             const hasKey = await window.aistudio.hasSelectedApiKey();
             setHasPaidKey(hasKey);
         }
@@ -30,9 +29,8 @@ const GenAITools: React.FC = () => {
   }, [activeTab]);
 
   const handleOpenSelectKey = async () => {
-      if (window.aistudio) {
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
           await window.aistudio.openSelectKey();
-          // Assume key selection was successful to mitigate race conditions as per instructions
           setHasPaidKey(true);
       }
   };
@@ -60,14 +58,10 @@ const GenAITools: React.FC = () => {
   // Thinking State
   const [thinkPrompt, setThinkPrompt] = useState('');
 
-  // --- Handlers ---
-
   const handleImageGen = async () => {
     if (!imgPrompt) return;
-    
-    // Check if the user has completed the mandatory paid API key selection
     if (!hasPaidKey) {
-        setError("A paid API key from GCP is required for gemini-3-pro-image-preview features.");
+        setError("A paid API key from GCP is required for high-quality image generation.");
         return;
     }
 
@@ -82,10 +76,9 @@ const GenAITools: React.FC = () => {
         setError("Failed to generate image.");
       }
     } catch (e: any) {
-      // Handle key reset if error suggests it's invalid/expired
       if (e.message?.includes("Requested entity was not found")) {
           setHasPaidKey(false);
-          setError("API Key configuration error. Please re-select your paid API key via the banner.");
+          setError("API Key configuration error. Please re-select your paid API key.");
       } else {
           setError("Error generating image.");
       }
@@ -99,7 +92,6 @@ const GenAITools: React.FC = () => {
     setError(null);
     setResult(null);
     try {
-      // Image editing uses gemini-2.5-flash-image (General Image generation/editing)
       const base64 = await editImage(editPrompt, editImageFile, 'image/png');
       if (base64) {
         setResult(`data:image/png;base64,${base64}`);
@@ -144,9 +136,15 @@ const GenAITools: React.FC = () => {
   };
 
   const startRecording = async () => {
+    // Robust check for MediaRecorder constructor
+    if (typeof window.MediaRecorder !== 'function') {
+        setError("Media Recording is not supported or restricted in this browser.");
+        return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      // Use window.MediaRecorder explicitly to avoid any possible local shadowing
+      const mediaRecorder = new window.MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -182,7 +180,6 @@ const GenAITools: React.FC = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      // Stop all tracks
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
   };
@@ -203,6 +200,7 @@ const GenAITools: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      {/* Rest of the UI remains unchanged */}
       <div>
         <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
           <Sparkles className="w-8 h-8 text-emerald-500" />
@@ -210,8 +208,7 @@ const GenAITools: React.FC = () => {
         </h2>
         <p className="text-gray-500 mt-1">Powered by Google Gemini 2.5 Flash & 3 Pro models</p>
       </div>
-
-      {/* Navigation Tabs */}
+      {/* ... tabs ... */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-1">
         <button 
           onClick={() => { setActiveTab('image-gen'); setResult(null); setError(null); }}
@@ -245,7 +242,6 @@ const GenAITools: React.FC = () => {
         </button>
       </div>
 
-      {/* API Key Selection Banner for gemini-3-pro-image-preview */}
       {activeTab === 'image-gen' && !hasPaidKey && (
           <div className="bg-amber-50 border border-amber-200 p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in">
               <div className="flex items-start gap-4">
@@ -255,7 +251,7 @@ const GenAITools: React.FC = () => {
                   <div>
                       <h4 className="font-bold text-amber-900">Paid API Key Required</h4>
                       <p className="text-sm text-amber-800">
-                          To use <strong>gemini-3-pro-image-preview</strong> for high-quality images, you must select an API key from a paid GCP project.
+                          To use high-quality image generation features, you must select a paid API key.
                           <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="ml-1 underline font-medium">Learn about billing</a>.
                       </p>
                   </div>
@@ -270,8 +266,6 @@ const GenAITools: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-h-[400px]">
-        
-        {/* Image Generator */}
         {activeTab === 'image-gen' && (
           <div className="space-y-6">
             <div className="space-y-2">
@@ -290,7 +284,7 @@ const GenAITools: React.FC = () => {
                   <button 
                     key={ratio}
                     onClick={() => setAspectRatio(ratio)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm transition-all ${aspectRatio === ratio ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'}`}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition-all ${aspectRatio === ratio ? 'bg-emerald-50 text-white border-emerald-500' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'}`}
                   >
                     {ratio}
                   </button>
@@ -303,12 +297,11 @@ const GenAITools: React.FC = () => {
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              Generate High Quality (3.0 Pro)
+              Generate High Quality
             </button>
           </div>
         )}
 
-        {/* Image Editor */}
         {activeTab === 'image-edit' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -355,7 +348,6 @@ const GenAITools: React.FC = () => {
           </div>
         )}
 
-        {/* Video Analyst */}
         {activeTab === 'video' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -402,7 +394,6 @@ const GenAITools: React.FC = () => {
           </div>
         )}
 
-        {/* Audio Scribe */}
         {activeTab === 'audio' && (
           <div className="flex flex-col items-center justify-center space-y-8 py-10">
             <div className="relative">
@@ -433,14 +424,13 @@ const GenAITools: React.FC = () => {
           </div>
         )}
 
-        {/* Deep Thinker */}
         {activeTab === 'think' && (
           <div className="space-y-6 max-w-3xl mx-auto">
             <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-start gap-3">
               <BrainCircuit className="w-6 h-6 text-purple-600 shrink-0 mt-1" />
               <div>
                 <h4 className="font-bold text-purple-900">Thinking Mode Enabled</h4>
-                <p className="text-sm text-purple-700">Using Gemini 3 Pro with expanded thinking budget (32k tokens) for complex reasoning tasks.</p>
+                <p className="text-sm text-purple-700">Using advanced reasoning for complex tasks with an expanded token budget.</p>
               </div>
             </div>
             <div>
@@ -458,12 +448,11 @@ const GenAITools: React.FC = () => {
               className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <BrainCircuit className="w-5 h-5" />}
-              Deep Think (3.0 Pro)
+              Deep Think
             </button>
           </div>
         )}
 
-        {/* Results Area */}
         {(result || error) && (
           <div className="mt-8 pt-8 border-t border-gray-200 animate-in fade-in slide-in-from-bottom-4">
             {error && (
@@ -480,7 +469,7 @@ const GenAITools: React.FC = () => {
                       <Download className="w-3 h-3" /> Download
                     </a>
                   ) : (
-                    <button onClick={() => navigator.clipboard.writeText(result)} className="text-emerald-600 hover:underline text-xs">Copy</button>
+                    <button onClick={() => navigator.clipboard.writeText(result || '')} className="text-emerald-600 hover:underline text-xs">Copy</button>
                   )}
                 </div>
                 <div className="p-6 flex justify-center">
@@ -496,7 +485,6 @@ const GenAITools: React.FC = () => {
             )}
           </div>
         )}
-
       </div>
     </div>
   );

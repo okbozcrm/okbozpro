@@ -181,7 +181,7 @@ export interface SalaryAdvanceRequest {
   corporateId?: string; 
 }
 
-export interface Notification {
+export interface BozNotification {
   id: string;
   type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry';
   title: string;
@@ -204,7 +204,6 @@ export interface DriverActivityLog {
   totalShiftMinutes: number; 
 }
 
-
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -217,19 +216,28 @@ declare global {
         lat: number;
         lng: number;
       }
-      class Geocoder {}
-      class Map {}
-      class Marker {}
-      enum Animation {}
-      class InfoWindow {}
-      class LatLng {} 
+      /* Simplified ambient declarations to avoid constructor prototype collisions */
+      var Geocoder: any;
+      var Map: any;
+      var Marker: any;
+      var Animation: any;
+      var InfoWindow: any;
+      var LatLng: any;
+      var LatLngBounds: any;
+      var TravelMode: any;
+      var UnitSystem: any;
+      var DistanceMatrixService: any;
+      namespace places {
+        var PlacesService: any;
+        var PlacesServiceStatus: any;
+        var AutocompleteService: any;
+      }
     }
   }
   interface Window {
     google: any; 
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;
-    /* FIX: Removed 'readonly' modifier to ensure consistency with environment-level Window interface declarations. */
-    aistudio: AIStudio;
+    aistudio?: AIStudio;
   }
 }

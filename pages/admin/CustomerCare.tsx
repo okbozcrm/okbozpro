@@ -921,7 +921,7 @@ Book now with OK BOZ Transport!`;
               <h2 className="text-xl font-bold text-gray-800">Orders Dashboard</h2>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div 
                 onClick={() => setFilterStatus('All')}
                 className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'All' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''}`}
@@ -942,13 +942,6 @@ Book now with OK BOZ Transport!`;
               >
                   <p className="text-xs font-bold text-gray-500 uppercase">Accepted</p>
                   <h3 className="text-2xl font-bold text-emerald-600">{dashboardStats.accepted}</h3>
-              </div>
-              <div 
-                onClick={() => setFilterStatus('Driver Assigned')}
-                className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'Driver Assigned' ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-gray-500 uppercase">Driver Assigned</p>
-                  <h3 className="text-2xl font-bold text-blue-600">{dashboardStats.assigned}</h3>
               </div>
               <div 
                 onClick={() => setFilterStatus('Completed')}
@@ -1141,131 +1134,124 @@ Book now with OK BOZ Transport!`;
       </div>
 
       {showSettings && (
-        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 mb-6">
-           <div className="flex items-center justify-between mb-4">
-             <h3 className="font-bold text-slate-800 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Fare Configuration</h3>
-             <div className="bg-white border border-gray-300 rounded-lg p-1 flex">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Fare Configuration</h3>
+              <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="bg-white border border-gray-300 rounded-lg p-1 flex w-fit mb-6">
                 <button onClick={() => setSettingsVehicleType('Sedan')} className={`px-4 py-1 text-xs font-bold rounded ${settingsVehicleType === 'Sedan' ? 'bg-emerald-500 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Sedan</button>
                 <button onClick={() => setSettingsVehicleType('SUV')} className={`px-4 py-1 text-xs font-bold rounded ${settingsVehicleType === 'SUV' ? 'bg-emerald-500 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>SUV</button>
-             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             <div className="space-y-3 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                <h4 className="text-sm font-bold text-emerald-600 uppercase tracking-wide border-b border-gray-100 pb-2 mb-2">Local Rules ({settingsVehicleType})</h4>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Base Fare (₹)</label>
-                  <input type="number" name="localBaseFare" value={pricing[settingsVehicleType].localBaseFare} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Base Km Included</label>
-                  <input type="number" name="localBaseKm" value={pricing[settingsVehicleType].localBaseKm} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Extra Km Rate (₹/km)</label>
-                  <input type="number" name="localPerKmRate" value={pricing[settingsVehicleType].localPerKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Waiting Charge (₹/min)</label>
-                  <input type="number" name="localWaitingRate" value={pricing[settingsVehicleType].localWaitingRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-                </div>
-            </div>
+              </div>
 
-            <div className="space-y-3 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-              <h4 className="text-sm font-bold text-orange-600 uppercase tracking-wide border-b border-gray-100 pb-2 mb-2">Outstation Rules ({settingsVehicleType})</h4>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Min Km / Day</label>
-                <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Per Km Rate (₹/km)</label>
-                <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Base Rate (One Way Only)</label>
-                <input type="number" name="outstationBaseRate" value={pricing[settingsVehicleType].outstationBaseRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" placeholder="Not used for Round Trip" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Driver Allowance (₹/day)</label>
-                <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h4 className="text-sm font-bold text-emerald-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Local Rules ({settingsVehicleType})</h4>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1 font-bold">Base Fare (₹)</label>
+                      <input type="number" name="localBaseFare" value={pricing[settingsVehicleType].localBaseFare} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1 font-bold">Base Km Included</label>
+                      <input type="number" name="localBaseKm" value={pricing[settingsVehicleType].localBaseKm} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1 font-bold">Extra Km Rate (₹/km)</label>
+                      <input type="number" name="localPerKmRate" value={pricing[settingsVehicleType].localPerKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1 font-bold">Waiting Charge (₹/min)</label>
+                      <input type="number" name="localWaitingRate" value={pricing[settingsVehicleType].localWaitingRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
                 </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Driver Night Allowance (₹/night)</label>
-                <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
-              </div>
-            </div>
 
-            <div className="space-y-3 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-              <h4 className="text-sm font-bold text-blue-600 uppercase tracking-wide border-b border-gray-100 pb-2 mb-2">Rental Rules ({settingsVehicleType})</h4>
-              
-              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-bold text-orange-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Outstation Rules ({settingsVehicleType})</h4>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Extra Hr (₹)</label>
-                    <input type="number" name="rentalExtraHrRate" value={pricing[settingsVehicleType].rentalExtraHrRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Min Km / Day</label>
+                    <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Extra Km (₹)</label>
-                    <input type="number" name="rentalExtraKmRate" value={pricing[settingsVehicleType].rentalExtraKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded text-sm" />
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Per Km Rate (₹/km)</label>
+                    <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
                   </div>
-              </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Base Rate (One Way)</label>
+                    <input type="number" name="outstationBaseRate" value={pricing[settingsVehicleType].outstationBaseRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Driver Allowance (₹/day)</label>
+                    <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Night Allowance (₹/night)</label>
+                    <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                  </div>
+                </div>
 
-              <div className="mt-4 border-t border-gray-100 pt-2">
+                <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-bold text-blue-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Rental Packages ({settingsVehicleType})</h4>
+                  
                   <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs font-bold text-gray-700">Packages</label>
+                      <label className="text-xs font-bold text-gray-700 uppercase">Manage Packages</label>
                       <button 
                         onClick={() => { setShowAddPackage(!showAddPackage); setEditingPackageId(null); setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' }); }}
-                        className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 flex items-center gap-1 font-bold"
+                        className="text-[10px] bg-blue-600 text-white px-2 py-1 rounded shadow-sm hover:bg-blue-700 flex items-center gap-1 font-bold"
                       >
                         <Plus className="w-3 h-3" /> New
                       </button>
                   </div>
                   
                   {showAddPackage && (
-                      <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-2 space-y-2 animate-in fade-in slide-in-from-top-1">
-                          <input placeholder="Pkg Name (e.g. 10hr/100km)" className="w-full p-1.5 text-xs border rounded outline-none focus:ring-1 focus:ring-blue-500" value={newPackage.name} onChange={e => setNewPackage({...newPackage, name: e.target.value})} />
-                          <div className="flex gap-2">
-                              <input placeholder="Hrs" type="number" className="w-full p-1.5 text-xs border rounded outline-none" value={newPackage.hours} onChange={e => setNewPackage({...newPackage, hours: e.target.value})} />
-                              <input placeholder="Km" type="number" className="w-full p-1.5 text-xs border rounded outline-none" value={newPackage.km} onChange={e => setNewPackage({...newPackage, km: e.target.value})} />
+                      <div className="bg-white p-3 rounded-lg border border-blue-200 mb-2 space-y-3 shadow-sm animate-in fade-in slide-in-from-top-1">
+                          <input placeholder="Pkg Name (e.g. 10hr/100km)" className="w-full p-2 text-xs border rounded-lg outline-none focus:ring-1 focus:ring-blue-500" value={newPackage.name} onChange={e => setNewPackage({...newPackage, name: e.target.value})} />
+                          <div className="grid grid-cols-2 gap-2">
+                              <input placeholder="Hrs" type="number" className="w-full p-2 text-xs border rounded-lg" value={newPackage.hours} onChange={e => setNewPackage({...newPackage, hours: e.target.value})} />
+                              <input placeholder="Km" type="number" className="w-full p-2 text-xs border rounded-lg" value={newPackage.km} onChange={e => setNewPackage({...newPackage, km: e.target.value})} />
                           </div>
-                          <div className="flex gap-2">
-                              <input placeholder="Sedan ₹" type="number" className="w-full p-1.5 text-xs border rounded outline-none" value={newPackage.priceSedan} onChange={e => setNewPackage({...newPackage, priceSedan: e.target.value})} />
-                              <input placeholder="SUV ₹" type="number" className="w-full p-1.5 text-xs border rounded outline-none" value={newPackage.priceSuv} onChange={e => setNewPackage({...newPackage, priceSuv: e.target.value})} />
+                          <div className="grid grid-cols-2 gap-2">
+                              <input placeholder="Sedan ₹" type="number" className="w-full p-2 text-xs border rounded-lg" value={newPackage.priceSedan} onChange={e => setNewPackage({...newPackage, priceSedan: e.target.value})} />
+                              <input placeholder="SUV ₹" type="number" className="w-full p-2 text-xs border rounded-lg" value={newPackage.priceSuv} onChange={e => setNewPackage({...newPackage, priceSuv: e.target.value})} />
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 pt-1">
                             {editingPackageId && (
-                                <button onClick={handleCancelEditPackage} className="flex-1 bg-white text-gray-600 text-xs font-bold py-1.5 rounded hover:bg-gray-100 transition-colors">Cancel</button>
+                                <button onClick={handleCancelEditPackage} className="flex-1 bg-gray-100 text-gray-600 text-xs font-bold py-2 rounded-lg hover:bg-gray-200">Cancel</button>
                             )}
-                            <button onClick={handleAddPackage} className={`flex-1 ${editingPackageId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'} text-white text-xs font-bold py-1.5 rounded transition-colors`}>
-                                {editingPackageId ? 'Update Package' : 'Save Package'}
+                            <button onClick={handleAddPackage} className={`flex-1 ${editingPackageId ? 'bg-indigo-600' : 'bg-blue-600'} text-white text-xs font-bold py-2 rounded-lg`}>
+                                {editingPackageId ? 'Update' : 'Add'}
                             </button>
                           </div>
                       </div>
                   )}
 
-                  <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
                       {rentalPackages.map(pkg => (
-                          <div key={pkg.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded border border-transparent hover:border-gray-200 group transition-colors">
-                              <div>
-                                  <div className="text-xs font-bold text-gray-800">{pkg.name}</div>
+                          <div key={pkg.id} className="flex justify-between items-center p-2.5 bg-white rounded-lg border border-gray-200 group transition-all hover:border-blue-300">
+                              <div className="min-w-0">
+                                  <div className="text-xs font-bold text-gray-800 truncate">{pkg.name}</div>
                                   <div className="text-[10px] text-gray-500">{pkg.hours}hr / {pkg.km}km</div>
                               </div>
-                              <div className="text-right flex items-center gap-2">
-                                  <div key={`${pkg.id}-sedan-price`} className="text-[10px] text-gray-600 font-mono text-right">S: {pkg.priceSedan}</div>
-                                  <div key={`${pkg.id}-suv-price`} className="text-[10px] text-gray-600 font-mono text-right">X: {pkg.priceSuv}</div>
-                                  <button onClick={(e) => handleEditPackage(pkg)} className="text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                              <div className="text-right flex items-center gap-2 shrink-0">
+                                  <div className="text-[10px] text-gray-600 font-mono">₹{settingsVehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv}</div>
+                                  <button onClick={() => handleEditPackage(pkg)} className="text-gray-300 hover:text-blue-500 p-1">
                                       <Edit2 className="w-3 h-3" />
                                   </button>
-                                  <button onClick={(e) => removePackage(pkg.id, e)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                                  <button onClick={(e) => removePackage(pkg.id, e)} className="text-gray-300 hover:text-red-500 p-1">
                                       <Trash2 className="w-3 h-3" />
                                   </button>
                               </div>
                           </div>
                       ))}
                   </div>
+                </div>
               </div>
+            </div>
 
-              <div className="pt-4 mt-auto">
-                 <button onClick={() => setShowSettings(false)} className="w-full bg-slate-800 text-white py-2 rounded text-sm font-medium hover:bg-slate-900">Close</button>
-              </div>
+            <div className="p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+               <button onClick={() => setShowSettings(false)} className="px-8 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors">Done</button>
             </div>
           </div>
         </div>
@@ -1280,14 +1266,14 @@ Book now with OK BOZ Transport!`;
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <input 
                           placeholder="Name" 
-                          className="p-2 border rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="p-2 border border-gray-300 rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500"
                           value={customerDetails.name}
                           onChange={e => setCustomerDetails({...customerDetails, name: e.target.value})}
                       />
                       <div className="relative">
                           <input 
                               placeholder="Phone" 
-                              className="p-2 border rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
+                              className="p-2 border border-gray-300 rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
                               value={customerDetails.phone}
                               onChange={e => {
                                   setCustomerDetails({...customerDetails, phone: e.target.value});
@@ -1307,7 +1293,7 @@ Book now with OK BOZ Transport!`;
                       </div>
                   </div>
                   {isPhoneChecked && (
-                      <div className={`text-xs px-2 py-1 rounded-md mb-4 flex items-center gap-1 ${phoneLookupResult === 'Existing' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      <div className={`text-xs px-2 py-1 rounded-md mb-4 flex items-center gap-1 font-bold ${phoneLookupResult === 'Existing' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
                           {phoneLookupResult === 'Existing' ? <CheckCircleIcon className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                           {phoneLookupResult === 'Existing' ? 'Existing Customer/Vendor' : 'New Customer'}
                       </div>
@@ -1316,13 +1302,13 @@ Book now with OK BOZ Transport!`;
                   <div className="flex gap-4 mb-4 border-b border-gray-100 pb-4">
                       <button 
                           onClick={() => setEnquiryCategory('Transport')}
-                          className={`flex-1 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-colors ${enquiryCategory === 'Transport' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-50 text-gray-600 border border-transparent'}`}
+                          className={`flex-1 py-2 text-sm font-black rounded-lg flex items-center justify-center gap-2 transition-colors ${enquiryCategory === 'Transport' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm' : 'bg-gray-50 text-gray-500 border border-transparent'}`}
                       >
                           <Car className="w-4 h-4" /> Transport
                       </button>
                       <button 
                           onClick={() => setEnquiryCategory('General')}
-                          className={`flex-1 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-colors ${enquiryCategory === 'General' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-600 border border-transparent'}`}
+                          className={`flex-1 py-2 text-sm font-black rounded-lg flex items-center justify-center gap-2 transition-colors ${enquiryCategory === 'General' ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' : 'bg-gray-50 text-gray-500 border border-transparent'}`}
                       >
                           <FileText className="w-4 h-4" /> General
                       </button>
@@ -1330,7 +1316,7 @@ Book now with OK BOZ Transport!`;
 
                   {enquiryCategory === 'General' ? (
                       <div className="space-y-4 mt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Requirement Details</label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Requirement Details</label>
                           <textarea 
                               rows={6}
                               className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 resize-y text-sm"
@@ -1339,118 +1325,94 @@ Book now with OK BOZ Transport!`;
                               onChange={e => setCustomerDetails({...customerDetails, requirements: e.target.value})}
                           />
                           {isPhoneChecked && phoneLookupResult === 'Existing' && existingEnquiriesForPhone.length > 0 && (
-                              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-blue-800 text-sm space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                                  <h4 className="font-bold flex items-center gap-2 text-xs uppercase tracking-wide text-blue-600"><History className="w-3 h-3"/> Past Enquiries</h4>
+                              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm space-y-3 max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
+                                  <h4 className="font-black flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-blue-600"><History className="w-3 h-3"/> Past Enquiries</h4>
                                   {existingEnquiriesForPhone.map((enq, idx) => (
-                                      <div key={enq.id} className="bg-white p-2.5 rounded border border-blue-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                                      <div key={enq.id} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                                           <div className="flex justify-between items-center mb-1">
-                                              <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
+                                              <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
                                                 <Calendar className="w-3 h-3"/> {enq.date || enq.createdAt.split('T')[0]}
                                               </span>
-                                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${enq.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${enq.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                                                   {enq.status}
                                               </span>
                                           </div>
-                                          <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed">"{enq.details}"</p>
+                                          <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed italic">"{enq.details}"</p>
                                       </div>
                                   ))}
                               </div>
                           )}
-                          <div className="space-y-3 pt-2">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
+                          <div className="space-y-4 pt-2">
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1">
                                     <Building2 className="w-3 h-3" /> Assign To
                                 </label>
-                                <div className="flex gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     {isSuperAdmin && (
-                                        <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
+                                        <select className="p-2.5 border border-gray-300 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
                                             <option value="admin">Head Office</option>
                                             {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
                                         </select>
                                     )}
-                                    <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
-                                            <option value="">All Branches</option>
-                                            {filteredBranches.map((b: any) => (<option key={b.id} value={b.name}>{b.name}</option>))}
-                                        </select>
-                                        <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
-                                            <option value="">Select Staff</option>
-                                            {filteredStaff.map((s: any) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                                        </select>
+                                    <select className="p-2.5 border border-gray-300 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
+                                        <option value="">All Branches</option>
+                                        {filteredBranches.map((b: any) => (<option key={b.id} value={b.name}>{b.name}</option>))}
+                                    </select>
+                                    <select className="p-2.5 border border-gray-300 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
+                                        <option value="">Select Staff</option>
+                                        {filteredStaff.map((s: any) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                                    </select>
                                 </div>
                             </div>
 
-                            <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-2 mt-4">
-                                <Clock className="w-3 h-3" /> Set Follow-up
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={generalFollowUpDate}
-                                        onChange={e => setGeneralFollowUpDate(e.target.value)}
-                                        className="w-full p-2 border rounded-lg outline-none text-sm"
-                                    />
+                            <div className="bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
+                                <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+                                    <Clock className="w-3 h-3" /> Set Follow-up
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1">Date</label>
+                                        <input type="date" value={generalFollowUpDate} onChange={e => setGeneralFollowUpDate(e.target.value)} className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1">Time</label>
+                                        <input type="time" value={generalFollowUpTime} onChange={e => setGeneralFollowUpTime(e.target.value)} className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Time</label>
-                                    <input 
-                                        type="time" 
-                                        value={generalFollowUpTime}
-                                        onChange={e => setGeneralFollowUpTime(e.target.value)}
-                                        className="w-full p-2 border rounded-lg outline-none text-sm"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Priority</label>
-                                <div className="flex gap-2">
-                                    {['Hot', 'Warm', 'Cold'].map(p => (
-                                        <button 
-                                            key={p}
-                                            type="button"
-                                            onClick={() => setGeneralFollowUpPriority(p as any)}
-                                            className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-colors ${generalFollowUpPriority === p ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                                        >
-                                            {p}
-                                        </button>
-                                    ))}
+                                <div className="mb-4">
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Priority</label>
+                                    <div className="flex gap-2">
+                                        {['Hot', 'Warm', 'Cold'].map(p => (
+                                            <button 
+                                                key={p}
+                                                type="button"
+                                                onClick={() => setGeneralFollowUpPriority(p as any)}
+                                                className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${generalFollowUpPriority === p ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-[1.02]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                                            >
+                                                {p}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 pt-2">
-                                <button 
-                                    onClick={() => saveOrder('New')}
-                                    className="py-3 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors shadow-md flex items-center justify-center gap-2"
-                                >
-                                    <Save className="w-4 h-4" /> Save Enquiry
-                                </button>
-                                <button 
-                                    onClick={handleSaveGeneralFollowUp}
-                                    className="py-3 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
-                                >
-                                    <Clock className="w-4 h-4" /> {editingOrderId ? 'Update Follow-up' : 'Save Follow-up'}
-                                </button>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => saveOrder('New')} className="py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-900/10 flex items-center justify-center gap-2 transform active:scale-95"><Save className="w-4 h-4" /> Save Enquiry</button>
+                                <button onClick={handleSaveGeneralFollowUp} className="py-4 bg-blue-600 text-white rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl shadow-blue-900/10 flex items-center justify-center gap-2 transform active:scale-95"><Clock className="w-4 h-4" /> {editingOrderId ? 'Update Follow-up' : 'Save Follow-up'}</button>
                             </div>
-                            <div>
-                                <button
-                                    onClick={handleCancelForm}
-                                    className="w-full py-2 border border-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 rounded-lg border border-transparent hover:border-gray-200"
-                                >
-                                    <X className="w-3 h-3"/> Clear Form
-                                </button>
-                            </div>
+                            <button onClick={handleCancelForm} className="w-full py-3 text-gray-400 hover:text-rose-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-rose-50 border border-transparent hover:border-rose-100 flex items-center justify-center gap-2"><X className="w-4 h-4" /> Clear and Restart Form</button>
                           </div>
                       </div>
                   ) : (
-                      <div className="space-y-4 mt-2 border-t border-gray-100 pt-4">
-                          <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                              <h4 className="text-sm font-bold text-gray-700">Trip Details</h4>
-                              <div className="flex gap-2">
+                      <div className="space-y-4 mt-2 border-t border-gray-100 pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                          <div className="flex justify-between items-center mb-2">
+                              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Trip Type Selection</h4>
+                              <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                                   {['Sedan', 'SUV'].map(v => (
                                       <button
                                           key={v}
                                           onClick={() => setVehicleType(v as any)}
-                                          className={`px-3 py-1 text-xs rounded border transition-colors ${vehicleType === v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-gray-600 border-gray-200'}`}
+                                          className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md transition-all ${vehicleType === v ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500 hover:text-gray-900'}`}
                                       >
                                           {v}
                                       </button>
@@ -1463,22 +1425,22 @@ Book now with OK BOZ Transport!`;
                                   <button
                                       key={t}
                                       onClick={() => setTripType(t as any)}
-                                      className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${tripType === t ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-gray-500'}`}
+                                      className={`flex-1 py-3 text-xs font-black uppercase tracking-[0.2em] border-b-4 transition-all ${tripType === t ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                                   >
                                       {t}
                                   </button>
                               ))}
                               </div>
 
-                              <div className="mb-4">
-                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pickup Location</label>
+                              <div className="space-y-2">
+                                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Pickup Location</label>
                                   {!isMapReady ? (
-                                      <div className="p-2 bg-gray-100 text-gray-500 text-sm rounded flex items-center gap-2">
-                                          <Loader2 className="w-4 h-4 animate-spin" /> Loading Google Maps...
+                                      <div className="p-3 bg-gray-50 text-gray-500 text-xs font-bold rounded-xl flex items-center gap-2 border border-gray-100">
+                                          <Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> Connecting to Maps Service...
                                       </div>
                                   ) : (
                                       <Autocomplete 
-                                          placeholder="Search Pickup Location"
+                                          placeholder="Search Pickup Address"
                                           onAddressSelect={(addr) => setCustomerDetails(prev => ({ ...prev, pickup: addr }))}
                                           setNewPlace={(place) => setPickupCoords(place)}
                                           defaultValue={customerDetails.pickup}
@@ -1487,51 +1449,57 @@ Book now with OK BOZ Transport!`;
                               </div>
 
                               {tripType === 'Local' && (
-                                  <div className="space-y-3">
-                                      <div>
-                                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Drop Location</label>
-                                          {!isMapReady ? <div className="p-2 bg-gray-100 text-xs rounded">Loading...</div> : (
+                                  <div className="space-y-4 animate-in slide-in-from-left-2 duration-200">
+                                      <div className="space-y-2">
+                                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Drop Location</label>
+                                          {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
                                               <Autocomplete 
-                                                  placeholder="Search Drop Location"
+                                                  placeholder="Search Destination Address"
                                                   onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, drop: addr }))}
                                                   setNewPlace={(place) => setDropCoords(place)}
                                                   defaultValue={transportDetails.drop}
                                               />
                                           )}
                                       </div>
-                                      <div className="grid grid-cols-2 gap-3">
-                                          <input type="number" placeholder="Est Km" className="p-2 border rounded-lg w-full" value={transportDetails.estKm} onChange={e => setTransportDetails({...transportDetails, estKm: e.target.value})} />
-                                          <input type="number" placeholder="Wait Mins" className="p-2 border rounded-lg w-full" value={transportDetails.waitingMins} onChange={e => setTransportDetails({...transportDetails, waitingMins: e.target.value})} />
+                                      <div className="grid grid-cols-2 gap-4">
+                                          <div className="space-y-1.5">
+                                              <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Estimated KM</label>
+                                              <input type="number" placeholder="0.0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estKm} onChange={e => setTransportDetails({...transportDetails, estKm: e.target.value})} />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                              <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Wait Time (Mins)</label>
+                                              <input type="number" placeholder="0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.waitingMins} onChange={e => setTransportDetails({...transportDetails, waitingMins: e.target.value})} />
+                                          </div>
                                       </div>
                                   </div>
                               )}
                               
                               {tripType === 'Rental' && (
-                                  <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar animate-in slide-in-from-left-2 duration-200">
                                       {rentalPackages.map(pkg => (
                                           <button 
                                               key={pkg.id}
                                               onClick={() => setTransportDetails(prev => ({...prev, packageId: pkg.id}))}
-                                              className={`p-2 border rounded-lg text-left text-sm transition-colors ${transportDetails.packageId === pkg.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                                              className={`p-4 border-2 rounded-2xl text-left transition-all group flex flex-col justify-between h-24 ${transportDetails.packageId === pkg.id ? 'border-emerald-500 bg-emerald-50 shadow-md transform scale-[1.02]' : 'border-gray-100 bg-white hover:border-emerald-200 shadow-sm'}`}
                                           >
-                                              <div className="font-bold">{pkg.name}</div>
-                                              <div className="text-gray-500 text-xs">₹{vehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv}</div>
+                                              <div className={`text-xs font-black uppercase tracking-wider ${transportDetails.packageId === pkg.id ? 'text-emerald-700' : 'text-gray-500'}`}>{pkg.name}</div>
+                                              <div className={`text-xl font-black ${transportDetails.packageId === pkg.id ? 'text-emerald-800' : 'text-gray-800'}`}>₹{vehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv}</div>
                                           </button>
                                       ))}
                                   </div>
                               )}
 
                               {tripType === 'Outstation' && (
-                                  <div className="space-y-3">
-                                      <div className="flex bg-gray-100 p-1 rounded-lg">
-                                          <button onClick={() => setOutstationSubType('RoundTrip')} className={`flex-1 py-1 text-xs rounded ${outstationSubType === 'RoundTrip' ? 'bg-white shadow text-emerald-600' : 'text-gray-500'}`}>Round Trip</button>
-                                          <button onClick={() => setOutstationSubType('OneWay')} className={`flex-1 py-1 text-xs rounded ${outstationSubType === 'OneWay' ? 'bg-white shadow text-emerald-600' : 'text-gray-500'}`}>One Way</button>
+                                  <div className="space-y-4 animate-in slide-in-from-left-2 duration-200">
+                                      <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                          <button onClick={() => setOutstationSubType('RoundTrip')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${outstationSubType === 'RoundTrip' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>Round Trip</button>
+                                          <button onClick={() => setOutstationSubType('OneWay')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${outstationSubType === 'OneWay' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>One Way</button>
                                       </div>
-                                      <div>
-                                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Destination</label>
-                                          {!isMapReady ? <div className="p-2 bg-gray-100 text-xs rounded">Loading...</div> : (
+                                      <div className="space-y-2">
+                                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Destination</label>
+                                          {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
                                               <Autocomplete 
-                                                  placeholder="Search Destination"
+                                                  placeholder="Search Destination City"
                                                   onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, destination: addr }))}
                                                   setNewPlace={(place) => setDestCoords(place)}
                                                   defaultValue={transportDetails.destination}
@@ -1539,70 +1507,88 @@ Book now with OK BOZ Transport!`;
                                           )}
                                       </div>
                                       <div className="grid grid-cols-3 gap-3">
-                                          <input type="number" placeholder="Days" className="p-2 border rounded-lg w-full" value={transportDetails.days} onChange={e => setTransportDetails({...transportDetails, days: e.target.value})} />
-                                          <input type="number" placeholder="Km" className="p-2 border rounded-lg w-full" value={transportDetails.estTotalKm} onChange={e => setTransportDetails({...transportDetails, estTotalKm: e.target.value})} />
+                                          <div className="space-y-1.5">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Days</label>
+                                            <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.days} onChange={e => setTransportDetails({...transportDetails, days: e.target.value})} />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Total KM</label>
+                                            <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estTotalKm} onChange={e => setTransportDetails({...transportDetails, estTotalKm: e.target.value})} />
+                                          </div>
                                           {outstationSubType === 'RoundTrip' && (
-                                              <input type="number" placeholder="Nights" className="p-2 border rounded-lg w-full" value={transportDetails.nights} onChange={e => setTransportDetails({...transportDetails, nights: e.target.value})} />
+                                              <div className="space-y-1.5">
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Nights</label>
+                                                <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.nights} onChange={e => setTransportDetails({...transportDetails, nights: e.target.value})} />
+                                              </div>
                                           )}
                                       </div>
                                   </div>
                               )}
                               
-                              <div className="mt-6 pt-6 border-t border-gray-100 space-y-5">
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Requirement Details</label>
+                              <div className="mt-8 pt-8 border-t border-gray-100 space-y-6">
+                                  <div className="space-y-2">
+                                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Requirement Details (Optional)</label>
                                       <textarea 
                                           rows={2}
-                                          className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 resize-none text-sm"
-                                          placeholder="Special requests, extra luggage, etc..."
+                                          className="w-full p-4 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 resize-none text-sm font-medium bg-gray-50 focus:bg-white transition-all shadow-inner"
+                                          placeholder="Special requests, extra luggage, pet-friendly, etc..."
                                           value={customerDetails.requirements}
                                           onChange={e => setCustomerDetails({...customerDetails, requirements: e.target.value})}
                                       />
                                   </div>
 
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
-                                          <Building2 className="w-3 h-3" /> Assign To
+                                  <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 shadow-inner">
+                                      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                          <Building2 className="w-4 h-4 text-emerald-500" /> Assign & Route Enquiry
                                       </label>
-                                      <div className="flex gap-2">
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                           {isSuperAdmin && (
-                                              <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
-                                                  <option value="admin">Head Office</option>
-                                                  {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
-                                              </select>
+                                              <div className="space-y-1.5">
+                                                <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Corporate Partner</label>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
+                                                    <option value="admin">Head Office (Internal)</option>
+                                                    {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
+                                                </select>
+                                              </div>
                                           )}
-                                          <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
+                                          <div className="space-y-1.5">
+                                              <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Local Branch</label>
+                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
                                                   <option value="">All Branches</option>
                                                   {filteredBranches.map((b: any) => (<option key={b.id} value={b.name}>{b.name}</option>))}
                                               </select>
-                                              <select className="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
-                                                  <option value="">Select Staff</option>
+                                          </div>
+                                          <div className="space-y-1.5">
+                                              <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Assigned Agent</label>
+                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
+                                                  <option value="">Choose Agent</option>
                                                   {filteredStaff.map((s: any) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                                               </select>
+                                          </div>
                                       </div>
                                   </div>
 
-                                  <div className="space-y-3 pt-2">
-                                      <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-4 pt-4">
+                                      <div className="grid grid-cols-2 gap-4">
                                           <button 
                                               onClick={handleOpenSchedule}
-                                              className="py-3 border border-blue-200 text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                                              className="py-5 border-2 border-indigo-100 text-indigo-600 rounded-[2rem] font-black text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 transform active:scale-95 shadow-lg shadow-indigo-900/5"
                                           >
-                                              <Calendar className="w-4 h-4" /> {editingOrderId ? 'Update Schedule' : 'Schedule'}
+                                              <Calendar className="w-5 h-5" /> {editingOrderId ? 'Update Schedule' : 'Schedule Trip'}
                                           </button>
                                           <button 
                                               onClick={handleBookNow}
-                                              className="py-3 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                                              className="py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-sm hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-2 transform active:scale-95"
                                           >
-                                              <ArrowRight className="w-4 h-4" /> {editingOrderId ? 'Update Now' : 'Book Now'}
+                                              <ArrowRight className="w-5 h-5" /> {editingOrderId ? 'Confirm Update' : 'Accept Order'}
                                           </button>
                                       </div>
-                                      <div>
+                                      <div className="flex justify-center">
                                           <button 
                                               onClick={handleCancelForm}
-                                              className="w-full py-2 text-gray-400 hover:text-red-500 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 rounded-lg border border-transparent hover:border-gray-200"
+                                              className="px-8 py-3 text-gray-400 hover:text-rose-500 rounded-full font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:bg-rose-50 border border-transparent hover:border-rose-100 flex items-center justify-center gap-2"
                                           >
-                                              <X className="w-3 h-3" /> Clear Form
+                                              <X className="w-3 h-3" /> Reset Current Form
                                           </button>
                                       </div>
                                   </div>
@@ -1612,49 +1598,53 @@ Book now with OK BOZ Transport!`;
               </div>
           </div>
 
-          <div className="space-y-6">
-              <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+          <div className="space-y-6 h-fit sticky top-24">
+              <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl shadow-slate-900/30 relative overflow-hidden group animate-in slide-in-from-right-4 duration-500">
                   <div className="relative z-10">
-                      <p className="text-slate-400 text-xs uppercase font-bold mb-1">Estimated Cost</p>
-                      <h3 className="text-4xl font-bold mb-4">₹{estimatedCost.toLocaleString()}</h3>
-                      <div className="text-sm text-slate-300 border-t border-slate-700 pt-3">
-                          <span>{enquiryCategory === 'Transport' ? "Base calculation only. Tolls & Parking extra." : "General Enquiry. No estimate."}</span>
+                      <p className="text-slate-400 text-[10px] uppercase font-black tracking-[0.3em] mb-4">Estimated Booking Cost</p>
+                      <div className="flex items-baseline gap-2 mb-8">
+                        <span className="text-2xl font-bold text-slate-500">₹</span>
+                        <h3 className="text-7xl font-black tracking-tighter leading-none group-hover:scale-105 transition-transform duration-500">{estimatedCost.toLocaleString()}</h3>
+                      </div>
+                      <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-6 flex items-start gap-2 font-bold italic leading-relaxed">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                          <span>{enquiryCategory === 'Transport' ? "This is a base calculation. Government taxes (GST), Toll fees, and Parking charges will be additional as per actuals." : "General Enquiry mode selected. No monetary estimation is calculated for standard support requests."}</span>
                       </div>
                   </div>
-                  <div className="absolute right-0 bottom-0 opacity-10">
-                      <DollarSign className="w-32 h-32 text-white" />
+                  <div className="absolute -right-12 -bottom-12 opacity-[0.03] transform rotate-12 group-hover:scale-110 transition-transform duration-700">
+                      <DollarSign className="w-72 h-72 text-white" />
                   </div>
               </div>
 
-              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <div className="flex justify-between items-center mb-2">
-                      <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                          <MessageCircle className="w-4 h-4 text-emerald-500" /> Generated Message
+              <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl shadow-emerald-900/5 animate-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex justify-between items-center mb-6">
+                      <h4 className="font-black text-gray-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
+                          <MessageCircle className="w-4 h-4 text-emerald-500" /> Auto-Generated Quote
                       </h4>
                       <button 
-                          onClick={() => {navigator.clipboard.writeText(generatedMessage); alert("Copied!")}}
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                          onClick={() => {if(messageTextareaRef.current) { navigator.clipboard.writeText(generatedMessage); alert("Quote copied to clipboard!"); }}}
+                          className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-xl transition-all hover:bg-blue-100"
                       >
-                          <Copy className="w-3 h-3" /> Copy
+                          <Copy className="w-3.5 h-3.5" /> Copy Message
                       </button>
                   </div>
                   <textarea 
                       ref={messageTextareaRef}
-                      className="w-full min-h-[200px] p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none overflow-y-hidden resize-none mb-3"
+                      className="w-full min-h-[220px] p-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm font-medium text-gray-600 focus:outline-none overflow-y-hidden resize-none mb-6 shadow-inner leading-relaxed"
                       value={generatedMessage}
                       readOnly
                   />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                       <button 
                           onClick={() => window.open(`https://wa.me/${customerDetails.phone.replace(/\D/g, '')}?text=${encodeURIComponent(generatedMessage)}`, '_blank')}
-                          className="bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-emerald-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
                       >
-                          <MessageCircle className="w-4 h-4" /> WhatsApp
+                          <MessageCircle className="w-5 h-5" /> Share on WhatsApp
                       </button>
                       <button 
-                          className="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
+                          className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
                       >
-                          <Mail className="w-4 h-4" /> Email
+                          <Mail className="w-5 h-5" /> Send via Email
                       </button>
                   </div>
               </div>
@@ -1662,37 +1652,39 @@ Book now with OK BOZ Transport!`;
       </div>
 
       {isScheduleModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200">
-                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                      <h3 className="font-bold text-gray-800">Schedule Order</h3>
-                      <button onClick={() => setIsScheduleModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
+                  <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                      <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Schedule Trip</h3>
+                      <button onClick={() => setIsScheduleModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-2xl transition-all text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
                   </div>
-                  <div className="p-6 space-y-4">
+                  <div className="p-10 space-y-8">
                       <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Pickup Date</label>
                           <input 
                               type="date" 
-                              className="w-full p-2 border border-gray-300 rounded-lg outline-none"
+                              className="w-full p-4 border border-gray-200 rounded-2xl outline-none font-bold text-gray-800 focus:ring-4 focus:ring-emerald-500/10 shadow-inner"
                               value={scheduleData.date}
                               onChange={(e) => setScheduleData({...scheduleData, date: e.target.value})}
                           />
                       </div>
                       <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Time</label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Pickup Time</label>
                           <input 
                               type="time" 
-                              className="w-full p-2 border border-gray-300 rounded-lg outline-none"
+                              className="w-full p-4 border border-gray-200 rounded-2xl outline-none font-bold text-gray-800 focus:ring-4 focus:ring-emerald-500/10 shadow-inner"
                               value={scheduleData.time}
                               onChange={(e) => setScheduleData({...scheduleData, time: e.target.value})}
                           />
                       </div>
-                      <button 
-                          onClick={confirmSchedule}
-                          className="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition-colors"
-                      >
-                          Confirm Schedule
-                      </button>
+                      <div className="pt-4">
+                        <button 
+                            onClick={confirmSchedule}
+                            className="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-indigo-900/20 hover:bg-indigo-700 transition-all transform active:scale-95"
+                        >
+                            Confirm Schedule
+                        </button>
+                      </div>
                   </div>
               </div>
           </div>

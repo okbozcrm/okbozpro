@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
-import { UserRole, Enquiry, CorporateAccount, Employee } from '../types';
+/* FIX: Corrected import name from AppNotification to BozNotification to match types.ts export. */
+import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
@@ -46,6 +48,28 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const { companyName, logoUrl, primaryColor } = useBranding();
   const { theme, setTheme } = useTheme();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+
+  // Fix: Added state for orderedLinks to support sidebar link reordering and persist custom order
+  const [orderedLinks, setOrderedLinks] = useState(() => {
+    const savedOrder = localStorage.getItem('admin_sidebar_order');
+    if (savedOrder) {
+      try {
+        const orderIds = JSON.parse(savedOrder);
+        const reordered = orderIds
+          .map((id: string) => MASTER_ADMIN_LINKS.find(link => link.id === id))
+          .filter((link: any): link is typeof MASTER_ADMIN_LINKS[0] => !!link);
+        const missing = MASTER_ADMIN_LINKS.filter(link => !orderIds.includes(link.id));
+        return [...reordered, ...missing];
+      } catch (e) {
+        return MASTER_ADMIN_LINKS;
+      }
+    }
+    return MASTER_ADMIN_LINKS;
+  });
+
+  // Fix: Added definitions for userName and userSubtitle to correctly display user info in the header
+  const userName = role === UserRole.ADMIN ? 'Administrator' : (sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'User');
+  const userSubtitle = role === UserRole.ADMIN ? 'Head Office' : role === UserRole.CORPORATE ? 'Franchise Partner' : 'Staff Member';
   
   const { notifications, unreadCount, markNotificationAsRead, markAllNotificationsAsRead, playAlarmSound } = useNotification();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -103,7 +127,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                     new Date(task.reminderTime) <= now) {
                     
                     sendSystemNotification({
-                        type: 'system',
+                        type: 'task_assigned',
                         title: `Task Reminder: ${task.title}`,
                         message: `Scheduled reminder for task: ${task.title}. Details: ${task.description.slice(0, 100)}...`,
                         targetRoles: [role],
@@ -187,78 +211,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   };
 
   useEffect(() => {
-    const sessionId = localStorage.getItem('app_session_id');
-    if (role === UserRole.ADMIN) {
-      setUserName('Senthil Kumar');
-      setUserSubtitle('CEO & Founder');
-    } else if (role === UserRole.CORPORATE) {
-      try {
-        const accounts: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        const account = accounts.find((acc: CorporateAccount) => acc.email === sessionId);
-        if (account) {
-            setUserName(account.companyName);
-            setUserSubtitle(account.city ? `${account.city} Branch` : 'Corporate Partner');
-        } else {
-            setUserName('Franchise Partner');
-            setUserSubtitle('Corporate');
-        }
-      } catch (e) {
-        setUserName('Franchise Partner');
-        setUserSubtitle('Corporate');
-      }
-    } else if (role === UserRole.EMPLOYEE) {
-       let foundName = 'Team Member';
-       let foundRole = 'Employee';
-       try {
-         let emp: Employee | undefined;
-         const adminStaff: Employee[] = JSON.parse(localStorage.getItem('staff_data') || '[]');
-         emp = adminStaff.find((e: Employee) => e.id === sessionId);
-         if (!emp) {
-            const accounts: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            for (const acc of accounts) {
-                const corpStaffKey = `staff_data_${acc.email}`;
-                const corpStaff: Employee[] = JSON.parse(localStorage.getItem(corpStaffKey) || '[]');
-                emp = corpStaff.find((e: Employee) => e.id === sessionId);
-                if (emp) break;
-            }
-         }
-         if (emp) {
-             foundName = emp.name;
-             foundRole = emp.role;
-             if (emp.moduleAccess && Array.isArray(emp.moduleAccess)) setEmployeePermissions(emp.moduleAccess);
-             else setEmployeePermissions([]);
-         }
-       } catch(e) {}
-       setUserName(foundName);
-       setUserSubtitle(foundRole);
-    }
-  }, [role]);
-
-  const [userName, setUserName] = useState('');
-  const [userSubtitle, setUserSubtitle] = useState('');
-  const [orderedLinks, setOrderedLinks] = useState(MASTER_ADMIN_LINKS);
-
-  useEffect(() => {
-    if (role === UserRole.ADMIN || role === UserRole.CORPORATE) {
-      const savedOrder = localStorage.getItem('admin_sidebar_order');
-      if (savedOrder) {
-        try {
-          const orderIds: string[] = JSON.parse(savedOrder);
-          const sorted = [...MASTER_ADMIN_LINKS].sort((a, b) => {
-            const indexA = orderIds.indexOf(a.id);
-            const indexB = orderIds.indexOf(b.id);
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-            return 0;
-          });
-          setOrderedLinks(sorted);
-        } catch (e) {}
-      }
-    }
-  }, [role]);
-
-  useEffect(() => {
       calculateNewTaskCount();
       window.addEventListener('storage', calculateNewTaskCount);
       return () => window.removeEventListener('storage', calculateNewTaskCount);
@@ -313,7 +265,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   }, [role, orderedLinks]);
 
   const userLinks = useMemo(() => {
-    // REARRANGED: New requested order for staff panel
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
@@ -342,8 +293,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     });
     
     const finalLinks = [...baseLinks];
-    // Insert restricted/permission links after "My Profile" but before "Customer Care"
-    // "My Profile" is at index 4 now.
     finalLinks.splice(5, 0, ...addedLinks);
     return finalLinks;
   }, [employeePermissions]);
