@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
@@ -49,7 +48,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const { theme, setTheme } = useTheme();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
-  // Fix: Added state for orderedLinks to support sidebar link reordering and persist custom order
+  // Reorder and persistance logic for sidebar links
   const [orderedLinks, setOrderedLinks] = useState(() => {
     const savedOrder = localStorage.getItem('admin_sidebar_order');
     if (savedOrder) {
@@ -67,7 +66,21 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return MASTER_ADMIN_LINKS;
   });
 
-  // Fix: Added definitions for userName and userSubtitle to correctly display user info in the header
+  // NEW: Logic to find the specific Franchise Name for Corporate Panel
+  const franchiseName = useMemo(() => {
+    if (role === UserRole.CORPORATE) {
+        try {
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            const sessionId = localStorage.getItem('app_session_id');
+            const found = corps.find((c: any) => c.email === sessionId);
+            return found ? found.companyName : '';
+        } catch (e) {
+            return '';
+        }
+    }
+    return '';
+  }, [role]);
+
   const userName = role === UserRole.ADMIN ? 'Administrator' : (sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'User');
   const userSubtitle = role === UserRole.ADMIN ? 'Head Office' : role === UserRole.CORPORATE ? 'Franchise Partner' : 'Staff Member';
   
@@ -355,13 +368,36 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           )}
         </nav>
       </div>
-      <div className="flex-1 flex flex-col md:ml-64">
-        <header className="h-16 flex items-center justify-between px-4 sm:px-6 bg-white dark:bg-gray-850 border-b border-gray-100 dark:border-gray-750 shrink-0">
+      <div className="flex-1 flex flex-col md:ml-64 relative">
+        <header className="h-16 flex items-center justify-between px-4 sm:px-6 bg-white dark:bg-gray-850 border-b border-gray-100 dark:border-gray-750 shrink-0 relative z-40">
           <button className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full" onClick={() => setSidebarOpen(true)}><Menu className="w-5 h-5" /></button>
-          <div className="hidden md:block"><h1 className="text-lg font-semibold text-gray-800 dark:text-white">{sidebarLinks.find(link => currentPath.startsWith(link.path))?.label || 'Dashboard'}</h1></div>
+          
+          <div className="hidden md:block">
+            <h1 className="text-lg font-semibold text-gray-800 dark:text-white">
+                {sidebarLinks.find(link => currentPath.startsWith(link.path))?.label || 'Dashboard'}
+            </h1>
+          </div>
+
+          {/* NEW: Centered Franchise Name for Corporate Users */}
+          {role === UserRole.CORPORATE && franchiseName && (
+              <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex flex-col items-center animate-in fade-in slide-in-from-top-2 duration-700">
+                  <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-500" />
+                      <span className="text-sm font-black text-gray-800 dark:text-white uppercase tracking-[0.3em]">{franchiseName}</span>
+                  </div>
+                  <div className="w-12 h-0.5 bg-gradient-to-r from-transparent via-emerald-500 to-transparent mt-1"></div>
+              </div>
+          )}
+
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-3 mr-1 pl-3 border-l border-gray-100 dark:border-gray-700 hidden sm:flex">
-                <div className="text-right"><p className="text-sm font-semibold text-gray-800 dark:text-white leading-tight">{userName}</p><p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{userSubtitle}</p></div>
+                {/* Profile Text - Hidden for Franchise as requested */}
+                {role !== UserRole.CORPORATE && (
+                    <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white leading-tight">{userName}</p>
+                        <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{userSubtitle}</p>
+                    </div>
+                )}
                 <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300"><UserCircle className="w-5 h-5" /></div>
             </div>
             <div className="relative" ref={notificationRef}>
