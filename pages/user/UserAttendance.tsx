@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, List, CheckCircle, XCircle, 
@@ -38,6 +37,31 @@ const convertTo12Hour = (time24h?: string) => {
   const modifier = h >= 12 ? 'PM' : 'AM';
   const displayHours = h % 12 || 12;
   return `${displayHours.toString().padStart(2, '0')}:${minutes} ${modifier}`;
+};
+
+// Helper to calculate duration between two 12-hour formatted times
+const calculateWorkDuration = (inTime?: string, outTime?: string) => {
+    if (!inTime || !outTime || outTime === '--:--') return null;
+    
+    const parseToMinutes = (t: string) => {
+        const match = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!match) return 0;
+        let h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const mod = match[3].toUpperCase();
+        if (h === 12) h = 0;
+        if (mod === 'PM') h += 12;
+        return h * 60 + m;
+    };
+
+    const start = parseToMinutes(inTime);
+    const end = parseToMinutes(outTime);
+    const diff = end - start;
+
+    if (diff <= 0) return null;
+    const hrs = Math.floor(diff / 60);
+    const mins = diff % 60;
+    return `${hrs}h ${mins}m`;
 };
 
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
@@ -382,6 +406,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 {attendanceData.map((day, idx) => {
                     const isWeekend = new Date(day.date).getDay() === 0;
                     const isToday = day.date === todayDateStr;
+                    const duration = calculateWorkDuration(day.checkIn, day.checkOut);
+                    
                     return (
                         <div key={idx} onClick={() => handleEditClick(day)} className={`bg-white p-6 min-h-[180px] flex flex-col gap-4 relative transition-all hover:bg-emerald-50/20 group ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10 bg-emerald-50/10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
                             {/* ON FIELD Watermark */}
@@ -396,18 +422,35 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                     <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{day.status.replace('_', ' ')}</span>
                                 ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : null}
                             </div>
+
+                            {/* Working Hours Display */}
                             {(day.checkIn || isWeekend) && (
                                 <div className="mt-auto space-y-2.5 p-3 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
                                     {day.checkIn ? (
                                         <>
-                                          <div className="flex items-center gap-2 text-emerald-600">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                                            {day.checkIn}
+                                          <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-2 text-emerald-600">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                                                {day.checkIn}
+                                              </div>
+                                              <span className="text-[9px] text-gray-400 font-bold uppercase">In</span>
                                           </div>
-                                          <div className="flex items-center gap-2 text-rose-600">
-                                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
-                                            {day.checkOut || '--:--'}
+                                          <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-2 text-rose-600">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
+                                                {day.checkOut || '--:--'}
+                                              </div>
+                                              <span className="text-[9px] text-gray-400 font-bold uppercase">Out</span>
                                           </div>
+                                          {duration && (
+                                              <div className="pt-1.5 mt-1.5 border-t border-gray-200/50 flex items-center justify-between text-indigo-600">
+                                                  <div className="flex items-center gap-1.5">
+                                                      <Clock className="w-3 h-3" />
+                                                      <span>{duration}</span>
+                                                  </div>
+                                                  <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">Total Hours</span>
+                                              </div>
+                                          )}
                                         </>
                                     ) : <div className="text-gray-300 text-center py-2">--:--</div>}
                                 </div>
