@@ -4,10 +4,12 @@ import {
   RefreshCw, CheckCircle, Clock, X, Eye, CreditCard, 
   Banknote, History, Trash2, Printer, User, ArrowLeft, 
   Calendar, Building2, MapPin, Users, TrendingDown, Wallet,
-  ArrowRight, ShieldCheck, Landmark, Loader2
+  ArrowRight, ShieldCheck, Landmark, Loader2, FileText
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest } from '../../types';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const formatCurrency = (amount: number) => {
   return amount.toLocaleString('en-IN', {
@@ -49,7 +51,6 @@ const Payroll: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [filterDepartment, setFilterDepartment] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
   const [filterCorporate, setFilterCorporate] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
   const [payrollData, setPayrollData] = useState<Record<string, PayrollEntry>>({});
@@ -58,6 +59,12 @@ const Payroll: React.FC = () => {
   const [history, setHistory] = useState<PayrollHistoryRecord[]>([]);
   const [advances, setAdvances] = useState<SalaryAdvanceRequest[]>([]);
   const [corporatesList, setCorporatesList] = useState<any[]>([]);
+
+  // Slip Modal State
+  const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
+  const [activeSlip, setActiveSlip] = useState<{ emp: ExtendedEmployee, data: PayrollEntry } | null>(null);
+  const slipRef = useRef<HTMLDivElement>(null);
+  const [isExportingSlip, setIsExportingSlip] = useState(false);
 
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
@@ -153,7 +160,6 @@ const Payroll: React.FC = () => {
     setIsCalculating(false);
   };
 
-  /* FIX: Explicitly typed return value as number to resolve type inference issues in reduce callbacks. */
   const calculateNetPay = (entry: PayrollEntry): number => (entry.basicSalary + entry.allowances + entry.bonus) - (entry.deductions + entry.advanceDeduction);
 
   const filteredEmployees = employees.filter(emp => {
@@ -192,7 +198,6 @@ const Payroll: React.FC = () => {
     if (window.confirm(`Confirm total payout of ${formatCurrency(payrollSummary.totalNet)} for ${payrollSummary.count} staff members?`)) {
         setIsProcessingPayout(true);
         setTimeout(() => {
-            /* FIX: Cast Object.values to PayrollEntry[] to resolve 'unknown' type in reduce callback. */
             const netTotal = (Object.values(payrollData) as PayrollEntry[]).reduce((s: number, e) => s + calculateNetPay(e), 0);
             const record = { 
                 id: Date.now().toString(), 
@@ -212,6 +217,28 @@ const Payroll: React.FC = () => {
     }
   };
 
+  const handleViewSlip = (emp: ExtendedEmployee, data: PayrollEntry) => {
+    setActiveSlip({ emp, data });
+    setIsSlipModalOpen(true);
+  };
+
+  const downloadSlipPDF = async () => {
+    if (!slipRef.current || !activeSlip) return;
+    setIsExportingSlip(true);
+    try {
+      const canvas = await html2canvas(slipRef.current, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`SalarySlip_${activeSlip.emp.name.replace(/\s+/g, '_')}_${selectedMonth}.pdf`);
+    } catch (err) {
+      console.error("PDF Export Failed", err);
+    }
+    setIsExportingSlip(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -228,7 +255,6 @@ const Payroll: React.FC = () => {
 
       {activeTab === 'Salary' && (
       <div className="space-y-6">
-        {/* Payroll Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2">
             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
                 <div>
@@ -290,7 +316,7 @@ const Payroll: React.FC = () => {
                         className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50"
                     >
                         {isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
-                        Process Total Payout: {formatCurrency(payrollSummary.totalNet)}
+                        Process Total Payout
                     </button>
                 </div>
             </div>
@@ -320,7 +346,12 @@ const Payroll: React.FC = () => {
                                     <td className="px-4 py-5 text-right text-rose-500 font-bold">-₹{data.advanceDeduction.toLocaleString()}</td>
                                     <td className="px-8 py-5 text-right font-black text-gray-900 text-lg">₹{net.toLocaleString()}</td>
                                     <td className="px-6 py-5 text-center">
-                                        <button className="text-xs font-bold text-indigo-600 hover:underline">View Slip</button>
+                                        <button 
+                                          onClick={() => handleViewSlip(emp, data)}
+                                          className="text-xs font-bold text-indigo-600 hover:underline"
+                                        >
+                                          View Slip
+                                        </button>
                                     </td>
                                 </tr>
                             );
@@ -328,12 +359,6 @@ const Payroll: React.FC = () => {
                     </tbody>
                 </table>
             </div>
-            {filteredEmployees.length === 0 && (
-                <div className="py-32 text-center text-gray-400 italic bg-gray-50/30 flex flex-col items-center gap-2">
-                    <Users className="w-12 h-12 opacity-10" />
-                    <p className="font-bold uppercase tracking-widest text-xs">No employee records found for processing.</p>
-                </div>
-            )}
         </div>
       </div>
       )}
@@ -359,14 +384,128 @@ const Payroll: React.FC = () => {
                           </div>
                       </div>
                   ))}
-                  {history.length === 0 && (
-                      <div className="py-24 text-center text-gray-300 flex flex-col items-center gap-4">
-                          <Landmark className="w-16 h-16 opacity-10" />
-                          <p className="font-black uppercase tracking-[0.2em] text-sm">No payroll batches recorded yet.</p>
-                      </div>
-                  )}
               </div>
           </div>
+      )}
+
+      {/* Salary Slip Modal */}
+      {isSlipModalOpen && activeSlip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+               <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                 <FileText className="w-5 h-5 text-indigo-500" /> Employee Salary Slip
+               </h3>
+               <button onClick={() => setIsSlipModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 bg-gray-50 custom-scrollbar">
+               <div ref={slipRef} className="bg-white border border-gray-200 p-8 shadow-sm max-w-xl mx-auto rounded-lg font-sans">
+                  {/* Slip Header */}
+                  <div className="flex justify-between items-start mb-8 pb-6 border-b border-gray-100">
+                    <div>
+                      <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">OK BOZ PRO</h2>
+                      <p className="text-xs text-gray-500 font-medium">{activeSlip.emp.corporateName || 'Head Office'}</p>
+                      <p className="text-xs text-gray-400 mt-1">Payroll for {new Date(selectedMonth).toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Pay Slip #</p>
+                      <p className="text-sm font-mono font-bold text-gray-900">{activeSlip.data.employeeId}-{Date.now().toString().slice(-6)}</p>
+                    </div>
+                  </div>
+
+                  {/* Employee Meta */}
+                  <div className="grid grid-cols-2 gap-8 mb-8">
+                    <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Employee Name</p>
+                      <p className="text-sm font-bold text-gray-800">{activeSlip.emp.name}</p>
+                      <p className="text-xs text-gray-500">{activeSlip.emp.role}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Department</p>
+                      <p className="text-sm font-bold text-gray-800">{activeSlip.emp.department || '-'}</p>
+                      <p className="text-xs text-gray-500">Days Payable: {activeSlip.data.payableDays}/{activeSlip.data.totalDays}</p>
+                    </div>
+                  </div>
+
+                  {/* Earnings & Deductions Table */}
+                  <div className="grid grid-cols-2 border border-gray-100 rounded-lg overflow-hidden mb-8">
+                    <div className="border-r border-gray-100">
+                       <div className="bg-gray-50 px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">Earnings</div>
+                       <div className="p-4 space-y-3">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Basic Salary</span>
+                            <span className="font-medium text-gray-900">₹{activeSlip.data.basicSalary.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Allowances</span>
+                            <span className="font-medium text-gray-900">₹{activeSlip.data.allowances.toLocaleString()}</span>
+                          </div>
+                          {activeSlip.data.bonus > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Bonus</span>
+                              <span className="font-medium text-emerald-600">+₹{activeSlip.data.bonus.toLocaleString()}</span>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+                    <div>
+                       <div className="bg-gray-50 px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">Deductions</div>
+                       <div className="p-4 space-y-3">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">TDS / Prof Tax</span>
+                            <span className="font-medium text-gray-900">₹{activeSlip.data.deductions.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Advance Recovery</span>
+                            <span className="font-medium text-red-600">-₹{activeSlip.data.advanceDeduction.toLocaleString()}</span>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-indigo-50/50 rounded-xl p-6 border border-indigo-100 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Net Monthly Payout</p>
+                      <p className="text-[10px] text-indigo-500">Transferred via {activeSlip.emp.paymentCycle || 'Bank'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-black text-indigo-700">{formatCurrency(calculateNetPay(activeSlip.data))}</p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                    <p className="text-[10px] text-gray-400 font-medium italic">This is a computer generated document and does not require a physical signature.</p>
+                    <p className="text-[9px] text-gray-300 mt-1">Generated by OK BOZ Staff Management System</p>
+                  </div>
+               </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-between items-center rounded-b-2xl">
+               <span className="text-xs text-gray-400 font-medium">Download as PDF for employee record</span>
+               <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsSlipModalOpen(false)}
+                    className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                  <button 
+                    onClick={downloadSlipPDF}
+                    disabled={isExportingSlip}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black text-sm shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2"
+                  >
+                    {isExportingSlip ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Download PDF
+                  </button>
+               </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
