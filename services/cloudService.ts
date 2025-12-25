@@ -60,6 +60,12 @@ const NAMESPACED_KEYS = [
   'trips_data'
 ];
 
+const DYNAMIC_PREFIXES = [
+  'attendance_data_',
+  'driver_activity_log_',
+  'driver_wallet_data_'
+];
+
 const NOTIFICATION_COLLECTION = 'global_notifications';
 
 let isSyncing = false;
@@ -126,9 +132,11 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
         writeCount++;
     };
     
+    // 1. Sync Known Global and Namespaced Keys
     const rootKeys = [...GLOBAL_KEYS, ...NAMESPACED_KEYS];
     for (const key of rootKeys) await writeIfChanged(key);
 
+    // 2. Sync Corporate Namespaced Keys
     if (Array.isArray(corporates)) {
       for (const corp of corporates) {
         const email = corp.email;
@@ -137,6 +145,14 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
           await writeIfChanged(`${prefix}_${email}`);
         }
       }
+    }
+
+    // 3. NEW: Sync Dynamic Attendance and Driver Log Keys
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix))) {
+            await writeIfChanged(key);
+        }
     }
 
     if (writeCount > 0) console.log(`☁️ Synced ${writeCount} updated records to cloud.`);
@@ -157,6 +173,7 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
     const db = getDb(app);
     const snapshot = await getDocs(collection(db, "ok_boz_live_data"));
     if (snapshot.empty) return { success: true, message: "Connected, but database is empty." };
+    
     snapshot.forEach((doc) => {
         const data = doc.data();
         if (data.content) {
@@ -164,6 +181,7 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
             lastSyncedData[doc.id] = data.content;
         }
     });
+    
     console.log("✅ Data Loaded from Cloud");
     return { success: true, message: "Restore complete! Data loaded from Cloud." };
   } catch (error: any) {

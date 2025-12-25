@@ -258,7 +258,7 @@ const Dashboard = () => {
                   if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.HALF_DAY) {
                       present++;
                       if (record.isLate) late++;
-                      if (emp.department === 'Sales' || emp.role.includes('Driver')) onField++;
+                      if (emp.department === 'Sales' || emp.role.toLowerCase().includes('driver') || emp.liveTracking) onField++;
                   } else if (record.status === AttendanceStatus.ABSENT) {
                       absent++;
                   }
