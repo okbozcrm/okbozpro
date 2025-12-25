@@ -108,26 +108,25 @@ const BranchForm: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [markerInstance, setMarkerInstance] = useState<any>(null);
-  const [location, setLocation] = useState<google.maps.LatLngLiteral>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
+  const [location, setLocation] = useState<any>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
 
   // Callback from Autocomplete component when a place is selected
-  const handleNewPlaceSelected = (newPos: google.maps.LatLngLiteral) => {
+  const handleNewPlaceSelected = (newPos: any) => {
     setLocation(newPos);
     if (mapInstance && markerInstance) {
       mapInstance.panTo(newPos);
       markerInstance.setPosition(newPos);
       mapInstance.setZoom(17);
     }
-    // We rely on onAddressSelect to set the address, avoiding a reverse geocode call that might fail if API is restricted.
   };
 
   // Load Google Maps Script
   useEffect(() => {
     // 1. Check global failure flag
-    if (window.gm_authFailure_detected) {
+    if ((window as any).gm_authFailure_detected) {
       setMapError("Billing Not Enabled: Please enable billing on your Google Cloud Project.");
       return;
     }
@@ -138,9 +137,9 @@ const BranchForm: React.FC = () => {
       return;
     }
     // 3. Global Auth Failure Handler
-    const originalAuthFailure = window.gm_authFailure;
-    window.gm_authFailure = () => {
-      window.gm_authFailure_detected = true;
+    const originalAuthFailure = (window as any).gm_authFailure;
+    (window as any).gm_authFailure = () => {
+      (window as any).gm_authFailure_detected = true;
       setMapError("Billing Not Enabled: Map functionality requires an active billing account on Google Cloud.");
       if (originalAuthFailure) originalAuthFailure();
     };
@@ -150,7 +149,7 @@ const BranchForm: React.FC = () => {
     let script = document.getElementById(scriptId) as HTMLScriptElement;
 
     // Check if script is already fully loaded AND includes the 'places' library
-    if (window.google && window.google.maps && window.google.maps.places) {
+    if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
       setIsMapReady(true);
       return;
     }
@@ -163,7 +162,7 @@ const BranchForm: React.FC = () => {
       script.defer = true;
       script.onload = () => {
         // Double check after script is loaded that `places` library is truly available
-        if (window.google && window.google.maps && window.google.maps.places) {
+        if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
           setIsMapReady(true);
         } else {
           setMapError("Google Maps 'places' library failed to load.");
@@ -175,13 +174,13 @@ const BranchForm: React.FC = () => {
         // If script already exists but might not have finished loading 'places' library,
         // attach load listener just in case.
         script.addEventListener('load', () => {
-          if (window.google && window.google.maps && window.google.maps.places) {
+          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
             setIsMapReady(true);
           }
         });
         // If script is already present and theoretically loaded, but `isMapReady` is false,
         // manually trigger check if `places` is there.
-        if (window.google && window.google.maps && window.google.maps.places) {
+        if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
             setIsMapReady(true);
         }
     }
@@ -190,9 +189,9 @@ const BranchForm: React.FC = () => {
   // Initialize Map
   useEffect(() => {
     if (mapError) return;
-    if (isMapReady && mapRef.current && !mapInstance && window.google && window.google.maps) {
+    if (isMapReady && mapRef.current && !mapInstance && (window as any).google && (window as any).google.maps) {
       try {
-        const map = new window.google.maps.Map(mapRef.current, {
+        const map = new (window as any).google.maps.Map(mapRef.current, {
           center: location,
           zoom: 15,
           mapTypeControl: false,
@@ -200,11 +199,11 @@ const BranchForm: React.FC = () => {
           streetViewControl: false,
           zoomControl: true,
         });
-        const marker = new window.google.maps.Marker({
+        const marker = new (window as any).google.maps.Marker({
           position: location,
           map: map,
           draggable: true,
-          animation: window.google.maps.Animation.DROP,
+          animation: (window as any).google.maps.Animation.DROP,
         });
         marker.addListener("dragend", (e: any) => {
           const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
@@ -226,13 +225,13 @@ const BranchForm: React.FC = () => {
   }, [isMapReady, mapError, location]);
 
   const handleGetAddress = () => {
-    if (!isMapReady || !window.google || !window.google.maps || !window.google.maps.Geocoder || mapError) {
+    if (!isMapReady || !(window as any).google || !(window as any).google.maps || !(window as any).google.maps.Geocoder || mapError) {
       alert("Map services are currently unavailable. Please enter address manually.");
       return;
     }
     setLoadingAddress(true);
     try {
-      const geocoder = new window.google.maps.Geocoder();
+      const geocoder = new (window as any).google.maps.Geocoder();
       geocoder.geocode({ location }, (results: any, status: any) => {
         setLoadingAddress(false);
         if (status === "OK" && results[0]) {

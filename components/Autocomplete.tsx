@@ -7,7 +7,8 @@ import usePlacesAutocomplete, {
 } from "use-places-autocomplete";
 
 interface AutocompleteProps {
-  setNewPlace?: (newPlace: google.maps.LatLngLiteral) => void;
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  setNewPlace?: (newPlace: { lat: number; lng: number }) => void;
   onAddressSelect?: (address: string) => void;
   placeholder?: string;
   defaultValue?: string;

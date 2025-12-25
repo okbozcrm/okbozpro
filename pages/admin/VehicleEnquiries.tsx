@@ -83,9 +83,10 @@ export const VehicleEnquiries: React.FC = () => {
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [dropCoords, setDropCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [destCoords, setDestCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [rentalPackages, setRentalPackages] = useState<RentalPackage[]>(DEFAULT_RENTAL_PACKAGES);
   const [pricing, setPricing] = useState<Record<VehicleType, PricingRules>>({
@@ -163,7 +164,7 @@ export const VehicleEnquiries: React.FC = () => {
     }
     const apiKey = localStorage.getItem('maps_api_key');
     if (!apiKey) {
-      setMapError("API Key missing. Add in Settings > Integrations.");
+      setMapError("API Key is missing. Add in Settings > Integrations.");
       return;
     }
     const originalAuthFailure = window.gm_authFailure;
@@ -214,7 +215,8 @@ export const VehicleEnquiries: React.FC = () => {
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    const calculateDistance = (destination: google.maps.LatLngLiteral, isRoundTripCalculation: boolean, isOutstationState: boolean) => {
+    /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+    const calculateDistance = (destination: { lat: number; lng: number }, isRoundTripCalculation: boolean, isOutstationState: boolean) => {
         service.getDistanceMatrix(
             {
                 origins: [pickupCoords],
@@ -268,7 +270,10 @@ export const VehicleEnquiries: React.FC = () => {
       const rules = pricing[vehicleType];
       let details = '';
 
-      if (tripType === 'Local') {
+      if (enquiryCategory === 'General') {
+          total = 0; 
+          details = customerDetails.requirements || "General Enquiry.";
+      } else if (tripType === 'Local') {
           const base = rules.localBaseFare;
           const km = parseFloat(transportDetails.estKm) || 0;
           const extraKm = Math.max(0, km - rules.localBaseKm) * rules.localPerKmRate;
@@ -282,7 +287,6 @@ export const VehicleEnquiries: React.FC = () => {
               details = `Rental: ${pkg.name}`;
           }
       } else {
-          // Outstation
           const days = parseFloat(transportDetails.days) || 1;
           const km = parseFloat(transportDetails.estTotalKm) || 0;
           const driver = rules.outstationDriverAllowance * days;
@@ -424,7 +428,7 @@ Book now with OK BOZ Transport!`;
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-             <Truck className="w-8 h-8 text-emerald-600" /> Vehicle Enquiries
+              <Truck className="w-8 h-8 text-emerald-600" /> Vehicle Enquiries
           </h2>
           <p className="text-gray-500">Manage transport requests and generate estimates</p>
         </div>
@@ -484,45 +488,64 @@ Book now with OK BOZ Transport!`;
                   
                   {/* ... (rest of the component) ... */}
                   {tripType === 'Local' && (
-                              <div className="space-y-3">
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Drop Location</label>
-                                      {!isMapReady ? (
-                                         <div className="p-2 bg-gray-100 text-gray-500 text-sm rounded flex items-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" /> Loading Maps...
-                                         </div>
-                                      ) : (
+                              <div className="space-y-4 animate-in slide-in-from-left-2 duration-200">
+                                  <div className="space-y-2">
+                                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Drop Location</label>
+                                      {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
                                           <Autocomplete 
-                                              placeholder="Search Google Maps for Drop"
+                                              placeholder="Search Destination Address"
                                               onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, drop: addr }))}
                                               setNewPlace={(place) => setDropCoords(place)}
                                               defaultValue={transportDetails.drop}
                                           />
                                       )}
                                   </div>
-                                  {/* ... */}
+                                  <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Estimated KM</label>
+                                          <input type="number" placeholder="0.0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estKm} onChange={e => setTransportDetails({...transportDetails, estKm: e.target.value})} />
+                                      </div>
+                                      <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Wait Time (Mins)</label>
+                                          <input type="number" placeholder="0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.waitingMins} onChange={e => setTransportDetails({...transportDetails, waitingMins: e.target.value})} />
+                                      </div>
+                                  </div>
                               </div>
                   )}
                   {/* ... */}
                   {tripType === 'Outstation' && (
-                              <div className="space-y-3">
-                                  {/* ... */}
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Destination</label>
-                                      {!isMapReady ? (
-                                         <div className="p-2 bg-gray-100 text-gray-500 text-sm rounded flex items-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" /> Loading Maps...
-                                         </div>
-                                      ) : (
+                              <div className="space-y-4 animate-in slide-in-from-left-2 duration-200">
+                                  <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                      <button onClick={() => setOutstationSubType('RoundTrip')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${outstationSubType === 'RoundTrip' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>Round Trip</button>
+                                      <button onClick={() => setOutstationSubType('OneWay')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${outstationSubType === 'OneWay' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>One Way</button>
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Destination</label>
+                                      {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
                                           <Autocomplete 
-                                              placeholder="Search Google Maps for Destination"
+                                              placeholder="Search Destination City"
                                               onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, destination: addr }))}
                                               setNewPlace={(place) => setDestCoords(place)}
                                               defaultValue={transportDetails.destination}
                                           />
                                       )}
                                   </div>
-                                  {/* ... */}
+                                  <div className="grid grid-cols-3 gap-3">
+                                      <div className="space-y-1.5">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Days</label>
+                                        <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.days} onChange={e => setTransportDetails({...transportDetails, days: e.target.value})} />
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Total KM</label>
+                                        <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estTotalKm} onChange={e => setTransportDetails({...transportDetails, estTotalKm: e.target.value})} />
+                                      </div>
+                                      {outstationSubType === 'RoundTrip' && (
+                                          <div className="space-y-1.5">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Nights</label>
+                                            <input type="number" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.nights} onChange={e => setTransportDetails({...transportDetails, nights: e.target.value})} />
+                                          </div>
+                                      )}
+                                  </div>
                               </div>
                   )}
               </div>

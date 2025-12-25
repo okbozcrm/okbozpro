@@ -120,9 +120,10 @@ const Reception: React.FC = () => {
   const [newPackage, setNewPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' });
 
   // Map state
-  const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [dropCoords, setDropCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [destCoords, setDestCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 

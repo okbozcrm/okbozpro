@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings as SettingsIcon, Lock as LockIcon, 
   LogOut, Cloud, Database, Globe, Palette, Save,
   UploadCloud, DownloadCloud, Loader2, Map as MapIcon, Check,
   Users, Target, Building2, Car, Wallet, MapPin, Truck, Layers, RefreshCw, Eye,
-  Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff
+  Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff,
+  MessageSquare, HardDrive, Bike
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -54,60 +54,46 @@ const Settings: React.FC = () => {
 
   const generateCollectionStats = (cloudData: any) => {
     const collections = [
-        { key: 'staff_data', label: 'Staff Records', icon: Users, color: 'text-gray-600' },
-        { key: 'leads_data', label: 'Active Leads', icon: Target, color: 'text-gray-600' },
-        { key: 'corporate_accounts', label: 'Corporate Accounts', icon: Building2, color: 'text-gray-600' },
-        { key: 'vendor_data', label: 'Vehicle Vendors', icon: Layers, color: 'text-gray-600' },
-        { key: 'office_expenses', label: 'Office Expenses', icon: Wallet, color: 'text-gray-600' },
-        { key: 'branches_data', label: 'Branches', icon: MapPin, color: 'text-gray-600' },
-        { key: 'trips_data', label: 'Trips', icon: Truck, color: 'text-gray-600' },
-        { key: 'global_enquiries_data', label: 'Customer Enquiries', icon: Globe, color: 'text-gray-600' },
-        { key: 'call_enquiries_history', label: 'Call History', icon: Phone, color: 'text-gray-600' },
-        { key: 'reception_recent_transfers', label: 'Reception Transfers', icon: Layers, color: 'text-gray-600' },
-        { key: 'payroll_history', label: 'Payroll History', icon: DollarSign, color: 'text-gray-600' },
-        { key: 'leave_history', label: 'Leave History', icon: Plane, color: 'text-gray-600' },
-        { key: 'app_settings', label: 'App Settings', icon: SettingsIcon, color: 'text-gray-600' },
-        { key: 'transport_pricing_rules_v2', label: 'Transport Prices', icon: Car, color: 'text-gray-600' },
-        { key: 'transport_rental_packages_v2', label: 'Rental Packages', icon: BriefcaseIcon, color: 'text-gray-600' },
-        { key: 'company_departments', label: 'Departments', icon: Building2, color: 'text-gray-600' },
-        { key: 'company_roles', label: 'Roles', icon: BriefcaseIcon, color: 'text-gray-600' },
-        { key: 'company_shifts', label: 'Shifts', icon: Clock, color: 'text-gray-600' },
-        { key: 'company_payout_dates', label: 'Payout Dates', icon: Calendar, color: 'text-gray-600' },
-        { key: 'company_global_payout_day', label: 'Global Payout Day', icon: Calendar, color: 'text-gray-600' },
-        { key: 'salary_advances', label: 'Salary Advances', icon: Wallet, color: 'text-gray-600' },
-        { key: 'app_branding', label: 'App Branding', icon: Palette, color: 'text-gray-600' },
-        { key: 'app_theme', label: 'App Theme', icon: Palette, color: 'text-gray-600' },
-        { key: 'maps_api_key', label: 'Maps API Key', icon: MapIcon, color: 'text-gray-600' },
+        { key: 'staff_data', label: 'Staff Records', icon: Users },
+        { key: 'corporate_accounts', label: 'Corporate Accounts', icon: Building2 },
+        { key: 'global_enquiries_data', label: 'Enquiries', icon: Phone },
+        { key: 'trips_data', label: 'Trip Logs', icon: Truck },
+        { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
+        { key: 'driver_payment_records', label: 'Driver Pay', icon: DollarSign },
+        { key: 'driver_wallet_data', label: 'Driver Wallets', icon: Wallet },
+        { key: 'internal_messages_data', label: 'Chat History', icon: MessageSquare },
+        { key: 'office_expenses', label: 'Expense Data', icon: HardDrive },
+        { key: 'branches_data', label: 'Branch Config', icon: MapPin },
+        { key: 'app_branding', label: 'Site Branding', icon: Palette },
+        { key: 'leads_data', label: 'Active Leads', icon: Target }
     ];
 
     return collections.map(col => {
-        // Get Local Count
-        let localCount: string | number = 0; // Initialize with compatible type
+        let localCount: string | number = 0;
         let localContent: any = null;
-        let localStr: string | null = null; // Declare localStr outside try block
+        let localStr: string | null = null;
         try {
             localStr = localStorage.getItem(col.key);
             if (localStr) {
                 localContent = JSON.parse(localStr);
-                localCount = Array.isArray(localContent) ? localContent.length : 1; // Count 1 for non-array settings
+                localCount = Array.isArray(localContent) ? localContent.length : 1;
             }
         } catch(e) {
-            localCount = 'Err'; // Indicate parsing error
-            localContent = localStr; // Store raw string if error
+            localCount = 'Err';
+            localContent = localStr;
         }
 
-        // Get Cloud Count
         let cloudCount: string | number = '-';
         if (cloudData && cloudData[col.key]) {
-            cloudCount = cloudData[col.key].count as string | number; // Explicitly cast to resolve type issue if any
+            cloudCount = cloudData[col.key].count || '0';
         }
 
         return {
             ...col,
             local: localCount,
-            localContent: localContent, // Store content for viewer
+            localContent: localContent,
             cloud: cloudCount,
-            status: 'Synced' // Assuming synced if connected for UI demo
+            status: 'Synced' 
         };
     });
   };
@@ -115,8 +101,6 @@ const Settings: React.FC = () => {
   const checkConnection = async () => {
     try {
       const s = await getCloudDatabaseStats();
-      
-      // Generate stats regardless of connection, cloud will just be '-' if not connected
       const statsList = generateCollectionStats(s);
       setCollectionStats(statsList);
 
@@ -183,7 +167,7 @@ const Settings: React.FC = () => {
             const parsed = JSON.parse(content);
             setCollectionContent(parsed);
         } catch (e) {
-            setCollectionContent(content); // Fallback to raw string if not valid JSON
+            setCollectionContent(content); 
             setCollectionError("Content is not valid JSON.");
         }
     } else {
@@ -201,9 +185,7 @@ const Settings: React.FC = () => {
 
   const handleAdminPasswordChange = (e: React.FormEvent) => {
       e.preventDefault();
-      
       const storedPass = localStorage.getItem('admin_password') || '123456';
-      
       if (adminPasswords.current !== storedPass) {
           setAdminPassMsg({ type: 'error', text: 'Current password incorrect.' });
           return;
@@ -216,7 +198,6 @@ const Settings: React.FC = () => {
           setAdminPassMsg({ type: 'error', text: 'New passwords do not match.' });
           return;
       }
-
       localStorage.setItem('admin_password', adminPasswords.new);
       setAdminPassMsg({ type: 'success', text: 'Password updated successfully!' });
       setAdminPasswords({ current: '', new: '', confirm: '' });
@@ -232,7 +213,6 @@ const Settings: React.FC = () => {
         <p className="text-gray-500">System configuration, branding, and data management</p>
       </div>
 
-      {/* General / Branding Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
             <Globe className="w-5 h-5 text-indigo-500" /> General Configuration
@@ -271,7 +251,6 @@ const Settings: React.FC = () => {
          </div>
       </div>
 
-      {/* Account Security Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
               <LockIcon className="w-5 h-5 text-emerald-500" /> Account Security (Admin)
@@ -328,7 +307,6 @@ const Settings: React.FC = () => {
           </form>
       </div>
 
-      {/* Cloud Sync Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -394,7 +372,6 @@ const Settings: React.FC = () => {
               </span>
               
               <div className="flex gap-3">
-                  {/* Backup & Restore Controls */}
                   <button 
                       onClick={handleRestore}
                       disabled={isRestoring || dbStatus !== 'Connected'}
@@ -411,21 +388,11 @@ const Settings: React.FC = () => {
                       {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />}
                       Backup
                   </button>
-
-                  {!isDbPermanent && (
-                      <button 
-                          onClick={() => { localStorage.removeItem('firebase_config'); window.location.reload(); }}
-                          className="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center gap-2"
-                      >
-                          <LogOut className="w-4 h-4" /> Disconnect
-                      </button>
-                  )}
               </div>
           </div>
         </div>
       </div>
 
-      {/* --- LIVE DATA COLLECTIONS SECTION --- */}
       <div className="space-y-4">
           <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
@@ -479,7 +446,6 @@ const Settings: React.FC = () => {
           </div>
       </div>
       
-      {/* Integrations Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
          <h3 className="font-bold text-gray-800 mb-4">Integrations</h3>
          <div className="space-y-4">
@@ -535,7 +501,6 @@ const Settings: React.FC = () => {
          </div>
       </div>
 
-      {/* Collection Viewer Modal */}
       {showCollectionViewer && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">

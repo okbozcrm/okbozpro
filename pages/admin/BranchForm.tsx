@@ -108,13 +108,15 @@ const BranchForm: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [markerInstance, setMarkerInstance] = useState<any>(null);
-  const [location, setLocation] = useState<google.maps.LatLngLiteral>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
 
   // Callback from Autocomplete component when a place is selected
-  const handleNewPlaceSelected = (newPos: google.maps.LatLngLiteral) => {
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const handleNewPlaceSelected = (newPos: { lat: number; lng: number }) => {
     setLocation(newPos);
     if (mapInstance && markerInstance) {
       mapInstance.panTo(newPos);

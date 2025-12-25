@@ -29,7 +29,6 @@ const Reports: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'Profit & Sharing' | 'Financial' | 'Payroll' | 'Driver Payments' | 'Transport'>('Profit & Sharing');
   
-  // -- Filter State --
   const [filterType, setFilterType] = useState<'All' | 'Date' | 'Month'>('Month');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -79,6 +78,11 @@ const Reports: React.FC = () => {
           }
       }
       return aggregated;
+  };
+
+  const handleCorporateFilterChange = (newCorp: string) => {
+    setFilterCorporate(newCorp);
+    setFilterBranch('All');
   };
 
   useEffect(() => {
@@ -208,43 +212,19 @@ const Reports: React.FC = () => {
   }, [branches]);
 
   const profitSharingData = useMemo(() => {
-      // 1. Revenue = Trip Booking ADMIN COMMISSION
       const adminCommissionTotal = filteredTrips.reduce((sum, t) => sum + (Number(t.adminCommission) || 0), 0);
-      
-      // 2. Total Expenses Breakdown
       const officeOnlyExpenses = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       const payrollTotal = filteredPayroll.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
       const driverTotalPaid = filteredDriverPayments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
       const totalExpenses = officeOnlyExpenses + payrollTotal + driverTotalPaid;
       const netProfit = adminCommissionTotal - totalExpenses;
-
       const shares = corporates.map(corp => {
           const sharePercent = corp.profitSharingPercentage || 0;
           const amount = (netProfit * sharePercent) / 100;
-          return {
-              id: corp.email,
-              name: corp.companyName,
-              percent: sharePercent,
-              amount: amount > 0 ? amount : 0
-          };
+          return { id: corp.email, name: corp.companyName, percent: sharePercent, amount: amount > 0 ? amount : 0 };
       });
-
-      const filteredShares = isSuperAdmin 
-        ? (filterCorporate === 'All' ? shares : shares.filter(s => s.id === filterCorporate))
-        : shares.filter(s => s.id === sessionId);
-
-      return { 
-          totalProfit: netProfit, 
-          shares: filteredShares,
-          revenue: adminCommissionTotal,
-          expensesBreakdown: {
-              office: officeOnlyExpenses,
-              payroll: payrollTotal,
-              drivers: driverTotalPaid,
-              total: totalExpenses
-          }
-      };
+      const filteredShares = isSuperAdmin ? (filterCorporate === 'All' ? shares : shares.filter(s => s.id === filterCorporate)) : shares.filter(s => s.id === sessionId);
+      return { totalProfit: netProfit, shares: filteredShares, revenue: adminCommissionTotal, expensesBreakdown: { office: officeOnlyExpenses, payroll: payrollTotal, drivers: driverTotalPaid, total: totalExpenses } };
   }, [filteredTrips, filteredExpenses, filteredPayroll, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
 
   const financialStats = useMemo(() => {
@@ -277,12 +257,6 @@ const Reports: React.FC = () => {
       setSelectedMonth(new Date().toISOString().slice(0, 7));
       setFilterCorporate('All');
       setFilterBranch('All');
-  };
-
-  // FIX: Defined the missing handleCorporateFilterChange function to resolve the "Cannot find name" error in the JSX.
-  const handleCorporateFilterChange = (newCorp: string) => {
-    setFilterCorporate(newCorp);
-    setFilterBranch('All');
   };
 
   const handleBackupProfitReport = () => {
@@ -330,7 +304,6 @@ const Reports: React.FC = () => {
                               <button onClick={handleBackupProfitReport} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all transform active:scale-95 shadow-sm"><Database className="w-4 h-4" />Backup Report</button>
                           </div>
                           
-                          {/* Financial Breakdown Logic UI */}
                           <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 bg-black/10 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
                               <div>
                                   <p className="text-[10px] font-bold text-emerald-200 uppercase mb-1">Revenue (Admin Comm)</p>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Settings, Loader2, ArrowRight, ArrowRightLeft, 
@@ -93,9 +94,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   // Map State
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [dropCoords, setDropCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [destCoords, setDestCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [rentalPackages, setRentalPackages] = useState<RentalPackage[]>(() => {
     const saved = localStorage.getItem('transport_rental_packages_v2');
@@ -277,7 +279,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    let destination: google.maps.LatLngLiteral | null = null;
+    let destination: { lat: number; lng: number } | null = null;
     let isRoundTrip = false;
     let isOutstation = false;
 
@@ -1465,7 +1467,7 @@ Book now with OK BOZ Transport!`;
                                           <div className="space-y-1.5">
                                               <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Estimated KM</label>
                                               <input type="number" placeholder="0.0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estKm} onChange={e => setTransportDetails({...transportDetails, estKm: e.target.value})} />
-                                          </div>
+                                      </div>
                                           <div className="space-y-1.5">
                                               <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Wait Time (Mins)</label>
                                               <input type="number" placeholder="0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.waitingMins} onChange={e => setTransportDetails({...transportDetails, waitingMins: e.target.value})} />
@@ -1644,7 +1646,7 @@ Book now with OK BOZ Transport!`;
                       <button 
                           className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
                       >
-                          <Mail className="w-5 h-5" /> Send via Email
+                          <Mail className="w-4 h-4" /> Send via Email
                       </button>
                   </div>
               </div>

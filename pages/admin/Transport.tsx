@@ -65,9 +65,11 @@ const Transport: React.FC = () => {
   const [settingsVehicleType, setSettingsVehicleType] = useState<VehicleType>('Sedan'); 
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [dropCoords, setDropCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [destCoords, setDestCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  
+  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const getSessionKey = (baseKey: string) => {
     const sessionId = localStorage.getItem('app_session_id') || 'admin';

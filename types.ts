@@ -1,7 +1,7 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
-  CORPORATE = 'CORPORATE', // Franchise/Reseller Role
+  CORPORATE = 'CORPORATE', 
 }
 
 export enum AttendanceStatus {
@@ -35,33 +35,22 @@ export interface Employee {
   ifsc?: string;
   password?: string;
   liveTracking?: boolean;
-  
-  // Profile Management
   profileEditCount?: number;
-
-  // Personal Details
   gender?: string;
   bloodGroup?: string;
   maritalStatus?: string;
   address?: string; 
-  
-  // Emergency Contact
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
-
-  // Shift & Timing
   shift?: string;
-
   attendanceConfig?: {
     punchMethod: 'Manual' | 'QR' | 'Disabled';
     locationRestriction: 'Branch' | 'Anywhere';
-    gpsGeofencing?: boolean; // Legacy compat
-    qrScan?: boolean; // Legacy compat
-    manualPunch?: boolean; // Legacy compat
+    gpsGeofencing?: boolean;
+    qrScan?: boolean;
+    manualPunch?: boolean;
   };
-
-  // Access Permissions
   moduleAccess?: string[]; 
 }
 
@@ -71,6 +60,22 @@ export interface DailyAttendance {
   isLate?: boolean;
   checkIn?: string;
   checkOut?: string;
+}
+
+export interface TravelAllowanceRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  corporateId: string;
+  date: string;
+  startOdometer: number;
+  endOdometer: number;
+  totalKm: number;
+  ratePerKm: number;
+  totalAmount: number;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Paid';
+  remarks: string;
+  createdAt: string;
 }
 
 export interface Branch {
@@ -208,31 +213,6 @@ declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
-  }
-
-  namespace google {
-    namespace maps {
-      interface LatLngLiteral {
-        lat: number;
-        lng: number;
-      }
-      /* Simplified ambient declarations to avoid constructor prototype collisions */
-      var Geocoder: any;
-      var Map: any;
-      var Marker: any;
-      var Animation: any;
-      var InfoWindow: any;
-      var LatLng: any;
-      var LatLngBounds: any;
-      var TravelMode: any;
-      var UnitSystem: any;
-      var DistanceMatrixService: any;
-      namespace places {
-        var PlacesService: any;
-        var PlacesServiceStatus: any;
-        var AutocompleteService: any;
-      }
-    }
   }
   interface Window {
     google: any; 
