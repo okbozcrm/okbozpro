@@ -1,3 +1,4 @@
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -12,6 +13,22 @@ export enum AttendanceStatus {
   WEEK_OFF = 'WEEK_OFF',
   HOLIDAY = 'HOLIDAY',
   NOT_MARKED = 'NOT_MARKED'
+}
+
+export interface PunchRecord {
+  in: string;
+  out?: string;
+  durationMinutes?: number;
+}
+
+export interface DailyAttendance {
+  date: string; 
+  status: AttendanceStatus;
+  isLate?: boolean;
+  punches?: PunchRecord[]; // Supported for multiple punch-ins/outs
+  checkIn?: string; // Kept for legacy/quick reference (first punch)
+  checkOut?: string; // Kept for legacy/quick reference (last punch)
+  totalWorkMinutes?: number;
 }
 
 export interface Employee {
@@ -52,14 +69,6 @@ export interface Employee {
     manualPunch?: boolean;
   };
   moduleAccess?: string[]; 
-}
-
-export interface DailyAttendance {
-  date: string; 
-  status: AttendanceStatus;
-  isLate?: boolean;
-  checkIn?: string;
-  checkOut?: string;
 }
 
 export interface TravelAllowanceRequest {

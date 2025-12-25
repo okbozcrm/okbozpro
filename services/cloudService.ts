@@ -249,7 +249,13 @@ export const sendSystemNotification = async (notification: Omit<BozNotification,
       timestamp: new Date().toISOString(),
       read: false,
     };
-    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), newNotification);
+
+    // 🛠️ FIX: Firestore does not support 'undefined'. Strip undefined properties before sending.
+    const cleanData = Object.fromEntries(
+      Object.entries(newNotification).filter(([_, value]) => value !== undefined)
+    );
+
+    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), cleanData);
   } catch (error) { console.error("Failed to send notification:", error); }
 };
 

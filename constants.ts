@@ -3,7 +3,7 @@ import { AttendanceStatus, DailyAttendance, Employee } from './types';
 
 export const MOCK_EMPLOYEES: Employee[] = [];
 
-// Generate attendance helper (Kept for functional logic if needed for real employees)
+// Generate attendance helper (Updated to support multiple punches)
 export const generateMockAttendance = (employee: Employee, year: number, month: number): DailyAttendance[] => {
   if (!employee) return [];
   
@@ -32,7 +32,7 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
 
     // 1. Pre-Joining check
     if (currentDayDate < employeeJoiningDate) {
-      attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED });
+      attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED, punches: [] });
       continue;
     }
     
@@ -42,6 +42,7 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
             date: dateStr,
             status: AttendanceStatus.NOT_MARKED,
             isLate: false,
+            punches: []
         });
         continue;
     }
@@ -53,6 +54,7 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
             date: dateStr,
             status: AttendanceStatus.NOT_MARKED,
             isLate: false,
+            punches: []
         });
         continue;
     }
@@ -68,12 +70,15 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
         status = AttendanceStatus.PRESENT;
     }
 
+    const punches = status === AttendanceStatus.PRESENT ? [{ in: '09:30 AM', out: '06:30 PM' }] : [];
+
     attendance.push({
       date: dateStr,
       status,
       isLate,
-      checkIn: status === AttendanceStatus.PRESENT ? '09:30 AM' : undefined,
-      checkOut: status === AttendanceStatus.PRESENT ? '06:30 PM' : undefined,
+      punches,
+      checkIn: punches.length > 0 ? punches[0].in : undefined,
+      checkOut: punches.length > 0 ? punches[0].out : undefined,
     });
   }
   return attendance;

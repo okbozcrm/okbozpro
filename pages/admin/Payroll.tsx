@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   DollarSign, Save, Download, Filter, Search, Calculator, 
@@ -7,7 +8,7 @@ import {
   ArrowRight, ShieldCheck, Landmark, Loader2, FileText
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest } from '../../types';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -18,6 +19,18 @@ const formatCurrency = (amount: number) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+};
+
+const parseToMinutes = (t?: string) => {
+  if (!t) return 0;
+  const match = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const mod = match[3].toUpperCase();
+  if (h === 12) h = 0;
+  if (mod === 'PM') h += 12;
+  return h * 60 + m;
 };
 
 interface PayrollEntry {
@@ -142,12 +155,15 @@ const Payroll: React.FC = () => {
         const monthlyCtc = parseFloat(emp.salary || '0');
         const key = `attendance_data_${emp.id}_${year}_${monthStr-1}`;
         const saved = localStorage.getItem(key);
-        const attendance = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
+        const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
         
         let payableDays = 0;
-        attendance.forEach((day: any) => {
-            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE].includes(day.status)) payableDays += 1;
-            else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
+        attendance.forEach((day) => {
+            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE].includes(day.status)) {
+                payableDays += 1;
+            } else if (day.status === AttendanceStatus.HALF_DAY) {
+                payableDays += 0.5;
+            }
         });
 
         const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
