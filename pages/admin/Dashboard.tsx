@@ -1,14 +1,21 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
-import { useNavigate } from 'react-router-dom';
-import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, Enquiry, Branch, CorporateAccount } from '../../types';
-import { useTheme } from '../../context/ThemeContext';
 
-// Extended interfaces for internal mapping
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { 
+  Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, 
+  DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset, 
+  Bike, AlertCircle, Check, X, Wallet, Calculator, Zap, RefreshCcw,
+  // Added missing icon imports to fix "Cannot find name" errors
+  FileText, Map
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useNavigate } from 'react-router-dom';
+import { getEmployeeAttendance } from '../../constants';
+import { AttendanceStatus, Employee, Enquiry, Branch, CorporateAccount, TravelAllowanceRequest, SalaryAdvanceRequest, UserRole } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
+import { sendSystemNotification } from '../../services/cloudService';
+
 interface ExtendedEmployee extends Employee {
-    corporateId: string; // 'admin' or corporate email
+    corporateId: string;
     corporateName: string;
 }
 
@@ -30,387 +37,393 @@ interface Trip {
     ownerName?: string;
 }
 
+interface DashboardAction {
+    id: string;
+    type: 'TA_CLAIM' | 'SALARY_ADVANCE';
+    employeeName: string;
+    employeeId: string;
+    amount: number;
+    date: string;
+    details: string;
+    corporateId: string;
+    originalData: any;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
-
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
-  // --- 1. Global Filter States ---
+  // --- State ---
   const [filterCorporate, setFilterCorporate] = useState<string>('All');
   const [filterBranch, setFilterBranch] = useState<string>('All');
   const [filterType, setFilterType] = useState<'Daily' | 'Monthly'>('Daily');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
-  // --- 2. Data Loading States ---
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const [enquiries, setEnquiries] = useState<ExtendedEnquiry[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
-  
-  // Real-time update trigger
+  const [pendingActions, setPendingActions] = useState<DashboardAction[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
-
-  // --- Clock & Greeting State ---
   const [currentTime, setCurrentTime] = useState(new Date());
   const [franchiseName, setFranchiseName] = useState('Head Office');
 
-  // FIX: Added dashboardFilterBranches memo to resolve "Cannot find name 'dashboardFilterBranches'" error
-  const dashboardFilterBranches = useMemo(() => {
-    if (filterCorporate === 'All') return branches;
-    return branches.filter(b => (b as any).corporateId === filterCorporate);
-  }, [branches, filterCorporate]);
-
-  // Sync Logic
-  useEffect(() => {
-    const triggerRefresh = () => {
-        setRefreshToggle(v => v + 1);
-    };
+  // --- Data Loading Logic ---
+  const loadAllData = useCallback(() => {
+    // 1. Corporates
+    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    setCorporates(corps);
     
-    const handleStorage = (e: StorageEvent) => {
-        // Broaden the check to catch any attendance update
-        if (!e.key || e.key.includes('attendance_data') || e.key.includes('trips_data') || e.key.includes('enquiries')) {
-            triggerRefresh();
+    // 2. Franchise Name
+    if (isSuperAdmin) setFranchiseName('Head Office Panel');
+    else {
+        const myCorp = corps.find((c: any) => c.email === sessionId);
+        setFranchiseName(myCorp ? myCorp.companyName : 'Franchise Panel');
+    }
+
+    // 3. Branches
+    let loadedBranches: any[] = [];
+    if (isSuperAdmin) {
+        const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
+        loadedBranches = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
+        corps.forEach((c: any) => {
+            const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+            loadedBranches = [...loadedBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
+        });
+    } else {
+        const key = `branches_data_${sessionId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) loadedBranches = JSON.parse(saved).map((b: any) => ({...b, corporateId: sessionId}));
+    }
+    setBranches(loadedBranches);
+
+    // 4. Employees
+    let allEmployees: ExtendedEmployee[] = [];
+    const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+    allEmployees = [...adminStaff.map((e:any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))];
+    corps.forEach((corp: any) => {
+        const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
+        allEmployees = [...allEmployees, ...corpStaff.map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
+    });
+    setEmployees(allEmployees);
+
+    // 5. Enquiries
+    const enqs: Enquiry[] = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
+    setEnquiries(enqs);
+
+    // 6. Trips
+    let allTrips: Trip[] = [];
+    const adminTrips = JSON.parse(localStorage.getItem('trips_data') || '[]');
+    allTrips = [...adminTrips.map((t: any) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
+    corps.forEach((c: any) => {
+        const cTrips = JSON.parse(localStorage.getItem(`trips_data_${c.email}`) || '[]');
+        allTrips = [...allTrips, ...cTrips.map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
+    });
+    setTrips(allTrips);
+
+    // 7. Action Center Items
+    let actions: DashboardAction[] = [];
+    
+    // TA Claims
+    const taRequests: TravelAllowanceRequest[] = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
+    taRequests.filter(r => r.status === 'Pending').forEach(r => {
+        if (isSuperAdmin || r.corporateId === sessionId) {
+            actions.push({
+                id: r.id,
+                type: 'TA_CLAIM',
+                employeeName: r.employeeName,
+                employeeId: r.employeeId,
+                amount: r.totalAmount,
+                date: r.date,
+                details: `${r.totalKm} KM journey`,
+                corporateId: r.corporateId,
+                originalData: r
+            });
         }
-    };
-    
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('attendance-updated', triggerRefresh);
-    
-    return () => {
-        window.removeEventListener('storage', handleStorage);
-        window.removeEventListener('attendance-updated', triggerRefresh);
-    };
-  }, []);
+    });
 
-  // Clock Effect
+    // Salary Advances
+    const advRequests: SalaryAdvanceRequest[] = JSON.parse(localStorage.getItem('salary_advances') || '[]');
+    advRequests.filter(r => r.status === 'Pending').forEach(r => {
+        const emp = allEmployees.find(e => e.id === r.employeeId);
+        const corpId = emp?.corporateId || 'admin';
+
+        if (isSuperAdmin || corpId === sessionId) {
+            actions.push({
+                id: r.id,
+                type: 'SALARY_ADVANCE',
+                employeeName: r.employeeName,
+                employeeId: r.employeeId,
+                amount: r.amountRequested,
+                date: r.requestDate.split('T')[0],
+                details: r.reason,
+                corporateId: corpId,
+                originalData: r
+            });
+        }
+    });
+
+    setPendingActions(actions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+  }, [isSuperAdmin, sessionId]);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData, refreshToggle]);
+
+  // Clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Determine Franchise Name
+  // Filter Listeners
   useEffect(() => {
-    if (isSuperAdmin) {
-        setFranchiseName('Head Office Panel');
-    } else {
-        try {
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            const myCorp = corps.find((c: CorporateAccount) => c.email === sessionId);
-            if (myCorp) {
-                setFranchiseName(`${myCorp.companyName}`);
-            } else {
-                setFranchiseName('Franchise Panel');
-            }
-        } catch (e) {
-            setFranchiseName('Franchise Panel');
+    const handleStorage = (e: StorageEvent) => {
+        if (!e.key || e.key.includes('requests') || e.key.includes('advances') || e.key.includes('staff')) {
+            loadAllData();
         }
-    }
-  }, [isSuperAdmin, sessionId]);
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [loadAllData]);
 
-  const getGreeting = () => {
-      const hour = currentTime.getHours();
-      if (hour < 12) return 'Good Morning';
-      if (hour < 17) return 'Good Afternoon';
-      return 'Good Evening';
-  };
+  const dashboardFilterBranches = useMemo(() => {
+    if (filterCorporate === 'All') return branches;
+    return branches.filter(b => (b as any).corporateId === filterCorporate);
+  }, [branches, filterCorporate]);
 
-  // --- 3. Initial Data Fetching ---
-  useEffect(() => {
-    // A. Load Corporates
-    if (isSuperAdmin) {
-        try {
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            setCorporates(corps);
-        } catch (e) {}
-    }
+  // --- Handlers ---
+  const handleQuickAction = async (actionId: string, type: DashboardAction['type'], newStatus: 'Approved' | 'Rejected') => {
+      if (!window.confirm(`Are you sure you want to ${newStatus.toLowerCase()} this request?`)) return;
 
-    // B. Load Branches
-    try {
-        let loadedBranches: any[] = [];
-        if (isSuperAdmin) {
-            const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-            loadedBranches = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
-            
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            corps.forEach((c: any) => {
-                const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-                loadedBranches = [...loadedBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
-            });
-        } else {
-            const key = `branches_data_${sessionId}`;
-            const saved = localStorage.getItem(key);
-            if (saved) loadedBranches = JSON.parse(saved).map((b: any) => ({...b, corporateId: sessionId}));
-        }
-        setBranches(loadedBranches);
-    } catch(e) {}
+      if (type === 'TA_CLAIM') {
+          const key = 'global_travel_requests';
+          const all: TravelAllowanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const updated = all.map(r => r.id === actionId ? { ...r, status: newStatus } : r);
+          localStorage.setItem(key, JSON.stringify(updated));
 
-    // C. Load Employees
-    let allEmployees: ExtendedEmployee[] = [];
-    if (isSuperAdmin) {
-        const adminData = localStorage.getItem('staff_data');
-        if (adminData) {
-            try { allEmployees = [...allEmployees, ...JSON.parse(adminData).map((e:any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))]; } catch (e) {}
-        }
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((corp: any) => {
-            const corpData = localStorage.getItem(`staff_data_${corp.email}`);
-            if (corpData) {
-                try {
-                    allEmployees = [...allEmployees, ...JSON.parse(corpData).map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
-                } catch (e) {}
-            }
-        });
-    } else {
-        const key = `staff_data_${sessionId}`; 
-        try {
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                allEmployees = JSON.parse(saved).map((e:any) => ({...e, corporateId: sessionId, corporateName: 'My Branch'}));
-            }
-        } catch(e) {}
-    }
-    setEmployees(allEmployees);
-
-    // D. Load Vehicle Enquiries
-    try {
-        const enqs: Enquiry[] = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
-        if (isSuperAdmin) {
-            setEnquiries(enqs);
-        } else {
-            const myEnqs = enqs.filter(e => {
-               let ownerId = e.assignedCorporate;
-               if (!ownerId && e.assignedTo) {
-                   const staff = allEmployees.find(s => s.id === e.assignedTo);
-                   if (staff) ownerId = staff.corporateId;
-               }
-               return ownerId === sessionId;
-            });
-            setEnquiries(myEnqs);
-        }
-    } catch(e) {}
-
-    // E. Load Trips
-    let allTrips: Trip[] = [];
-    if (isSuperAdmin) {
-        try {
-            const adminTrips = JSON.parse(localStorage.getItem('trips_data') || '[]');
-            allTrips = [...allTrips, ...adminTrips.map((t: any) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
-        } catch(e) {}
-        
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((c: any) => {
-            const cTrips = localStorage.getItem(`trips_data_${c.email}`);
-            if (cTrips) {
-                try {
-                    allTrips = [...allTrips, ...JSON.parse(cTrips).map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
-                } catch (e) {}
-            }
-        });
-    } else {
-        const key = `trips_data_${sessionId}`;
-        try {
-            const saved = localStorage.getItem(key);
-            if (saved) {
-                allTrips = JSON.parse(saved).map((t: any) => ({...t, ownerId: sessionId, ownerName: 'My Branch'}));
-            }
-        } catch(e) {}
-    }
-    setTrips(allTrips);
-
-    const savedApprovals = localStorage.getItem(`pending_approvals_${sessionId}`);
-    if (savedApprovals) setPendingApprovals(JSON.parse(savedApprovals));
-    else setPendingApprovals([]);
-
-  }, [isSuperAdmin, sessionId, refreshToggle]);
-
-  // --- 4. Statistics Calculation ---
-
-  const attendanceStats = useMemo(() => {
-      if (employees.length === 0) return { present: 0, absent: 0, late: 0, onField: 0 };
-
-      let present = 0, absent = 0, late = 0, onField = 0;
-      
-      const targetDate = new Date(selectedDate);
-      const targetYear = targetDate.getFullYear();
-      const targetMonth = targetDate.getMonth();
-
-      // Filtering layer inside stat calc to ensure it respects refreshToggle
-      const activeSet = employees.filter(e => {
-          const matchCorp = isSuperAdmin ? (filterCorporate === 'All' || e.corporateId === filterCorporate) : true;
-          const matchBranch = filterBranch === 'All' || e.branch === filterBranch;
-          return matchCorp && matchBranch;
-      });
-
-      if (filterType === 'Daily') {
-          activeSet.forEach(emp => {
-              const key = `attendance_data_${emp.id}_${targetYear}_${targetMonth}`;
-              const saved = localStorage.getItem(key);
-              // Always use disk data first, then mock if missing
-              const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, targetYear, targetMonth);
-              const record = data.find((d: any) => d.date === selectedDate);
-              
-              if (record) {
-                  if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.HALF_DAY) {
-                      present++;
-                      if (record.isLate) late++;
-                      if (emp.department === 'Sales' || emp.role.toLowerCase().includes('driver') || emp.liveTracking) onField++;
-                  } else if (record.status === AttendanceStatus.ABSENT) {
-                      absent++;
-                  }
-              }
-          });
+          const req = all.find(r => r.id === actionId);
+          if (req) {
+              await sendSystemNotification({
+                  type: 'system',
+                  title: `KM Claim ${newStatus}`,
+                  message: `Your travel allowance request for ${req.date} was ${newStatus.toLowerCase()}.`,
+                  targetRoles: [UserRole.EMPLOYEE],
+                  employeeId: req.employeeId,
+                  link: '/user/km-claims'
+              });
+          }
       } else {
-          present = activeSet.filter(e => e.status === 'Active').length;
-          activeSet.forEach(emp => {
-              const [y, m] = selectedMonth.split('-').map(Number);
-              const data = getEmployeeAttendance(emp, y, m - 1);
-              absent += data.filter(d => d.status === AttendanceStatus.ABSENT).length;
-          });
+          const key = 'salary_advances';
+          const all: SalaryAdvanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const updated = all.map(r => r.id === actionId ? { 
+            ...r, 
+            status: newStatus, 
+            amountApproved: newStatus === 'Approved' ? r.amountRequested : 0 
+          } : r);
+          localStorage.setItem(key, JSON.stringify(updated));
+
+          const req = all.find(r => r.id === actionId);
+          if (req) {
+              await sendSystemNotification({
+                  type: 'system',
+                  title: `Salary Advance ${newStatus}`,
+                  message: `Your advance request for ₹${req.amountRequested} was ${newStatus.toLowerCase()}.`,
+                  targetRoles: [UserRole.EMPLOYEE],
+                  employeeId: req.employeeId,
+                  link: '/user/salary'
+              });
+          }
       }
 
-      return { present, absent, late, onField, total: activeSet.length };
-  }, [employees, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin, refreshToggle]);
+      // Sync and UI Refresh
+      window.dispatchEvent(new Event('storage'));
+      setRefreshToggle(v => v + 1);
+      alert(`Successfully ${newStatus.toLowerCase()}!`);
+  };
 
-  // Trip Stats
-  const tripStats = useMemo(() => {
-      const activeTrips = trips.filter(t => {
-          const matchCorp = isSuperAdmin ? (filterCorporate === 'All' || t.ownerId === filterCorporate) : true;
-          const matchBranch = filterBranch === 'All' || t.branch === filterBranch;
-          let matchDate = true;
-          if (filterType === 'Daily') matchDate = t.date === selectedDate;
-          else matchDate = t.date.startsWith(selectedMonth);
-          return matchCorp && matchBranch && matchDate;
-      });
-
-      const total = activeTrips.length;
-      const completed = activeTrips.filter(t => t.bookingStatus === 'Completed').length;
-      const revenue = activeTrips.filter(t => t.bookingStatus === 'Completed').reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
-      return { total, completed, revenue };
-  }, [trips, filterCorporate, filterBranch, filterType, selectedDate, selectedMonth, isSuperAdmin, refreshToggle]);
-
-  // Vehicle Stats
-  const vehicleStats = useMemo(() => {
-      const activeEnqs = enquiries.filter(e => {
-          const matchBranch = filterBranch === 'All' || e.assignedBranch === filterBranch;
-          let matchDate = true;
-          const enqDate = e.date || e.createdAt.split(',')[0]; 
-          if (filterType === 'Daily') matchDate = enqDate === selectedDate;
-          else matchDate = enqDate.startsWith(selectedMonth);
-          return matchBranch && matchDate;
-      });
-
-      const total = activeEnqs.length;
-      const booked = activeEnqs.filter(e => e.status === 'Booked' || e.status === 'Order Accepted').length;
-      const conversion = total > 0 ? Math.round((booked / total) * 100) : 0;
-      const amount = activeEnqs.reduce((sum, e) => {
-          if (e.status === 'Booked' || e.status === 'Order Accepted' || e.status === 'Completed') {
-              const match = e.details.match(/Estimate: ₹([\d,]+)/) || e.details.match(/₹([\d,]+)/);
-              return sum + (match ? parseInt(match[1].replace(/,/g, '')) : (e.estimatedPrice || 0));
-          }
-          return sum;
-      }, 0);
-
-      return { total, booked, conversion, amount };
-  }, [enquiries, filterBranch, filterType, selectedDate, selectedMonth, refreshToggle]);
+  // --- Stats Calculation ---
+  const statsSummary = useMemo(() => {
+    const totalStaff = employees.length;
+    const pendingCount = pendingActions.length;
+    const conversions = enquiries.filter(e => e.status === 'Booked' || e.status === 'Completed').length;
+    return { totalStaff, pendingCount, conversions };
+  }, [employees, pendingActions, enquiries]);
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-center animate-in fade-in slide-in-from-top-4">
+      {/* Welcome Header */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-[2.5rem] p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
           <div>
               <div className="flex items-center gap-2 mb-1">
-                  <span className="text-emerald-200 text-sm font-bold uppercase tracking-wider">{getGreeting()}</span>
+                  <span className="text-emerald-200 text-xs font-black uppercase tracking-[0.2em]">Management Terminal</span>
               </div>
-              <h1 className="text-3xl font-bold">{franchiseName}</h1>
-              <p className="text-emerald-100 text-sm mt-1 opacity-90">Welcome back, here is your daily overview.</p>
+              <h1 className="text-4xl font-black tracking-tighter">{franchiseName}</h1>
+              <p className="text-emerald-100 text-sm mt-2 opacity-80 font-medium">Real-time business vitals and workforce activity.</p>
           </div>
-          <div className="text-right mt-4 md:mt-0 bg-white/10 p-3 rounded-lg backdrop-blur-sm border border-white/20">
-              <div className="text-4xl font-mono font-bold tracking-widest leading-none">
+          <div className="text-right bg-white/10 p-5 rounded-3xl backdrop-blur-md border border-white/20 shadow-inner">
+              <div className="text-5xl font-black tracking-tighter tabular-nums leading-none">
                   {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
-              <div className="text-xs text-emerald-200 mt-1 uppercase font-medium tracking-wide">
+              <div className="text-[10px] text-emerald-200 mt-2 uppercase font-black tracking-[0.3em]">
                   {currentTime.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
               </div>
           </div>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-        <div><h2 className="text-xl font-bold text-gray-800 dark:text-white">Performance Metrics</h2></div>
-        <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-wrap gap-2 items-center">
-            {isSuperAdmin && (
-                <select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none bg-gray-50 dark:bg-gray-700 dark:text-white">
-                    <option value="All">All Corporates</option>
-                    <option value="admin">Head Office</option>
-                    {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
-                </select>
-            )}
-            <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none bg-gray-50 dark:bg-gray-700 dark:text-white">
-                <option value="All">All Branches</option>
-                {dashboardFilterBranches.map((b, i) => <option key={i} value={b.name}>{b.name}</option>)}
-            </select>
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1"></div>
-            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-                <button onClick={() => setFilterType('Daily')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${filterType === 'Daily' ? 'bg-white dark:bg-gray-600 shadow text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>Daily</button>
-                <button onClick={() => setFilterType('Monthly')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${filterType === 'Monthly' ? 'bg-white dark:bg-gray-600 shadow text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>Monthly</button>
-            </div>
-            {filterType === 'Daily' ? (
-                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none bg-white dark:bg-gray-800 dark:text-white" />
-            ) : (
-                <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none bg-white dark:bg-gray-800 dark:text-white" />
-            )}
-        </div>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Dashboard Main Stats */}
+          <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Staff</p>
+                      <div className="flex justify-between items-end">
+                        <h3 className="text-3xl font-black text-gray-800">{statsSummary.totalStaff}</h3>
+                        <Users className="w-6 h-6 text-emerald-500 opacity-20" />
+                      </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Enquiry Convs.</p>
+                      <div className="flex justify-between items-end">
+                        <h3 className="text-3xl font-black text-blue-600">{statsSummary.conversions}</h3>
+                        <TrendingUp className="w-6 h-6 text-blue-500 opacity-20" />
+                      </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Branches</p>
+                      <div className="flex justify-between items-end">
+                        <h3 className="text-3xl font-black text-purple-600">{branches.length}</h3>
+                        <Building2 className="w-6 h-6 text-purple-500 opacity-20" />
+                      </div>
+                  </div>
+              </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex justify-between items-start mb-2">
-                <div>
-                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Attendance</p>
-                    <h3 className="text-2xl font-bold text-gray-800 dark:text-white mt-1">
-                        {filterType === 'Daily' ? `${Math.round((attendanceStats.present / (attendanceStats.total || 1)) * 100)}%` : attendanceStats.present}
+              {/* Chart Section */}
+              <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+                  <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-emerald-500" /> System Activity
                     </h3>
-                </div>
-                <div className={`p-2 rounded-lg ${attendanceStats.absent > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'}`}><UserCheck className="w-5 h-5" /></div>
-            </div>
-            <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {attendanceStats.present} Present</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> {attendanceStats.absent} Absent</span>
-            </div>
-        </div>
+                    <div className="flex gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    </div>
+                  </div>
+                  <div className="h-64 flex flex-col items-center justify-center text-gray-300">
+                    <div className="relative">
+                        <Zap className="w-24 h-24 opacity-5 group-hover:scale-110 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-emerald-400/5 blur-3xl rounded-full"></div>
+                    </div>
+                    <p className="text-xs font-bold uppercase tracking-widest mt-4">Activity visualizer active</p>
+                  </div>
+              </div>
 
-        <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => navigate('/admin/trips')}>
-            <div className="flex justify-between items-start mb-2">
-                <div><p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Trips</p><h3 className="text-2xl font-bold text-gray-800 dark:text-white mt-1">{tripStats.total}</h3></div>
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400"><Truck className="w-5 h-5" /></div>
-            </div>
-            <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span> {tripStats.completed} Completed</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{tripStats.revenue.toLocaleString()}</span>
-            </div>
-        </div>
+              {/* Quick Launch */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                      { icon: Map, label: 'Trip Logs', path: '/admin/trips', color: 'bg-blue-50 text-blue-600' },
+                      { icon: Users, label: 'Staff List', path: '/admin/staff', color: 'bg-emerald-50 text-emerald-600' },
+                      { icon: FileText, label: 'Enquiries', path: '/admin/customer-care', color: 'bg-indigo-50 text-indigo-600' },
+                      { icon: Wallet, label: 'Payments', path: '/admin/driver-payments', color: 'bg-orange-50 text-orange-600' }
+                  ].map((btn, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => navigate(btn.path)}
+                        className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3"
+                      >
+                          <div className={`p-2 rounded-xl ${btn.color}`}><btn.icon className="w-5 h-5" /></div>
+                          <span className="text-[10px] font-black uppercase text-gray-500">{btn.label}</span>
+                      </button>
+                  ))}
+              </div>
+          </div>
 
-        <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex justify-between items-start mb-2">
-                <div><p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transport Revenue</p><h3 className="text-2xl font-bold text-gray-800 dark:text-white mt-1">₹{(vehicleStats.amount / 1000).toFixed(1)}k</h3></div>
-                <div className="p-2 bg-purple-50 dark:bg-blue-900/20 rounded-lg text-purple-600 dark:text-purple-400"><Car className="w-5 h-5" /></div>
-            </div>
-            <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                <span>{vehicleStats.booked} Booked / {vehicleStats.total} Enquiries</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{vehicleStats.conversion}% Conv.</span>
-            </div>
-        </div>
+          {/* ACTION CENTER - The Instant Approval Panel */}
+          <div className="lg:col-span-1 flex flex-col">
+              <div className="bg-white rounded-[3rem] border border-gray-100 shadow-xl flex flex-col h-[650px] overflow-hidden sticky top-6">
+                  <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50 shrink-0">
+                      <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${pendingActions.length > 0 ? 'bg-orange-100 text-orange-600 animate-pulse' : 'bg-emerald-100 text-emerald-600'}`}>
+                              {pendingActions.length > 0 ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                          </div>
+                          <div>
+                              <h3 className="font-black text-gray-900 tracking-tight">Action Center</h3>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Pending: {pendingActions.length}</p>
+                          </div>
+                      </div>
+                      <button 
+                        onClick={() => setRefreshToggle(v => v + 1)}
+                        className="p-2.5 bg-white hover:bg-gray-100 rounded-xl transition-all border border-gray-200 text-gray-400 hover:text-emerald-600 shadow-sm"
+                      >
+                          <RefreshCcw className="w-4 h-4" />
+                      </button>
+                  </div>
 
-        <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => navigate('/admin/tasks')}>
-            <div className="flex justify-between items-start mb-2">
-                <div><p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pending Tasks</p><h3 className="text-2xl font-bold text-gray-800 dark:text-white mt-1">{pendingApprovals.length}</h3></div>
-                <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-orange-600 dark:text-orange-400"><Clock className="w-5 h-5" /></div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Approvals for Leave, Advances, or Profile Edits.</p>
-        </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50/30">
+                      {pendingActions.length > 0 ? pendingActions.map((action) => (
+                          <div key={action.id} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4 duration-500">
+                              <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center gap-3">
+                                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${action.type === 'TA_CLAIM' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-600'}`}>
+                                          {action.type === 'TA_CLAIM' ? <Bike className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+                                      </div>
+                                      <div className="min-w-0 max-w-[140px]">
+                                          <h4 className="font-black text-gray-800 text-sm leading-tight truncate">{action.employeeName}</h4>
+                                          <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5 truncate">{action.type === 'TA_CLAIM' ? 'KM Claim' : 'Salary Advance'}</p>
+                                      </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                      <p className={`text-lg font-black ${action.type === 'TA_CLAIM' ? 'text-emerald-600' : 'text-blue-600'}`}>₹{action.amount.toLocaleString()}</p>
+                                      <p className="text-[9px] text-gray-400 font-bold uppercase">{action.date}</p>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 mb-4">
+                                  <p className="text-xs text-gray-500 line-clamp-2 italic font-medium leading-relaxed">
+                                      "{action.details}"
+                                  </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                  <button 
+                                      onClick={() => handleQuickAction(action.id, action.type, 'Approved')}
+                                      className="py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-900/10 transform active:scale-95 transition-all"
+                                  >
+                                      <Check className="w-4 h-4" /> Approve
+                                  </button>
+                                  <button 
+                                      onClick={() => handleQuickAction(action.id, action.type, 'Rejected')}
+                                      className="py-3 bg-white border border-rose-100 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rose-50 transform active:scale-95 transition-all shadow-sm"
+                                  >
+                                      <X className="w-4 h-4" /> Reject
+                                  </button>
+                              </div>
+                          </div>
+                      )) : (
+                          <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50">
+                              <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-400 mb-6">
+                                  <CheckCircle className="w-12 h-12" />
+                              </div>
+                              <h4 className="text-gray-900 font-black tracking-tight text-lg">All Caught Up!</h4>
+                              <p className="text-xs text-gray-400 mt-1 font-bold uppercase tracking-widest">No pending approvals found at this moment.</p>
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="p-4 border-t border-gray-50 bg-white shrink-0">
+                      <button 
+                        onClick={() => navigate('/admin/km-claims')}
+                        className="w-full py-4 text-emerald-600 font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-emerald-50 rounded-2xl transition-all border border-transparent hover:border-emerald-100"
+                      >
+                          Management Portal <ArrowRight className="w-4 h-4" />
+                      </button>
+                  </div>
+              </div>
+          </div>
       </div>
     </div>
   );

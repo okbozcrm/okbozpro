@@ -29,6 +29,7 @@ import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
 import UserProfile from './pages/user/UserProfile'; 
 import TaskManagement from './pages/TaskManagement';
+import KmClaims from './pages/KmClaims';
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -117,6 +118,7 @@ const App: React.FC = () => {
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
                         <Route path="/admin/leads" element={<Leads />} />
                         <Route path="/admin/tasks" element={<TaskManagement role={userRole} />} />
+                        <Route path="/admin/km-claims" element={<KmClaims role={userRole} />} />
                         <Route path="/admin/attendance" element={<UserAttendance isAdmin={true} />} />
                         <Route path="/admin/branches" element={<BranchForm />} />
                         <Route path="/admin/staff" element={<StaffList />} />
@@ -145,6 +147,7 @@ const App: React.FC = () => {
                         <Route path="/user/customer-care" element={<CustomerCare role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/vendors" element={<VendorAttachment />} />
                         <Route path="/user/salary" element={<UserSalary />} />
+                        <Route path="/user/km-claims" element={<KmClaims role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/documents" element={<Documents role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/apply-leave" element={<ApplyLeave />} />
                         <Route path="/user/profile" element={<UserProfile />} />

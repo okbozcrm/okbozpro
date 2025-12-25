@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike } from 'lucide-react';
 /* FIX: Corrected import name from AppNotification to BozNotification to match types.ts export. */
-import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification } from '../types';
+import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
@@ -26,6 +26,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
   { id: 'leads', path: '/admin/leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'tasks', path: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
+  { id: 'km-claims', path: '/admin/km-claims', label: 'KM Claims (TA)', icon: Bike },
   { id: 'attendance', path: '/admin/attendance', label: 'Attendance Dashboard', icon: Activity },
   { id: 'branches', path: '/admin/branches', label: 'Branches', icon: Building },
   { id: 'staff', path: '/admin/staff', label: 'Staff Management', icon: Users },
@@ -96,6 +97,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const [greeting, setGreeting] = useState('');
   const [welcomeName, setWelcomeName] = useState('');
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [pendingTaCount, setPendingTaCount] = useState(0);
   const prevChatCountRef = useRef(0);
 
   useEffect(() => {
@@ -121,6 +123,46 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, [role]);
+
+  // Handle counts for badges
+  const updateBadges = () => {
+      // 1. KM Claims Badge
+      try {
+          const sessionId = localStorage.getItem('app_session_id');
+          const saved = localStorage.getItem('global_travel_requests');
+          const allRequests: TravelAllowanceRequest[] = saved ? JSON.parse(saved) : [];
+          let filtered = allRequests.filter(r => r.status === 'Pending');
+          if (role === UserRole.CORPORATE) {
+              filtered = filtered.filter(r => r.corporateId === sessionId);
+          } else if (role === UserRole.EMPLOYEE) {
+              filtered = []; // Employees don't see count of others
+          }
+          setPendingTaCount(filtered.length);
+      } catch (e) {}
+
+      // 2. Chat Badge
+      try {
+          const msgs = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
+          const sessionId = localStorage.getItem('app_session_id');
+          if (!sessionId) return;
+          const unread = msgs.filter((m: any) => m.receiverId === sessionId && !m.read).length;
+          setChatUnreadCount(unread);
+          if (unread > prevChatCountRef.current) {
+              playAlarmSound();
+          }
+          prevChatCountRef.current = unread;
+      } catch (e) {}
+  };
+
+  useEffect(() => {
+    updateBadges();
+    const interval = setInterval(updateBadges, 5000);
+    window.addEventListener('storage', updateBadges);
+    return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', updateBadges);
+    };
+  }, [role, playAlarmSound]);
 
   useEffect(() => {
     const checkTaskReminders = async () => {
@@ -168,25 +210,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
     return () => clearInterval(interval);
   }, [role]);
-
-  useEffect(() => {
-    const checkChatMessages = () => {
-        try {
-            const msgs = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
-            const sessionId = localStorage.getItem('app_session_id');
-            if (!sessionId) return;
-            const unread = msgs.filter((m: any) => m.receiverId === sessionId && !m.read).length;
-            setChatUnreadCount(unread);
-            if (unread > prevChatCountRef.current) {
-                playAlarmSound();
-            }
-            prevChatCountRef.current = unread;
-        } catch (e) {}
-    };
-    checkChatMessages();
-    const interval = setInterval(checkChatMessages, 3000);
-    return () => clearInterval(interval);
-  }, [playAlarmSound]);
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
@@ -270,7 +293,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 'employee-settings',
-        'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments'
+        'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims'
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
       return false;
@@ -281,6 +304,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
+        { id: 'my-km-claims', path: '/user/km-claims', label: 'My KM Claims (TA)', icon: Bike },
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
@@ -352,6 +376,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                 <span className={`text-sm font-medium ${currentPath === link.path ? 'text-white' : ''}`}>{link.label}</span>
                 {(link.id === 'chat' || link.id === 'chat-employee') && chatUnreadCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">{chatUnreadCount}</span>}
                 {link.id === 'reception' && newTaskCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{newTaskCount}</span>}
+                {(link.id === 'km-claims' || link.id === 'my-km-claims') && pendingTaCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTaCount}</span>}
                 {isEditingSidebar && (role === UserRole.ADMIN || role === UserRole.CORPORATE) && <GripVertical className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-grab" />}
               </Link>
             ))}

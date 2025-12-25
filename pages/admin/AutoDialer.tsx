@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Phone, Upload, Download, Play, Pause, SkipForward, 
@@ -148,23 +147,36 @@ const AutoDialer: React.FC = () => {
 
   const stats = useMemo(() => {
     const total = contacts.length;
-    const completed = contacts.filter(c => c.status !== 'Pending').length;
+    const completedCount = contacts.filter(c => c.status === 'Interested' || c.status === 'Not Interested' || c.status === 'Completed').length;
     const interested = contacts.filter(c => c.status === 'Interested').length;
-    const callback = contacts.filter(c => c.status === 'Callback').length;
+    const callbackCount = contacts.filter(c => c.status === 'Callback').length;
     const notInterested = contacts.filter(c => c.status === 'Not Interested').length;
-    const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const progress = total === 0 ? 0 : Math.round((completedCount / total) * 100);
     
     const todayStr = new Date().toISOString().split('T')[0];
-    const todaysFollowUps = contacts.filter(c => c.nextFollowUp && c.nextFollowUp.startsWith(todayStr));
+    const pendingLeads = contacts.filter(c => c.status === 'Pending');
+    const dueFollowUps = contacts.filter(c => c.status === 'Callback' && c.nextFollowUp && c.nextFollowUp.split('T')[0] <= todayStr);
+    
+    const todaysFocusTotal = pendingLeads.length + dueFollowUps.length;
 
-    return { total, completed, interested, callback, notInterested, progress, todaysFollowUps };
+    return { 
+        total, 
+        completed: completedCount, 
+        interested, 
+        callback: callbackCount, 
+        notInterested, 
+        progress, 
+        pendingLeads: pendingLeads.length,
+        dueFollowUps: dueFollowUps.length,
+        todaysFocusTotal
+    };
   }, [contacts]);
 
   const pieData = [
     { name: 'Interested', value: stats.interested },
     { name: 'Callback', value: stats.callback },
     { name: 'Not Interested', value: stats.notInterested },
-    { name: 'Pending', value: stats.total - stats.completed },
+    { name: 'Pending', value: stats.pendingLeads },
   ].filter(d => d.value > 0);
 
   const filteredContacts = useMemo(() => {
@@ -177,8 +189,9 @@ const AutoDialer: React.FC = () => {
       let matchesDate = true;
       if (filterDateType === 'Today') {
           const todayStr = new Date().toISOString().split('T')[0];
-          const followUpToday = c.nextFollowUp ? c.nextFollowUp.startsWith(todayStr) : false;
-          matchesDate = followUpToday;
+          const isPending = c.status === 'Pending';
+          const isDueCallback = c.status === 'Callback' && c.nextFollowUp && c.nextFollowUp.split('T')[0] <= todayStr;
+          matchesDate = isPending || isDueCallback;
       } else if (filterDateType === 'Month') {
           if (c.nextFollowUp) matchesDate = c.nextFollowUp.startsWith(filterMonth);
           else matchesDate = false;
@@ -444,23 +457,34 @@ const AutoDialer: React.FC = () => {
 
       {/* Dashboard Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden cursor-pointer" onClick={() => { handleResetFilters(); setFilterDateType('Today'); }}>
+          {/* TODAY'S FOCUS CARD */}
+          <div 
+            className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden cursor-pointer group hover:scale-[1.02] transition-all" 
+            onClick={() => { handleResetFilters(); setFilterDateType('Today'); }}
+          >
               <div className="relative z-10">
-                  <h3 className="font-bold flex items-center gap-2 text-indigo-100 mb-4">
-                      <Calendar className="w-5 h-5" /> Today's Focus
+                  <h3 className="font-bold flex items-center gap-2 text-indigo-100 mb-3 uppercase tracking-widest text-[10px]">
+                      <Calendar className="w-4 h-4" /> Today's Action Center
                   </h3>
                   <div className="flex justify-between items-end">
                       <div>
-                          <p className="text-4xl font-bold">{stats.todaysFollowUps.length}</p>
-                          <p className="text-sm text-indigo-200">Follow-ups Due Today</p>
+                          <p className="text-5xl font-black">{stats.todaysFocusTotal}</p>
+                          <p className="text-sm text-indigo-200 font-bold">Total Priority Items</p>
                       </div>
-                      <div className="text-right">
-                          <p className="text-2xl font-bold">{stats.total - stats.completed}</p>
-                          <p className="text-sm text-indigo-200">Total Pending</p>
+                      <div className="text-right space-y-1">
+                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5">
+                             <div className="w-2 h-2 rounded-full bg-orange-400"></div> {stats.pendingLeads} New Leads
+                          </p>
+                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5">
+                             <div className="w-2 h-2 rounded-full bg-blue-400"></div> {stats.dueFollowUps} Callbacks
+                          </p>
                       </div>
                   </div>
+                  <div className="mt-4 pt-3 border-t border-white/10 flex items-center gap-2 text-[10px] font-bold text-indigo-200">
+                     <AlertCircle className="w-3 h-3" /> Click to view today's list
+                  </div>
               </div>
-              <div className="absolute right-0 bottom-0 opacity-10">
+              <div className="absolute -right-4 -bottom-4 opacity-[0.08] group-hover:scale-110 transition-transform duration-700">
                   <BarChart3 className="w-32 h-32 text-white" />
               </div>
           </div>
@@ -477,23 +501,23 @@ const AutoDialer: React.FC = () => {
                   </ResponsiveContainer>
               </div>
               <div className="flex-1 text-xs space-y-1">
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Interested ({stats.interested})</div>
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Callback ({stats.callback})</div>
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Not Intr ({stats.notInterested})</div>
+                  <div className="flex items-center gap-2 font-medium text-gray-700"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Interested ({stats.interested})</div>
+                  <div className="flex items-center gap-2 font-medium text-gray-700"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Callback ({stats.callback})</div>
+                  <div className="flex items-center gap-2 font-medium text-gray-700"><div className="w-2 h-2 rounded-full bg-red-500"></div> No Match ({stats.notInterested})</div>
               </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center gap-4 h-32">
               <div className="flex justify-between items-center">
-                  <span className="text-gray-500 text-sm font-medium">Completion</span>
+                  <span className="text-gray-500 text-sm font-medium">Daily Completion</span>
                   <span className="text-emerald-600 font-bold">{stats.progress}%</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2">
                   <div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${stats.progress}%` }}></div>
               </div>
               <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                  <span>{stats.completed} Done</span>
-                  <span>{stats.total} Total</span>
+                  <span>{stats.completed} Handled</span>
+                  <span>{stats.total} Lead Base</span>
               </div>
           </div>
       </div>
@@ -546,16 +570,16 @@ const AutoDialer: React.FC = () => {
                           <div className="space-y-4">
                               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Outcome & Next Step</p>
                               <div className="grid grid-cols-2 gap-3">
-                                  <button onClick={() => handleOutcome('Interested')} className="py-2.5 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 hover:bg-green-100 flex items-center justify-center gap-2 text-xs transition-colors">
+                                  <button onClick={() => handleOutcome('Interested')} className="py-2.5 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 hover:bg-green-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
                                       <CheckCircle className="w-4 h-4" /> Interested
                                   </button>
-                                  <button onClick={() => handleOutcome('Callback')} className="py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-2 text-xs transition-colors">
+                                  <button onClick={() => handleOutcome('Callback')} className="py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
                                       <Clock className="w-4 h-4" /> Callback
                                   </button>
-                                  <button onClick={() => handleOutcome('No Answer')} className="py-2.5 bg-orange-50 text-orange-700 font-bold rounded-xl border border-orange-200 hover:bg-orange-100 flex items-center justify-center gap-2 text-xs transition-colors">
+                                  <button onClick={() => handleOutcome('No Answer')} className="py-2.5 bg-orange-50 text-orange-700 font-bold rounded-xl border border-orange-200 hover:bg-orange-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
                                       <AlertCircle className="w-4 h-4" /> No Ans
                                   </button>
-                                  <button onClick={() => handleOutcome('Not Interested')} className="py-2.5 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 hover:bg-red-100 flex items-center justify-center gap-2 text-xs transition-colors">
+                                  <button onClick={() => handleOutcome('Not Interested')} className="py-2.5 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 hover:bg-red-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
                                       <XCircle className="w-4 h-4" /> Not Intr.
                                   </button>
                               </div>
@@ -642,35 +666,36 @@ const AutoDialer: React.FC = () => {
                   {showAdvancedFilters && (
                       <div className="p-4 bg-white border border-indigo-100 rounded-xl flex flex-wrap gap-4 items-end animate-in slide-in-from-top-2 duration-200">
                           <div>
-                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period</label>
+                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Focus Period</label>
                               <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                                 <button onClick={() => setFilterDateType('All')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${filterDateType === 'All' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-800'}`}>All</button>
-                                <button onClick={() => setFilterDateType('Today')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${filterDateType === 'Today' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-800'}`}>Today</button>
-                                <button onClick={() => setFilterDateType('Month')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${filterDateType === 'Month' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}>Month</button>
+                                <button onClick={() => setFilterDateType('Today')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${filterDateType === 'Today' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-800'}`}>Today Focus</button>
+                                <button onClick={() => setFilterDateType('Month')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${filterDateType === 'Month' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}>Target Month</button>
                               </div>
                           </div>
                           
                           {filterDateType === 'Month' && (
                               <div>
                                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Target Month</label>
-                                  <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
+                                  <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
                               </div>
                           )}
 
                           <div>
-                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Call Status</label>
-                              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[120px]">
+                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Status</label>
+                              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[120px]">
                                   <option value="All">All Status</option>
-                                  <option value="Pending">Pending</option>
-                                  <option value="Callback">Callback</option>
+                                  <option value="Pending">Pending (New)</option>
+                                  <option value="Callback">Callback Set</option>
                                   <option value="Interested">Interested</option>
                                   <option value="Not Interested">Not Interested</option>
+                                  <option value="No Answer">No Answer</option>
                               </select>
                           </div>
 
                           <div>
-                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Location / City</label>
-                              <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[120px]">
+                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">City</label>
+                              <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[120px]">
                                   <option value="All">All Cities</option>
                                   {cities.map(c => <option key={c} value={c}>{c}</option>)}
                               </select>
@@ -678,8 +703,8 @@ const AutoDialer: React.FC = () => {
 
                           {isSuperAdmin && (
                               <div>
-                                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Corporate Source</label>
-                                  <select value={filterCorporate} onChange={(e) => setFilterCorporate(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[140px]">
+                                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Franchise Source</label>
+                                  <select value={filterCorporate} onChange={(e) => setFilterCorporate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer min-w-[140px]">
                                       <option value="All">All Sources</option>
                                       <option value="admin">Head Office</option>
                                       {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
@@ -702,20 +727,22 @@ const AutoDialer: React.FC = () => {
                       <thead className="bg-white text-gray-400 text-[11px] font-black uppercase tracking-widest border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                           <tr>
                               <th className="px-6 py-4 w-12 text-center">#</th>
-                              <th className="px-6 py-4">Name / Source</th>
-                              <th className="px-6 py-4">Status</th>
-                              <th className="px-6 py-4">Next Action</th>
-                              <th className="px-6 py-4 text-right">Action</th>
+                              <th className="px-6 py-4">Lead Details</th>
+                              <th className="px-6 py-4">Current Status</th>
+                              <th className="px-6 py-4">Schedule</th>
+                              <th className="px-6 py-4 text-right">Actions</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                           {filteredContacts.map((contact, idx) => {
                               const isSelected = activeContact?.id === contact.id;
-                              const isToday = contact.nextFollowUp && contact.nextFollowUp.startsWith(new Date().toISOString().split('T')[0]);
+                              const todayStr = new Date().toISOString().split('T')[0];
+                              const isDue = contact.nextFollowUp && contact.nextFollowUp.split('T')[0] <= todayStr;
+                              
                               return (
                                   <tr 
                                       key={contact.id} 
-                                      className={`hover:bg-gray-50 transition-all cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : ''} ${isToday ? 'bg-yellow-50/40' : ''}`}
+                                      className={`hover:bg-gray-50 transition-all cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : ''} ${isDue ? 'bg-yellow-50/40' : ''}`}
                                       onClick={() => selectContact(contact.id)}
                                   >
                                       <td className="px-6 py-4 text-center text-gray-400 text-[10px] font-bold">
@@ -725,14 +752,15 @@ const AutoDialer: React.FC = () => {
                                           <div className={`font-bold text-sm ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>{contact.name}</div>
                                           <div className="text-[10px] text-gray-500 font-medium flex items-center gap-2">
                                               {contact.city} • {contact.phone}
-                                              {isSuperAdmin && <span className="bg-indigo-50 text-indigo-500 px-1 rounded">{contact.franchiseName}</span>}
+                                              {isSuperAdmin && <span className="bg-indigo-50 text-indigo-500 px-1 rounded font-bold uppercase tracking-tighter">{contact.franchiseName}</span>}
                                           </div>
                                       </td>
                                       <td className="px-6 py-4">
-                                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                                          <span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${
                                               contact.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                               contact.status === 'Callback' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                                               contact.status === 'No Answer' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                              contact.status === 'Pending' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                                               'bg-gray-100 text-gray-600 border-gray-200'
                                           }`}>
                                               {contact.status}
@@ -741,22 +769,22 @@ const AutoDialer: React.FC = () => {
                                       <td className="px-6 py-4 text-xs">
                                           <div className="flex flex-col">
                                               {contact.nextFollowUp ? (
-                                                  <span className={`flex items-center gap-1.5 font-bold ${isToday ? 'text-red-600' : 'text-gray-500'}`}>
+                                                  <span className={`flex items-center gap-1.5 font-black ${isDue ? 'text-rose-600' : 'text-gray-500'}`}>
                                                       <Calendar className="w-3 h-3" /> {new Date(contact.nextFollowUp).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}
                                                   </span>
                                               ) : (
-                                                  <span className="text-gray-300 text-[10px] italic">No follow-up set</span>
+                                                  <span className="text-gray-300 text-[10px] italic font-medium">New / No schedule</span>
                                               )}
                                               {contact.lastCalled && (
-                                                  <span className="text-[9px] text-gray-400 font-medium mt-0.5">
-                                                      Last called: {new Date(contact.lastCalled).toLocaleDateString()}
+                                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter mt-1">
+                                                      Last Contact: {new Date(contact.lastCalled).toLocaleDateString()}
                                                   </span>
                                               )}
                                           </div>
                                       </td>
                                       <td className="px-6 py-4 text-right">
                                           {isSelected ? (
-                                              <span className="text-[10px] font-black text-indigo-600 tracking-widest animate-pulse">ACTIVE</span>
+                                              <span className="text-[10px] font-black text-indigo-600 tracking-widest animate-pulse">ACTIVE DIALER</span>
                                           ) : (
                                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                   <button 
