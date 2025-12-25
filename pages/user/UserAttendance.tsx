@@ -13,7 +13,8 @@ import {
   AreaChart, Area 
 } from 'recharts';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount } from '../../types';
+import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount, UserRole } from '../../types';
+import { sendSystemNotification } from '../../services/cloudService';
 
 interface UserAttendanceProps {
   isAdmin?: boolean;
@@ -82,7 +83,9 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
 
   useEffect(() => {
-    const triggerRefresh = () => setRefreshToggle(prev => prev + 1);
+    const triggerRefresh = () => {
+        setRefreshToggle(prev => prev + 1);
+    };
     window.addEventListener('storage', triggerRefresh);
     window.addEventListener('attendance-updated', triggerRefresh);
     return () => {
@@ -225,7 +228,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       setIsEditModalOpen(false);
   };
 
-  const handlePunchAction = (action: 'In' | 'Out') => {
+  const handlePunchAction = async (action: 'In' | 'Out') => {
     if (!selectedEmployee) return;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -243,9 +246,24 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         return d;
     });
     localStorage.setItem(key, JSON.stringify(updated));
+    
+    // Trigger local and cloud sync events
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('attendance-updated'));
     window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
+    
+    // Send notification to Admin/Corporate
+    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+    await sendSystemNotification({
+        type: 'system',
+        title: `Employee Punched ${action}`,
+        message: `${selectedEmployee.name} (${selectedEmployee.id}) has just punched ${action.toLowerCase()} at ${time}.`,
+        targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+        corporateId: ownerId === 'admin' ? undefined : ownerId,
+        employeeId: selectedEmployee.id,
+        link: '/admin/attendance'
+    });
+
     setAttendanceData(updated);
     setIsPunchedIn(action === 'In');
     alert(`Successfully Punched ${action}!`);

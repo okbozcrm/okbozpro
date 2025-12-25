@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { BozNotification, UserRole } from '../types';
-import { fetchSystemNotifications, markNotificationAsRead as apiMarkNotificationAsRead } from '../services/cloudService';
+import { fetchSystemNotifications, markNotificationAsRead as apiMarkNotificationAsRead, restoreFromCloud } from '../services/cloudService';
 
 interface NotificationContextType {
   notifications: BozNotification[];
@@ -34,7 +34,6 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   // Play alarm sound if new notifications appear
   const playAlarmSound = useCallback(() => {
     try {
-      // Use document.createElement for audio to be more robust against global shadowing
       const audio = document.createElement('audio');
       audio.src = NOTIFICATION_SOUND_URL;
       audio.volume = 0.5;
@@ -71,6 +70,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       try {
         const fetchedNotifications = await fetchSystemNotifications();
         
+        // Logic to trigger instant data refresh if relevant notifications appear
+        const hasNewRelevantNotif = fetchedNotifications.some(fn => 
+            !notifications.some(pn => pn.id === fn.id) && 
+            (fn.type === 'login' || fn.type === 'system')
+        );
+
+        if (hasNewRelevantNotif) {
+            console.log("🔔 New activity detected. Refreshing local database...");
+            await restoreFromCloud();
+            window.dispatchEvent(new Event('storage'));
+            window.dispatchEvent(new CustomEvent('attendance-updated'));
+        }
+
         setNotifications(prevNotifications => {
           const newNotifications = fetchedNotifications.filter(
             fn => !prevNotifications.some(pn => pn.id === fn.id)
@@ -95,13 +107,13 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       } catch (error) {
         console.error("Error polling notifications:", error);
       } finally {
-        timeoutId = setTimeout(pollNotifications, 10000);
+        timeoutId = setTimeout(pollNotifications, 5000); // 5s poll for higher reactivity
       }
     };
 
     pollNotifications();
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [notifications]);
 
   useEffect(() => {
     localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
