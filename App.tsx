@@ -122,7 +122,6 @@ const App: React.FC = () => {
                         <Route path="/admin/attendance" element={<UserAttendance isAdmin={true} />} />
                         <Route path="/admin/branches" element={<BranchForm />} />
                         <Route path="/admin/staff" element={<StaffList />} />
-                        <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
                         <Route path="/admin/documents" element={<Documents role={userRole} />} />
                         <Route path="/admin/vendors" element={<VendorAttachment />} />
                         <Route path="/admin/payroll" element={<Payroll />} />
@@ -134,6 +133,7 @@ const App: React.FC = () => {
                           <>
                             <Route path="/admin/corporate" element={<Corporate />} />
                             <Route path="/admin/settings" element={<Settings />} />
+                            <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
                             <Route path="/admin/admin-finance" element={<Expenses />} />
                           </>
                         )}

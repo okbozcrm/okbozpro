@@ -292,7 +292,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       if (role === UserRole.ADMIN) return true;
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
-        'tasks', 'attendance', 'branches', 'staff', 'employee-settings',
+        'tasks', 'attendance', 'branches', 'staff',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims'
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;

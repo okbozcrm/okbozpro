@@ -35,25 +35,41 @@ const StaffList: React.FC = () => {
   const isSuperAdmin = sessionId === 'admin';
 
   // --- Core State ---
-  const [employees, setEmployees] = useState<DisplayEmployee[]>(() => {
+  const [employees, setEmployees] = useState<DisplayEmployee[]>([]);
+
+  // Function to load employees based on current user scope
+  const loadScopedStaff = () => {
     let allData: DisplayEmployee[] = [];
-    const adminData = localStorage.getItem('staff_data');
-    if (adminData) {
-        try { 
-            allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'Head Office', franchiseId: 'admin'}))];
-        } catch (e) {}
-    }
-    const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-    corporates.forEach((corp: any) => {
-        const cData = localStorage.getItem(`staff_data_${corp.email}`);
-        if (cData) {
-            try {
-                allData = [...allData, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
+    
+    if (isSuperAdmin) {
+        // SUPER ADMIN: Load EVERYTHING
+        const adminData = localStorage.getItem('staff_data');
+        if (adminData) {
+            try { 
+                allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'Head Office', franchiseId: 'admin'}))];
             } catch (e) {}
         }
-    });
-    return allData;
-  });
+        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corporates.forEach((corp: any) => {
+            const cData = localStorage.getItem(`staff_data_${corp.email}`);
+            if (cData) {
+                try {
+                    allData = [...allData, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
+                } catch (e) {}
+            }
+        });
+    } else {
+        // FRANCHISE ADMIN: Load only their specific key
+        const key = `staff_data_${sessionId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                allData = JSON.parse(saved).map((e: any) => ({...e, franchiseName: 'My Branch', franchiseId: sessionId }));
+            } catch (e) {}
+        }
+    }
+    setEmployees(allData);
+  };
 
   const [corporates, setCorporates] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
@@ -68,6 +84,8 @@ const StaffList: React.FC = () => {
   const [shiftOptions, setShiftOptions] = useState<any[]>([]);
 
   useEffect(() => {
+    loadScopedStaff();
+    
     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     setCorporates(corps);
 
@@ -91,6 +109,9 @@ const StaffList: React.FC = () => {
     setDepartmentOptions(JSON.parse(localStorage.getItem(DEPT_KEY) || '["Operations", "Sales", "HR"]'));
     setRoleOptions(JSON.parse(localStorage.getItem(ROLE_KEY) || '["Manager", "Supervisor", "Driver"]'));
     setShiftOptions(JSON.parse(localStorage.getItem(SHIFT_KEY) || '[{"name":"General Shift (09:30 - 18:30)"}]'));
+
+    window.addEventListener('storage', loadScopedStaff);
+    return () => window.removeEventListener('storage', loadScopedStaff);
   }, [isSuperAdmin, sessionId]);
 
   const getInitialFormState = () => ({
@@ -142,40 +163,71 @@ const StaffList: React.FC = () => {
         }
     };
 
-    let updatedList: DisplayEmployee[];
-    if (editingId) {
-        updatedList = employees.map(emp => emp.id === editingId ? payload : emp);
-    } else {
-        updatedList = [payload, ...employees];
-    }
-
-    setEmployees(updatedList);
-    
-    // Sync back to specific storage
+    // Determine target storage key
     const targetId = formData.franchiseId || 'admin';
     const storageKey = targetId === 'admin' ? 'staff_data' : `staff_data_${targetId}`;
-    const filteredForStorage = updatedList.filter(e => (e.franchiseId || 'admin') === targetId);
-    const cleanForStorage = filteredForStorage.map(({franchiseName, franchiseId, ...rest}) => rest);
+    
+    // Load fresh copy from storage to modify
+    const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    let updatedStorage: any[];
+    
+    if (editingId) {
+        updatedStorage = currentStorage.map((emp: any) => emp.id === editingId ? payload : emp);
+    } else {
+        updatedStorage = [payload, ...currentStorage];
+    }
+
+    // Strip DisplayEmployee metadata before saving
+    const cleanForStorage = updatedStorage.map(({franchiseName, franchiseId, ...rest}) => rest);
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
+
+    // Update local state list
+    setEmployees(prev => {
+        if (editingId) {
+            return prev.map(e => e.id === editingId ? payload : e);
+        }
+        return [payload, ...prev];
+    });
 
     setIsModalOpen(false);
     alert(editingId ? "Staff profile updated!" : "New staff member onboarded!");
   };
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+        const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                              emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+        // Extra security layer: ensure Franchise user only sees their specific ID
+        const matchesScope = isSuperAdmin ? true : emp.franchiseId === sessionId;
+        return matchesSearch && matchesScope;
+    });
+  }, [employees, searchTerm, isSuperAdmin, sessionId]);
+
+  const handleDelete = (id: string, emp: DisplayEmployee) => {
+    if(window.confirm(`Delete staff member ${emp.name}?`)) {
+        const targetId = emp.franchiseId || 'admin';
+        const storageKey = targetId === 'admin' ? 'staff_data' : `staff_data_${targetId}`;
+        const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const updated = currentStorage.filter((e: any) => e.id !== id);
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+        setEmployees(prev => prev.filter(e => e.id !== id));
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div><h2 className="text-2xl font-bold text-gray-800">Staff Management</h2><p className="text-gray-500">Manage and onboard your workforce</p></div>
+        <div>
+            <h2 className="text-2xl font-bold text-gray-800">Staff Management</h2>
+            <p className="text-gray-500">
+                {isSuperAdmin ? 'View and manage all organization staff' : 'Manage your franchise staff members'}
+            </p>
+        </div>
         <button onClick={() => { setEditingId(null); setFormData(getInitialFormState()); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-100 transition-all transform active:scale-95"><UserPlus className="w-5 h-5" /> Add Staff</button>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-        <div className="flex-1 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" /><input type="text" placeholder="Search by name, role or phone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm" /></div>
+        <div className="flex-1 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" /><input type="text" placeholder="Search by name or role..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm" /></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -191,7 +243,7 @@ const StaffList: React.FC = () => {
                 <img src={emp.avatar} alt="" className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-50 shadow-sm" />
                 <div className="flex gap-1">
                     <button onClick={() => { setEditingId(emp.id); setFormData({ ...getInitialFormState(), ...emp, firstName: emp.name.split(' ')[0], lastName: emp.name.split(' ').slice(1).join(' ') }); setIsModalOpen(true); }} className="text-gray-400 hover:text-emerald-600 p-2"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => setEmployees(prev => prev.filter(e => e.id !== emp.id))} className="text-gray-400 hover:text-red-600 p-2"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => handleDelete(emp.id, emp)} className="text-gray-400 hover:text-red-600 p-2"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900">{emp.name}</h3>
@@ -204,14 +256,18 @@ const StaffList: React.FC = () => {
             </div>
           </div>
         ))}
+        {filteredEmployees.length === 0 && (
+            <div className="col-span-full py-20 text-center text-gray-400 italic bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                No staff members found matching your search or account scope.
+            </div>
+        )}
       </div>
 
-      {/* --- STAFF MANAGEMENT MODAL (FINAL VERSION) --- */}
+      {/* --- STAFF MANAGEMENT MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8 animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             
-            {/* Header */}
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-3xl shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Staff Details' : 'Onboard New Staff'}</h3>
@@ -220,7 +276,6 @@ const StaffList: React.FC = () => {
               <button onClick={() => setIsModalOpen(false)} className="text-gray-300 hover:text-gray-500 transition-colors p-2 rounded-full hover:bg-gray-50"><X className="w-6 h-6" /></button>
             </div>
 
-            {/* Scrollable Form Body */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-12">
                 
                 {/* 1. PERSONAL INFORMATION */}
@@ -251,34 +306,31 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 3. EMERGENCY CONTACT */}
-                <section className="space-y-6">
-                  <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
-                    <AlertCircle className="w-3.5 h-3.5" /> Emergency Contact
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Contact Name</label><input name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="Name" /></div>
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Contact Phone</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" /><input name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="+91..." /></div></div>
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Relationship</label><input name="emergencyContactRelation" value={formData.emergencyContactRelation} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none" placeholder="e.g. Spouse, Father" /></div>
-                  </div>
-                </section>
-
-                {/* 4. EMPLOYMENT DETAILS */}
+                {/* 3. EMPLOYMENT DETAILS */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <Briefcase className="w-3.5 h-3.5" /> Employment Details
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Only show corporate selector if Super Admin */}
+                    {isSuperAdmin && (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-600 px-1">Assign to Corporate</label>
+                            <select name="franchiseId" value={formData.franchiseId} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">
+                                <option value="admin">Head Office</option>
+                                {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
+                            </select>
+                        </div>
+                    )}
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Department</label><select name="department" value={formData.department} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Job Role</label><select name="role" value={formData.role} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{roleOptions.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select</option>{branches.map(b => <option key={b.id || b.name} value={b.name}>{b.name}</option>)}</select></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Status</label><select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Probation">Probation</option></select></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Shift / Working Hours</label><select name="shift" value={formData.shift} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option value="">Select Shift</option>{shiftOptions.map((s, idx) => <option key={idx} value={s.name}>{s.name}</option>)}</select></div>
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Weekly Off</label><select name="weekOff" value={formData.weekOff} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]"><option>Sunday</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Rotation</option></select></div>
                   </div>
                 </section>
 
-                {/* 5. COMPENSATION */}
+                {/* 4. COMPENSATION */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <DollarSign className="w-3.5 h-3.5" /> Compensation
@@ -288,76 +340,41 @@ const StaffList: React.FC = () => {
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Payment Cycle</label><select name="paymentCycle" value={formData.paymentCycle} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{PAYMENT_CYCLES.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Bank Account Number</label><input name="accountNumber" value={formData.accountNumber} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all" placeholder="XXXXXXXXXXXXXX" /></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">IFSC Code</label><input name="ifsc" value={formData.ifsc} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all font-mono" placeholder="ABCD0123456" /></div>
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">PAN Number</label><input name="pan" value={formData.pan} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all font-mono" placeholder="ABCDE1234F" /></div>
-                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Aadhar Number</label><input name="aadhar" value={formData.aadhar} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all" placeholder="1234 5678 9012" /></div>
                   </div>
                 </section>
 
-                {/* 6. DOCUMENTS & SETTINGS */}
+                {/* 5. ATTENDANCE CONFIG */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
-                    <FileCheck className="w-3.5 h-3.5" /> Documents & Settings
+                    <CheckSquare className="w-3.5 h-3.5" /> Attendance Protocols
                   </h4>
-                  <div className="bg-gray-50 p-8 rounded-[2rem] border border-gray-100 space-y-8">
-                      {/* Live Tracking Checkbox */}
-                      <div className="flex items-start gap-4">
-                          <input type="checkbox" name="liveTracking" id="liveTracking" checked={formData.liveTracking} onChange={handleInputChange} className="mt-1 w-5 h-5 rounded-md border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shadow-sm" />
-                          <label htmlFor="liveTracking" className="cursor-pointer">
-                              <span className="block text-sm font-bold text-gray-800">Enable Live Tracking</span>
-                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Track location during shift hours (Mandatory for Marketing/Sales)</span>
-                          </label>
-                      </div>
-
-                      {/* Attendance Config (RADIO GROUP) */}
+                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-6 shadow-sm">
                       <div className="space-y-4">
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Attendance Configuration</label>
-                          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6 shadow-sm">
-                              {/* Option 1: Manual Button */}
-                              <div className="space-y-4">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input type="radio" name="punchMethod" value="Manual" checked={formData.punchMethod === 'Manual'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Web Punch Method (Manual Button)</span>
-                                    </div>
-                                </label>
-                                {formData.punchMethod === 'Manual' && (
-                                    <div className="pl-8 space-y-3 animate-in slide-in-from-left-2 duration-200">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location Restriction:</p>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-3 cursor-pointer">
-                                                <input type="radio" name="locationRestriction" value="Branch" checked={formData.locationRestriction === 'Branch'} onChange={handleInputChange} className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-xs font-bold text-gray-600">Restrict to Branch (GPS Geofencing)</span>
-                                            </label>
-                                            <label className="flex items-center gap-3 cursor-pointer">
-                                                <input type="radio" name="locationRestriction" value="Anywhere" checked={formData.locationRestriction === 'Anywhere'} onChange={handleInputChange} className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-xs font-bold text-gray-600">Allow Work From Anywhere</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                )}
-                              </div>
-
-                              {/* Option 2: QR Scan */}
-                              <label className="flex items-center gap-3 cursor-pointer group">
-                                  <input type="radio" name="punchMethod" value="QR" checked={formData.punchMethod === 'QR'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
-                                  <div className="flex flex-col">
-                                      <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Require QR Scan <span className="text-xs font-normal text-gray-400">(Scan Branch Code)</span></span>
-                                  </div>
-                              </label>
-
-                              {/* Option 3: Disabled */}
-                              <label className="flex items-center gap-3 cursor-pointer group">
-                                  <input type="radio" name="punchMethod" value="Disabled" checked={formData.punchMethod === 'Disabled'} onChange={handleInputChange} className="w-5 h-5 text-emerald-600 focus:ring-emerald-500" />
-                                  <div className="flex flex-col">
-                                      <span className="text-sm font-bold text-gray-700 group-hover:text-emerald-600 transition-colors">Disabled (No Web Punch)</span>
-                                  </div>
-                              </label>
+                          <label className="block text-sm font-bold text-gray-700">Punch-in Method</label>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {['Manual', 'QR', 'Disabled'].map(m => (
+                                  <label key={m} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData.punchMethod === m ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-gray-200'}`}>
+                                      <input type="radio" name="punchMethod" value={m} checked={formData.punchMethod === m} onChange={handleInputChange} className="w-4 h-4 text-emerald-600" />
+                                      <span className="text-sm font-bold text-gray-700">{m}</span>
+                                  </label>
+                              ))}
+                          </div>
+                      </div>
+                      <div className="space-y-4">
+                          <label className="block text-sm font-bold text-gray-700">Location Restriction</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {['Branch', 'Anywhere'].map(l => (
+                                  <label key={l} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData.locationRestriction === l ? 'bg-blue-50 border-blue-500' : 'bg-white border-gray-200'}`}>
+                                      <input type="radio" name="locationRestriction" value={l} checked={formData.locationRestriction === l} onChange={handleInputChange} className="w-4 h-4 text-blue-600" />
+                                      <span className="text-sm font-bold text-gray-700">{l === 'Branch' ? 'At Assigned Branch (Geofenced)' : 'Anywhere (Field Staff)'}</span>
+                                  </label>
+                              ))}
                           </div>
                       </div>
                   </div>
                 </section>
 
-                {/* 7. MODULE ACCESS PERMISSIONS */}
+                {/* 6. MODULE ACCESS PERMISSIONS */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <Layers className="w-3.5 h-3.5" /> Module Access Permissions
@@ -378,29 +395,10 @@ const StaffList: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start gap-3">
-                     <Info className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider leading-relaxed">Default access: Customer Care, Tasks, Vendor Attachment, My Profile, My Attendance. Check boxes above to grant extra permissions.</p>
-                  </div>
-                </section>
-
-                {/* 8. UPLOAD DOCUMENTS */}
-                <section className="space-y-6">
-                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
-                    <Upload className="w-3.5 h-3.5" /> Upload Documents
-                  </h4>
-                  <div className="border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all cursor-pointer group">
-                      <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:text-emerald-600 transition-all">
-                        <Upload className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <p className="text-sm font-bold text-slate-800">Click to upload files</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">ID Proofs, Contracts, Photos (Max 5MB)</p>
-                  </div>
                 </section>
 
             </form>
             
-            {/* Footer Buttons */}
             <div className="p-8 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end items-center gap-8 shrink-0">
               <button type="button" onClick={() => setIsModalOpen(false)} className="text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest">Cancel</button>
               <button onClick={handleSubmit} className="px-12 py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Update Profile</button>
