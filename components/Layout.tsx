@@ -291,7 +291,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff',
-        'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims'
+        'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
+        'auto-dialer'
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
       return false;
@@ -301,6 +302,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const userLinks = useMemo(() => {
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
+        { id: 'auto-dialer', path: '/user/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
         { id: 'my-km-claims', path: '/user/km-claims', label: 'My KM Claims (TA)', icon: Bike },
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
@@ -319,7 +321,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'attendance_admin': { id: 'attendance_admin', path: '/user/attendance-admin', label: 'Attendance (Admin)', icon: Activity },
         'staff': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
-        'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard }
+        'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
+        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers }
     };
     
     const addedLinks: any[] = [];
@@ -328,8 +331,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     });
     
     const finalLinks = [...baseLinks];
-    // Add custom links at index 5 (before Profile)
-    finalLinks.splice(5, 0, ...addedLinks);
+    // Add custom links at index 6 (before Profile)
+    finalLinks.splice(6, 0, ...addedLinks);
     return finalLinks;
   }, [employeePermissions]);
 

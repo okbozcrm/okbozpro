@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Phone, Upload, Download, Play, Pause, SkipForward, 
   CheckCircle, XCircle, Clock, AlertCircle, FileSpreadsheet, 
   Trash2, RefreshCcw, Search, MessageSquare, Save, UserPlus, X,
-  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2
+  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2, History
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -147,7 +148,7 @@ const AutoDialer: React.FC = () => {
 
   const stats = useMemo(() => {
     const total = contacts.length;
-    const completedCount = contacts.filter(c => c.status === 'Interested' || c.status === 'Not Interested' || c.status === 'Completed').length;
+    const completedCount = contacts.filter(c => c.status === 'Interested' || c.status === 'Not Interested' || c.status === 'No Answer' || c.status === 'Completed').length;
     const interested = contacts.filter(c => c.status === 'Interested').length;
     const callbackCount = contacts.filter(c => c.status === 'Callback').length;
     const notInterested = contacts.filter(c => c.status === 'Not Interested').length;
@@ -327,15 +328,26 @@ const AutoDialer: React.FC = () => {
 
   const handleOutcome = (status: CallContact['status']) => {
     if (!activeContact) return;
-    if (!activeContact.note || !activeContact.note.trim()) {
-        alert("Please enter a note describing the conversation.");
-        return;
+    
+    let finalNote = activeContact.note.trim();
+    
+    // Auto-populate notes if empty
+    if (!finalNote) {
+        if (status === 'No Answer') finalNote = "Attempted call, but the customer did not answer.";
+        if (status === 'Not Interested') finalNote = "Customer stated they are not interested at this time.";
+        if (status === 'Interested') finalNote = "Customer expressed interest in our services.";
+        if (status === 'Callback') finalNote = "Requested a follow-up call at a later time.";
     }
+
     if (status === 'Callback') {
+        // We set the note in state first so saveCallback can pick it up
+        setContacts(prev => prev.map(c => c.id === activeContact.id ? { ...c, note: finalNote } : c));
         setIsCallbackModalOpen(true);
         return; 
     }
-    updateContactStatus(status);
+
+    // For other statuses, update immediately
+    updateContactStatus(status, undefined, finalNote);
   };
 
   const saveCallback = () => {
@@ -343,39 +355,57 @@ const AutoDialer: React.FC = () => {
           alert("Please select date and time");
           return;
       }
-      updateContactStatus('Callback', `${callbackDate}T${callbackTime}`);
+      // Pass the current note from activeContact
+      updateContactStatus('Callback', `${callbackDate}T${callbackTime}`, activeContact.note);
       setIsCallbackModalOpen(false);
-      setCallbackDate(''); setCallbackTime('');
+      setCallbackDate(''); 
+      setCallbackTime('');
   };
 
-  const updateContactStatus = (status: CallContact['status'], nextFollowUp?: string) => {
-    const updatedContacts = [...contacts];
+  const updateContactStatus = (status: CallContact['status'], nextFollowUp?: string, noteOverride?: string) => {
     const timestamp = new Date().toLocaleString();
-    const newLog: CallHistoryLog = { timestamp, status, note: activeContact.note };
+    const targetId = activeContact.id;
 
-    const idxInMaster = contacts.findIndex(c => c.id === activeContact.id);
-    if (idxInMaster === -1) return;
+    setContacts(prevContacts => {
+        const updated = [...prevContacts];
+        const idxInMaster = updated.findIndex(c => c.id === targetId);
+        if (idxInMaster === -1) return prevContacts;
 
-    updatedContacts[idxInMaster] = {
-      ...activeContact,
-      status,
-      lastCalled: timestamp,
-      nextFollowUp: nextFollowUp || activeContact.nextFollowUp,
-      history: [newLog, ...(activeContact.history || [])],
-      note: ''
-    };
-    setContacts(updatedContacts);
+        const currentContact = updated[idxInMaster];
+        const finalNote = noteOverride || currentContact.note || `Call logged as ${status}`;
+        
+        const newLog: CallHistoryLog = { 
+            timestamp, 
+            status, 
+            note: finalNote 
+        };
 
+        updated[idxInMaster] = {
+          ...currentContact,
+          status,
+          lastCalled: timestamp,
+          nextFollowUp: nextFollowUp || currentContact.nextFollowUp,
+          history: [newLog, ...(currentContact.history || [])],
+          note: '' // Reset the scratchpad note after saving to history
+        };
+
+        return updated;
+    });
+
+    // Handle auto-advancing if session is active
     if (isSessionActive) {
-       let nextIndex = -1;
-       for (let i = activeIndex + 1; i < contacts.length; i++) {
-           if (contacts[i].status === 'Pending') {
-               nextIndex = i;
-               break;
+       setContacts(prev => {
+           let nextIndex = -1;
+           for (let i = activeIndex + 1; i < prev.length; i++) {
+               if (prev[i].status === 'Pending') {
+                   nextIndex = i;
+                   break;
+               }
            }
-       }
-       if (nextIndex !== -1) setActiveIndex(nextIndex);
-       else setIsSessionActive(false);
+           if (nextIndex !== -1) setActiveIndex(nextIndex);
+           else setIsSessionActive(false);
+           return prev;
+       });
     }
   };
 
@@ -526,13 +556,13 @@ const AutoDialer: React.FC = () => {
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
           {/* Active Caller Card */}
-          <div className="lg:w-1/3 flex flex-col">
+          <div className="lg:w-1/3 flex flex-col min-h-0">
               <div className="bg-white rounded-2xl border border-gray-200 shadow-lg flex-1 flex flex-col overflow-hidden relative">
                   <div className="h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
                   
                   {activeContact ? (
                       <div className="p-6 flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-                          <div className="flex justify-between items-start mb-6">
+                          <div className="flex justify-between items-start mb-6 shrink-0">
                               <div className="min-w-0">
                                   <span className="inline-block px-2 py-1 rounded bg-gray-100 text-gray-500 text-[10px] font-bold mb-2">
                                       #{activeIndex + 1} / {contacts.length}
@@ -561,32 +591,85 @@ const AutoDialer: React.FC = () => {
 
                           <button 
                               onClick={handleCall}
-                              className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-1 mb-6 group"
+                              className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-1 mb-6 group shrink-0"
                           >
                               <Phone className="w-8 h-8 fill-current group-hover:scale-110 transition-transform" />
                               <span className="text-lg font-bold tracking-wide">DIAL NOW</span>
                           </button>
 
-                          <div className="space-y-4">
-                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Outcome & Next Step</p>
-                              <div className="grid grid-cols-2 gap-3">
-                                  <button onClick={() => handleOutcome('Interested')} className="py-2.5 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 hover:bg-green-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
-                                      <CheckCircle className="w-4 h-4" /> Interested
-                                  </button>
-                                  <button onClick={() => handleOutcome('Callback')} className="py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
-                                      <Clock className="w-4 h-4" /> Callback
-                                  </button>
-                                  <button onClick={() => handleOutcome('No Answer')} className="py-2.5 bg-orange-50 text-orange-700 font-bold rounded-xl border border-orange-200 hover:bg-orange-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
-                                      <AlertCircle className="w-4 h-4" /> No Ans
-                                  </button>
-                                  <button onClick={() => handleOutcome('Not Interested')} className="py-2.5 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 hover:bg-red-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
-                                      <XCircle className="w-4 h-4" /> Not Intr.
-                                  </button>
+                          {/* CONVERSATION HISTORY SECTION */}
+                          <div className="mb-6 space-y-3">
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                  <History className="w-3 h-3" /> Recent Conversation History
+                              </p>
+                              <div className="bg-gray-50 rounded-xl border border-gray-100 p-1 max-h-40 overflow-y-auto custom-scrollbar shadow-inner">
+                                  {(activeContact.history || []).length > 0 ? (
+                                      <div className="space-y-3 p-3">
+                                          {activeContact.history!.map((log, lIdx) => (
+                                              <div key={lIdx} className="relative pl-5 border-l-2 border-emerald-100 pb-1">
+                                                  <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></div>
+                                                  <div className="flex justify-between items-start mb-1">
+                                                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${
+                                                          log.status === 'Interested' ? 'bg-emerald-100 text-emerald-700' :
+                                                          log.status === 'Callback' ? 'bg-blue-100 text-blue-700' :
+                                                          log.status === 'No Answer' ? 'bg-orange-100 text-orange-700' :
+                                                          'bg-gray-100 text-gray-500'
+                                                      }`}>{log.status}</span>
+                                                      <span className="text-[8px] text-gray-400 font-bold">{log.timestamp}</span>
+                                                  </div>
+                                                  <p className="text-xs text-gray-600 leading-relaxed italic">"{log.note}"</p>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  ) : (
+                                      <div className="py-8 text-center text-gray-400 italic text-[10px]">No previous history for this lead.</div>
+                                  )}
                               </div>
                           </div>
 
-                          <div className="mt-6 pt-4 border-t border-gray-100">
-                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Quick Actions</p>
+                          {/* NOTE & OUTCOME AREA */}
+                          <div className="space-y-6 pt-2 border-t border-gray-100">
+                              <div>
+                                  <div className="flex justify-between items-center mb-2">
+                                    <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                                        Current Note <span className="text-red-500">*</span>
+                                    </label>
+                                    <button onClick={cancelNote} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors">
+                                        <RotateCcw className="w-2.5 h-2.5" /> Clear
+                                    </button>
+                                  </div>
+                                  <textarea 
+                                      value={activeContact.note}
+                                      onChange={(e) => {
+                                          const val = e.target.value;
+                                          setContacts(prev => prev.map(c => c.id === activeContact.id ? { ...c, note: val } : c));
+                                      }}
+                                      className="w-full p-3 bg-white border border-emerald-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-24 shadow-sm"
+                                      placeholder="What did you talk about? Describe the interaction here..."
+                                  />
+                              </div>
+
+                              <div className="space-y-4">
+                                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Outcome & Next Step</p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <button onClick={() => handleOutcome('Interested')} className="py-2.5 bg-green-50 text-green-700 font-bold rounded-xl border border-green-200 hover:bg-green-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
+                                          <CheckCircle className="w-4 h-4" /> Interested
+                                      </button>
+                                      <button onClick={() => handleOutcome('Callback')} className="py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
+                                          <Clock className="w-4 h-4" /> Callback
+                                      </button>
+                                      <button onClick={() => handleOutcome('No Answer')} className="py-2.5 bg-orange-50 text-orange-700 font-bold rounded-xl border border-orange-200 hover:bg-orange-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
+                                          <AlertCircle className="w-4 h-4" /> No Ans
+                                      </button>
+                                      <button onClick={() => handleOutcome('Not Interested')} className="py-2.5 bg-red-50 text-red-700 font-bold rounded-xl border border-red-200 hover:bg-red-100 flex items-center justify-center gap-2 text-xs transition-colors text-center">
+                                          <XCircle className="w-4 h-4" /> Not Intr.
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="mt-8 pt-4 border-t border-gray-100">
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Quick Engagement</p>
                               <div className="flex gap-2">
                                   <button onClick={() => sendWhatsApp('NoAnswer')} className="flex-1 py-2 bg-green-100 text-green-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 hover:bg-green-200 transition-colors">
                                       <MessageSquare className="w-3 h-3" /> WA: No Ans
@@ -598,28 +681,6 @@ const AutoDialer: React.FC = () => {
                                       <Mail className="w-3 h-3" /> Email
                                   </button>
                               </div>
-                          </div>
-
-                          <div className="mt-4 pt-4 border-t border-gray-100">
-                              <div className="flex justify-between items-center mb-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                    Current Note <span className="text-red-500">*</span>
-                                </label>
-                                <button onClick={cancelNote} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors">
-                                    <RotateCcw className="w-2.5 h-2.5" /> Clear
-                                </button>
-                              </div>
-                              <textarea 
-                                  value={activeContact.note}
-                                  onChange={(e) => {
-                                      const updated = [...contacts];
-                                      const idx = contacts.findIndex(c => c.id === activeContact.id);
-                                      updated[idx] = { ...activeContact, note: e.target.value };
-                                      setContacts(updated);
-                                  }}
-                                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20 shadow-inner"
-                                  placeholder="Describe conversation (required for status)..."
-                              />
                           </div>
                       </div>
                   ) : (

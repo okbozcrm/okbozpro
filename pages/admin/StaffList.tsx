@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, Search, Phone, Mail, X, User, Upload, FileText, CreditCard, Briefcase, 
@@ -5,7 +6,7 @@ import {
   MapPin, Eye, EyeOff, Smartphone, ScanLine, MousePointerClick, Heart, Home, 
   AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode, ChevronDown, 
   IndianRupee, Fingerprint, Shield, UserCheck, Layers, FileCheck, CheckSquare, Square,
-  Circle, Dot, DollarSign, Plane, Building, UserPlus, Info
+  Circle, Dot, DollarSign, Plane, Building, UserPlus, Info, HeartPulse
 } from 'lucide-react'; 
 import { Employee, UserRole } from '../../types';
 import ContactDisplay from '../../components/ContactDisplay';
@@ -27,7 +28,8 @@ const MODULE_PERMISSIONS = [
   { id: 'attendance_admin', label: 'Attendance (Admin View)' },
   { id: 'staff', label: 'Staff Management' },
   { id: 'payroll', label: 'Payroll' },
-  { id: 'finance', label: 'Finance & Expenses' }
+  { id: 'finance', label: 'Finance & Expenses' },
+  { id: 'leads', label: 'Franchisee Leads' }
 ];
 
 const StaffList: React.FC = () => {
@@ -133,7 +135,17 @@ const StaffList: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
-    setFormData(prev => ({ ...prev, [name]: val }));
+    
+    // Auto-strip Franchisee Leads if the user switches to a non-HO account
+    if (name === 'franchiseId' && value !== 'admin') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: val,
+        moduleAccess: prev.moduleAccess.filter(m => m !== 'leads')
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: val }));
+    }
   };
 
   const togglePermission = (id: string) => {
@@ -293,10 +305,10 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 2. EXTENDED PERSONAL DETAILS */}
+                {/* 2. EDIT STAFF DETAILS */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
-                    <Heart className="w-3.5 h-3.5" /> Extended Personal Details
+                    <Heart className="w-3.5 h-3.5" /> Edit Staff Details
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">{GENDERS.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
@@ -306,7 +318,19 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 3. EMPLOYMENT DETAILS */}
+                {/* 3. EMERGENCY CONTACT DETAILS */}
+                <section className="space-y-6">
+                  <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
+                    <HeartPulse className="w-3.5 h-3.5" /> Emergency Contact Details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Contact Person Name</label><input name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all" placeholder="Full Name" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Phone Number</label><input name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all" placeholder="+91 00000 00000" /></div>
+                    <div className="space-y-1.5"><label className="text-xs font-bold text-gray-600 px-1">Relation</label><input name="emergencyContactRelation" value={formData.emergencyContactRelation} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all" placeholder="e.g. Spouse, Parent" /></div>
+                  </div>
+                </section>
+
+                {/* 4. EMPLOYMENT DETAILS */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <Briefcase className="w-3.5 h-3.5" /> Employment Details
@@ -317,7 +341,7 @@ const StaffList: React.FC = () => {
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-600 px-1">Assign to Corporate</label>
                             <select name="franchiseId" value={formData.franchiseId} onChange={handleInputChange} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTNhM2FmIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xOSAxMmw3IDcgNy03Ii8+PC9zdmc+')] bg-no-repeat bg-[length:1em_1em] bg-[right_1rem_center]">
-                                <option value="admin">Head Office</option>
+                                <option value="admin">OK BOZ HEAD OFFICE</option>
                                 {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
                             </select>
                         </div>
@@ -330,7 +354,7 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 4. COMPENSATION */}
+                {/* 5. COMPENSATION */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <DollarSign className="w-3.5 h-3.5" /> Compensation
@@ -343,7 +367,7 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 5. ATTENDANCE CONFIG */}
+                {/* 6. ATTENDANCE CONFIG */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <CheckSquare className="w-3.5 h-3.5" /> Attendance Protocols
@@ -374,13 +398,13 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 6. MODULE ACCESS PERMISSIONS */}
+                {/* 7. MODULE ACCESS PERMISSIONS */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <Layers className="w-3.5 h-3.5" /> Module Access Permissions
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {MODULE_PERMISSIONS.map(module => (
+                    {MODULE_PERMISSIONS.filter(m => (m.id === 'leads') ? formData.franchiseId === 'admin' : true).map(module => (
                       <div 
                         key={module.id} 
                         onClick={() => togglePermission(module.id)}
