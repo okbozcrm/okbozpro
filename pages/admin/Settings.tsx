@@ -1,19 +1,20 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings as SettingsIcon, Lock as LockIcon, 
-  LogOut, Cloud, Database, Globe, Palette, Save,
-  UploadCloud, DownloadCloud, Loader2, Map as MapIcon, Check,
-  Users, Target, Building2, Car, Wallet, MapPin, Truck, Layers, RefreshCw, Eye,
-  Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff,
-  MessageSquare, HardDrive, Bike, Megaphone, PhoneForwarded, Headset, ClipboardList,
-  FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck
+  Cloud, Database, Globe, Save,
+  UploadCloud, DownloadCloud, Loader2, RefreshCw, Eye,
+  PhoneForwarded, Headset, ClipboardList,
+  FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
+  Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
+  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
   syncToCloud, restoreFromCloud 
 } from '../../services/cloudService';
 import { useBranding } from '../../context/BrandingContext';
+import { UserRole, Employee } from '../../types';
 
 const Settings: React.FC = () => {
   const { companyName, primaryColor, updateBranding } = useBranding();
@@ -26,8 +27,9 @@ const Settings: React.FC = () => {
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
 
-  const isMapsHardcoded = !!(HARDCODED_MAPS_API_KEY && HARDCODED_MAPS_API_KEY.length > 5);
-  const [mapsKey, setMapsKey] = useState(HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key') || '');
+  const role = localStorage.getItem('user_role') as UserRole;
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = role === UserRole.ADMIN;
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
@@ -48,11 +50,63 @@ const Settings: React.FC = () => {
     }
   }, []);
 
+  // Determine what modules are visible in the sidebar for the current user
+  const visibleModules = useMemo(() => {
+    if (isSuperAdmin) return null; // Admin sees all
+
+    // 1. Logic for Corporate
+    if (role === UserRole.CORPORATE) {
+        return [
+            'Dashboard', 'Reports', 'Boz Chat', 'Customer Care', 'Trip Booking', 'Live Tracking',
+            'Tasks', 'Attendance Dashboard', 'Branches', 'Staff Management',
+            'Documents', 'Vendor Attachment', 'Payroll', 'Finance & Expenses', 'Driver Payments', 'KM Claims (TA)',
+            'Auto Dialer', 'Franchisee Leads'
+        ];
+    }
+
+    // 2. Logic for Employee (Base + dynamic permissions)
+    if (role === UserRole.EMPLOYEE) {
+        const base = [
+            'My Attendance', 'Auto Dialer', 'My Salary', 'KM Claims (TA)', 'My Documents', 
+            'Apply Leave', 'My Profile', 'Customer Care', 'Boz Chat', 'My Tasks', 'Vendor Attachment'
+        ];
+
+        // Fetch dynamic permissions from profile
+        let profile: Employee | null = null;
+        try {
+            const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+            profile = adminStaff.find((e: Employee) => e.id === sessionId);
+            if (!profile) {
+                const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+                for (const corp of corps) {
+                    const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
+                    profile = corpStaff.find((e: Employee) => e.id === sessionId);
+                    if (profile) break;
+                }
+            }
+        } catch (e) {}
+
+        const mapping: Record<string, string> = {
+            'reports': 'Reports',
+            'trips': 'Trip Booking',
+            'driver-payments': 'Driver Payments',
+            'attendance_admin': 'Attendance Dashboard',
+            'staff': 'Staff Management',
+            'payroll': 'Payroll',
+            'finance': 'Finance & Expenses',
+            'leads': 'Franchisee Leads'
+        };
+
+        const extra = (profile?.moduleAccess || []).map(p => mapping[p]).filter(Boolean);
+        return [...base, ...extra];
+    }
+
+    return null;
+  }, [role, isSuperAdmin, sessionId]);
+
   const generateCollectionStats = (cloudData: any) => {
     const sessionId = localStorage.getItem('app_session_id') || 'admin';
-    const isSuperAdmin = sessionId === 'admin';
-
-    // List of modules to track for sync status
+    
     const collections = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
@@ -74,10 +128,15 @@ const Settings: React.FC = () => {
         { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
         { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
         { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
-        { key: 'system_backup_logs', label: 'Data & Backup', icon: Database }
+        { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike }
     ];
 
-    return collections.map(col => {
+    // Filter based on what's in the sidebar
+    const filteredCollections = visibleModules 
+        ? collections.filter(c => visibleModules.includes(c.label)) 
+        : collections;
+
+    return filteredCollections.map(col => {
         let localCount: string | number = 0;
         let localContent: any = null;
         let localStr: string | null = null;
@@ -97,7 +156,6 @@ const Settings: React.FC = () => {
             cloudCount = cloudData[col.key].count || '0';
         }
 
-        // Module is considered "Synced" if cloud exists for local data
         const isSynced = localCount === 0 || (localCount !== 0 && cloudCount !== '-');
 
         return {
@@ -209,6 +267,86 @@ const Settings: React.FC = () => {
       setTimeout(() => setAdminPassMsg({ type: '', text: '' }), 3000);
   };
 
+  if (!isSuperAdmin) {
+      return (
+          <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+              {/* Main Header Card */}
+              <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
+                          <Database className="w-7 h-7" />
+                      </div>
+                      <div>
+                          <h3 className="text-xl font-black text-slate-800 tracking-tighter uppercase">Live Cloud Repository</h3>
+                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                              Automatic Synchronization Active
+                          </p>
+                      </div>
+                  </div>
+                  <button 
+                      onClick={checkConnection}
+                      disabled={dbStatus === 'Error'}
+                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-indigo-100"
+                  >
+                      <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
+                      Verify Integrity
+                  </button>
+              </div>
+
+              {/* Module Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {collectionStats.map((stat) => (
+                      <div key={stat.key} className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col hover:shadow-lg transition-all group border-b-4 border-b-transparent hover:border-b-indigo-500">
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
+                                  <stat.icon className="w-6 h-6" />
+                              </div>
+                              <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></div>
+                                  <span className="text-[10px] font-black uppercase text-emerald-700 tracking-tighter">Live</span>
+                              </div>
+                          </div>
+
+                          <h4 className="font-black text-slate-800 text-sm truncate uppercase tracking-widest mb-6">{stat.label}</h4>
+
+                          <div className="flex items-center justify-between text-center bg-gray-50/50 rounded-2xl p-6 border border-gray-100 mb-6">
+                              <div className="flex-1">
+                                  <span className="text-slate-400 block text-[9px] uppercase font-black mb-2 tracking-widest">Local</span>
+                                  <span className="text-2xl font-black text-slate-800">{stat.local}</span>
+                              </div>
+                              <div className="w-px h-10 bg-gray-200"></div>
+                              <div className="flex-1">
+                                  <span className="text-slate-400 block text-[9px] uppercase font-black mb-2 tracking-widest">Cloud</span>
+                                  <span className="text-2xl font-black text-indigo-600">{stat.cloud}</span>
+                              </div>
+                          </div>
+
+                          <button 
+                              onClick={() => handleViewCollection(stat.key, stat.localContent)}
+                              className="w-full py-4 bg-white border border-gray-200 text-slate-500 text-[11px] font-black uppercase rounded-2xl hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg"
+                          >
+                              <Eye className="w-4 h-4" /> Inspect Data
+                          </button>
+                      </div>
+                  ))}
+              </div>
+
+              {/* Bottom Notice */}
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-3xl p-8 flex items-start gap-4">
+                  <div className="p-3 bg-indigo-500 text-white rounded-2xl shadow-lg shadow-indigo-500/20">
+                      <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                      <p className="font-black uppercase tracking-widest text-xs text-indigo-900 mb-2">Cloud Protected Mode</p>
+                      <p className="text-sm text-indigo-700 leading-relaxed font-medium max-w-3xl">
+                          As a Franchise/Employee user, your system settings (Branding, Org Structure) are managed by the Head Office. Your panel exclusively monitors data integrity, ensuring every record created here is safely mirrored to the Super Admin's cloud repository.
+                      </p>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       <div className="flex justify-between items-center">
@@ -227,7 +365,6 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* Cloud Repository Monitor */}
       <div className="space-y-4 animate-in fade-in duration-500">
           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3">
@@ -291,7 +428,6 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* General Config */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
              <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
                 <Globe className="w-5 h-5 text-indigo-500" /> Branding Logic
@@ -330,7 +466,6 @@ const Settings: React.FC = () => {
              </div>
           </div>
 
-          {/* Admin Security */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
               <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
                   <LockIcon className="w-5 h-5 text-emerald-500" /> Security Override
@@ -360,7 +495,7 @@ const Settings: React.FC = () => {
                                   value={adminPasswords.new}
                                   onChange={e => setAdminPasswords({...adminPasswords, new: e.target.value})}
                               />
-                              <button type="button" onClick={() => setShowAdminPass(p => ({...p, new: !p.new}))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                              <button type="button" onClick={() => setShowAdminPass(p => ({...p, new: !p.new}))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                                   {showAdminPass.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                           </div>
@@ -388,7 +523,6 @@ const Settings: React.FC = () => {
           </div>
       </div>
 
-      {/* Cloud Sync Advanced Controls */}
       <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
         <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -434,7 +568,7 @@ const Settings: React.FC = () => {
       {showCollectionViewer && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-300 border border-white">
-            <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50 rounded-t-[3rem]">
+            <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-[3rem]">
               <div>
                 <h3 className="font-black text-gray-800 text-xl tracking-tighter uppercase">Inspecting Module: {currentViewingCollection}</h3>
                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Direct Browser Storage Snapshot</p>

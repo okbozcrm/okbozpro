@@ -74,10 +74,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   
   const themeRef = useRef<HTMLDivElement>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
-  const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const [pendingTaCount, setPendingTaCount] = useState(0);
 
   useEffect(() => {
     if (role === UserRole.EMPLOYEE) {
@@ -115,6 +111,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
+        { id: 'settings-employee', path: '/user/settings', label: 'Settings', icon: Settings },
     ];
     
     const restrictedLinksMap: Record<string, any> = {
@@ -125,7 +122,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'staff': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
-        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers } // Correctly mapped to /user/leads
+        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers }
     };
     
     const addedLinks: any[] = [];
@@ -145,7 +142,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
-        'auto-dialer', 'leads'
+        'auto-dialer', 'leads', 'settings'
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
       return false;
