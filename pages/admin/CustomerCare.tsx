@@ -94,7 +94,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   // Map State
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -610,6 +609,9 @@ Book now with OK BOZ Transport!`;
       setEnquiries(newEnquiriesList);
       localStorage.setItem('global_enquiries_data', JSON.stringify(newEnquiriesList));
 
+      // Trigger immediate cloud sync
+      window.dispatchEvent(new Event('cloud-sync-immediate'));
+
       alert(`${enquiryCategory === 'Transport' ? 'Order' : 'Enquiry'} ${status} Successfully!`);
       
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
@@ -698,6 +700,9 @@ Book now with OK BOZ Transport!`;
       
       setEnquiries(updatedList);
       localStorage.setItem('global_enquiries_data', JSON.stringify(updatedList));
+
+      // Trigger immediate cloud sync
+      window.dispatchEvent(new Event('cloud-sync-immediate'));
 
       if (updatedEnquiryItem) {
           sendSystemNotification({
