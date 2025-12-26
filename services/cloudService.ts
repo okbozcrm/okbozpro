@@ -35,6 +35,8 @@ const GLOBAL_KEYS = [
   'reception_recent_transfers',
   'payroll_history',
   'leave_history',
+  'global_leave_requests',
+  'global_travel_requests',
   'app_settings',
   'transport_pricing_rules_v2',
   'transport_rental_packages_v2',
@@ -46,7 +48,8 @@ const GLOBAL_KEYS = [
   'salary_advances',
   'app_branding',
   'app_theme',
-  'maps_api_key'
+  'maps_api_key',
+  'chat_groups_data'
 ];
 
 const NAMESPACED_KEYS = [
@@ -57,8 +60,10 @@ const NAMESPACED_KEYS = [
   'office_expenses',
   'tasks_data',
   'sub_admins',
-  'app_settings',
-  'trips_data'
+  'trips_data',
+  'driver_payment_records',
+  'driver_wallet_data',
+  'auto_dialer_data'
 ];
 
 const DYNAMIC_PREFIXES = [
@@ -148,7 +153,7 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
       }
     }
 
-    // 3. NEW: Sync Dynamic Attendance and Driver Log Keys
+    // 3. Sync Dynamic Attendance and Driver Log Keys
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix))) {
@@ -251,7 +256,6 @@ export const sendSystemNotification = async (notification: Omit<BozNotification,
       read: false,
     };
 
-    // 🛠️ FIX: Firestore does not support 'undefined'. Strip undefined properties before sending.
     const cleanData = Object.fromEntries(
       Object.entries(newNotification).filter(([_, value]) => value !== undefined)
     );
@@ -278,22 +282,15 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
       const isTargetRole = notif.targetRoles.includes(userRole);
       if (!isTargetRole) return false;
 
-      // STRICT EMPLOYEE FILTERING:
-      // Employees ONLY see notifications specifically addressed to their ID.
-      // General role notifications or franchise-wide ones are hidden unless targeted.
       if (userRole === UserRole.EMPLOYEE) {
           return notif.employeeId === sessionId;
       }
 
-      // CORPORATE FILTERING:
-      // Sees notifications for their role and specifically for their franchise.
       if (userRole === UserRole.CORPORATE) {
           if (notif.corporateId && notif.corporateId !== sessionId) return false;
           return true;
       }
 
-      // ADMIN FILTERING:
-      // Sees everything targeted at ADMIN role.
       if (userRole === UserRole.ADMIN) {
         return true;
       }

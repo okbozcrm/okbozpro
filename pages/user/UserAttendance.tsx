@@ -143,7 +143,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             setSelectedEmployee(defaultEmp || allStaff[0]);
         }
 
-        // Load Leave Requests
         const leaves = JSON.parse(localStorage.getItem('global_leave_requests') || '[]');
         if (isSuperAdmin) setLeaveRequests(leaves);
         else {
@@ -167,6 +166,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     setIsPunchedIn(!!(todayRecord && todayRecord.punches && todayRecord.punches.length > 0 && !todayRecord.punches[todayRecord.punches.length - 1].out));
   }, [selectedEmployee, selectedMonth, refreshToggle]);
 
+  /* FIX: Declaring filteredStaffList and staffDailyLogs before dashboardStats which depends on them */
   const filteredStaffList = useMemo(() => {
     return employees.filter(emp => {
         const matchesSearch = filterSearch ? emp.name.toLowerCase().includes(filterSearch.toLowerCase()) : true;
@@ -243,6 +243,63 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     };
   }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, activeTab, selectedEmployee, todayDateStr, refreshToggle, leaveRequests]);
 
+  const handlePunchAction = async (action: 'In' | 'Out') => {
+    if (!selectedEmployee || isPunching) return;
+    
+    setIsPunching(true); 
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const key = `attendance_data_${selectedEmployee.id}_${year}_${month}`;
+    const currentData = JSON.parse(localStorage.getItem(key) || JSON.stringify(getEmployeeAttendance(selectedEmployee, year, month)));
+    
+    const updated = currentData.map((d: DailyAttendance) => {
+        if (d.date === today) {
+            const punches = d.punches || [];
+            if (action === 'In') {
+                punches.push({ in: time });
+                return { 
+                    ...d, 
+                    status: AttendanceStatus.PRESENT, 
+                    punches, 
+                    checkIn: d.checkIn || time, 
+                    isLate: punches.length === 1 ? now.getHours() >= 10 : d.isLate 
+                };
+            } else {
+                if (punches.length > 0) {
+                    punches[punches.length - 1].out = time;
+                }
+                return { ...d, punches, checkOut: time };
+            }
+        }
+        return d;
+    });
+
+    localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('attendance-updated'));
+    window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
+    
+    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+    await sendSystemNotification({
+        type: 'system',
+        title: `Employee Punched ${action}`,
+        message: `${selectedEmployee.name} punched ${action.toLowerCase()} at ${time}.`,
+        targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+        corporateId: ownerId === 'admin' ? undefined : ownerId,
+        employeeId: selectedEmployee.id,
+        link: '/admin/attendance'
+    });
+
+    setAttendanceData(updated);
+    setIsPunchedIn(action === 'In');
+    setIsPunching(false); 
+  };
+
   const availableBranchesList = useMemo(() => {
     if (filterCorporate === 'All') return branches;
     return branches.filter(b => b.owner === filterCorporate);
@@ -302,6 +359,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('attendance-updated'));
+      window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
       setRefreshToggle(v => v + 1);
   };
 
@@ -355,63 +413,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     alert(`Updated month-till-date status to ${status.replace('_', ' ')}!`);
   };
 
-  const handlePunchAction = async (action: 'In' | 'Out') => {
-    if (!selectedEmployee || isPunching) return;
-    
-    setIsPunching(true); 
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const key = `attendance_data_${selectedEmployee.id}_${year}_${month}`;
-    const currentData = JSON.parse(localStorage.getItem(key) || JSON.stringify(getEmployeeAttendance(selectedEmployee, year, month)));
-    
-    const updated = currentData.map((d: DailyAttendance) => {
-        if (d.date === today) {
-            const punches = d.punches || [];
-            if (action === 'In') {
-                punches.push({ in: time });
-                return { 
-                    ...d, 
-                    status: AttendanceStatus.PRESENT, 
-                    punches, 
-                    checkIn: d.checkIn || time, 
-                    isLate: punches.length === 1 ? now.getHours() >= 10 : d.isLate 
-                };
-            } else {
-                if (punches.length > 0) {
-                    punches[punches.length - 1].out = time;
-                }
-                return { ...d, punches, checkOut: time };
-            }
-        }
-        return d;
-    });
-
-    localStorage.setItem(key, JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-    window.dispatchEvent(new CustomEvent('attendance-updated'));
-    window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
-    
-    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
-    await sendSystemNotification({
-        type: 'system',
-        title: `Employee Punched ${action}`,
-        message: `${selectedEmployee.name} punched ${action.toLowerCase()} at ${time}.`,
-        targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
-        corporateId: ownerId === 'admin' ? undefined : ownerId,
-        employeeId: selectedEmployee.id,
-        link: '/admin/attendance'
-    });
-
-    setAttendanceData(updated);
-    setIsPunchedIn(action === 'In');
-    setIsPunching(false); 
-  };
-
   const renderLeaveRequests = () => {
     const pending = leaveRequests.filter(l => l.status === 'Pending').sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
     const history = leaveRequests.filter(l => l.status !== 'Pending').sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
@@ -419,7 +420,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
-                <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-gray-50/30">
+                <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center bg-gray-50/30">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-rose-50 rounded-xl text-rose-600"><Plane className="w-5 h-5" /></div>
                         <h3 className="font-black text-gray-800 uppercase tracking-widest text-sm">Pending Leave Applications ({pending.length})</h3>

@@ -127,7 +127,6 @@ const AutoDialer: React.FC = () => {
     if (contacts.length === 0) return;
     
     if (isSuperAdmin) {
-        // Save back strictly to HO data
         const hoContacts = contacts.filter(c => c.ownerId === 'admin');
         const clean = hoContacts.map(({ownerId, franchiseName, ...rest}) => rest);
         localStorage.setItem('auto_dialer_data', JSON.stringify(clean));
@@ -225,6 +224,7 @@ const AutoDialer: React.FC = () => {
     };
 
     setContacts(prev => [newContact, ...prev]);
+    window.dispatchEvent(new Event('cloud-sync-immediate'));
     setManualContact({ name: '', phone: '', email: '', city: '' });
     setIsAddModalOpen(false);
   };
@@ -249,12 +249,14 @@ const AutoDialer: React.FC = () => {
           email: editFormData.email,
           city: editFormData.city
       } : c));
+      window.dispatchEvent(new Event('cloud-sync-immediate'));
       setIsEditModalOpen(false);
   };
 
   const handleDeleteContact = (id: string) => {
       if(window.confirm("Are you sure you want to delete this contact?")) {
           setContacts(prev => prev.filter(c => c.id !== id));
+          window.dispatchEvent(new Event('cloud-sync-immediate'));
           if (activeContact?.id === id) setActiveIndex(0);
       }
   };
@@ -300,6 +302,7 @@ const AutoDialer: React.FC = () => {
              setContacts(newContacts);
              setActiveIndex(0);
         }
+        window.dispatchEvent(new Event('cloud-sync-immediate'));
       }
     };
     reader.readAsText(file);
@@ -331,7 +334,6 @@ const AutoDialer: React.FC = () => {
     
     let finalNote = activeContact.note.trim();
     
-    // Auto-populate notes if empty
     if (!finalNote) {
         if (status === 'No Answer') finalNote = "Attempted call, but the customer did not answer.";
         if (status === 'Not Interested') finalNote = "Customer stated they are not interested at this time.";
@@ -340,13 +342,11 @@ const AutoDialer: React.FC = () => {
     }
 
     if (status === 'Callback') {
-        // We set the note in state first so saveCallback can pick it up
         setContacts(prev => prev.map(c => c.id === activeContact.id ? { ...c, note: finalNote } : c));
         setIsCallbackModalOpen(true);
         return; 
     }
 
-    // For other statuses, update immediately
     updateContactStatus(status, undefined, finalNote);
   };
 
@@ -355,7 +355,6 @@ const AutoDialer: React.FC = () => {
           alert("Please select date and time");
           return;
       }
-      // Pass the current note from activeContact
       updateContactStatus('Callback', `${callbackDate}T${callbackTime}`, activeContact.note);
       setIsCallbackModalOpen(false);
       setCallbackDate(''); 
@@ -386,13 +385,14 @@ const AutoDialer: React.FC = () => {
           lastCalled: timestamp,
           nextFollowUp: nextFollowUp || currentContact.nextFollowUp,
           history: [newLog, ...(currentContact.history || [])],
-          note: '' // Reset the scratchpad note after saving to history
+          note: '' 
         };
 
         return updated;
     });
 
-    // Handle auto-advancing if session is active
+    window.dispatchEvent(new Event('cloud-sync-immediate'));
+
     if (isSessionActive) {
        setContacts(prev => {
            let nextIndex = -1;
@@ -440,6 +440,7 @@ const AutoDialer: React.FC = () => {
   const handleClearAll = () => {
       if (window.confirm("Delete ALL contacts? This cannot be undone.")) {
           setContacts([]);
+          window.dispatchEvent(new Event('cloud-sync-immediate'));
           setActiveIndex(0);
       }
   };
@@ -597,7 +598,6 @@ const AutoDialer: React.FC = () => {
                               <span className="text-lg font-bold tracking-wide">DIAL NOW</span>
                           </button>
 
-                          {/* CONVERSATION HISTORY SECTION */}
                           <div className="mb-6 space-y-3">
                               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                   <History className="w-3 h-3" /> Recent Conversation History
@@ -627,7 +627,6 @@ const AutoDialer: React.FC = () => {
                               </div>
                           </div>
 
-                          {/* NOTE & OUTCOME AREA */}
                           <div className="space-y-6 pt-2 border-t border-gray-100">
                               <div>
                                   <div className="flex justify-between items-center mb-2">
@@ -723,7 +722,6 @@ const AutoDialer: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Advanced Filter Bar (Toggleable) */}
                   {showAdvancedFilters && (
                       <div className="p-4 bg-white border border-indigo-100 rounded-xl flex flex-wrap gap-4 items-end animate-in slide-in-from-top-2 duration-200">
                           <div>
@@ -820,7 +818,7 @@ const AutoDialer: React.FC = () => {
                                           <span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${
                                               contact.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                               contact.status === 'Callback' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                              contact.status === 'No Answer' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                              contact.status === 'No Answer' ? 'bg-orange-100 text-orange-700 border-orange-100' :
                                               contact.status === 'Pending' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                                               'bg-gray-100 text-gray-600 border-gray-200'
                                           }`}>
