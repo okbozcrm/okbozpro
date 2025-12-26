@@ -159,8 +159,6 @@ const App: React.FC = () => {
                         <Route path="/user/staff" element={<StaffList />} />
                         <Route path="/user/payroll" element={<Payroll />} />
                         <Route path="/user/expenses" element={<Expenses />} />
-                        <Route path="/user/auto-dialer" element={<AutoDialer />} />
-                        <Route path="/user/leads" element={<Leads />} />
                         <Route path="/user/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>
                     )}
