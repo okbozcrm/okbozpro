@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-/* Added missing Target, Phone, and ChevronRight icons to the lucide-react import list */
 import { 
   Plus, Search, MapPin, IndianRupee, Calendar, Clock, Sparkles,
   X, User, Pencil, Trash2, MessageCircle, Send, Loader2, FileText, 
@@ -320,7 +319,7 @@ const Leads = () => {
   const stats = useMemo(() => {
       const total = leads.length;
       const interested = leads.filter(l => l.status === 'Qualified').length;
-      // Follow-up Today refers to the selected kpiRefDate
+      // Follow-up refers to the selected kpiRefDate
       const dueCount = leads.filter(l => l.status !== 'Lost' && l.status !== 'Converted' && l.nextCallDate === kpiRefDate).length;
       const pipelineValue = leads.filter(l => l.status !== 'Lost').reduce((sum, l) => sum + (l.totalValue || 0), 0);
       return { total, interested, dueCount, pipelineValue };
@@ -352,7 +351,7 @@ const Leads = () => {
         </div>
       </div>
 
-      {/* 2. Filter Bar (Moved Above KPIs) */}
+      {/* 2. Filter Bar */}
       <div className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-xl shadow-indigo-900/5 flex flex-col lg:flex-row gap-4 items-center animate-in fade-in slide-in-from-top-4">
          <div className="relative flex-1 w-full">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -403,7 +402,7 @@ const Leads = () => {
          </div>
       </div>
 
-      {/* 3. FULL COLOR KPI CARDS (Modified with Calendar) */}
+      {/* 3. Colorful KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all">
               <div className="relative z-10 space-y-2">
@@ -503,6 +502,7 @@ const Leads = () => {
                       <thead className="bg-gray-50 border-b border-gray-100">
                           <tr>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Lead Identity</th>
+                              <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone Number</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Value (INR)</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
@@ -521,6 +521,9 @@ const Leads = () => {
                                               <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{lead.role}</p>
                                           </div>
                                       </div>
+                                  </td>
+                                  <td className="px-10 py-8 font-mono text-gray-600 font-bold">
+                                      <ContactDisplay type="phone" value={lead.phone || ''} />
                                   </td>
                                   <td className="px-10 py-8 text-gray-600 font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-300" /> {lead.location}</td>
                                   <td className="px-10 py-8 text-right font-black text-gray-900 text-base">₹{lead.totalValue.toLocaleString()}</td>
