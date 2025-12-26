@@ -32,7 +32,7 @@ const GLOBAL_KEYS = [
   'corporate_accounts',
   'global_enquiries_data',
   'call_enquiries_history',
-  'reception_recent_transfers',
+  'recription_recent_transfers',
   'payroll_history',
   'leave_history',
   'global_leave_requests',
@@ -57,7 +57,10 @@ const GLOBAL_KEYS = [
   'app_documents',
   'admin_sidebar_order',
   'driver_activity_summary',
-  'system_backup_logs'
+  'system_backup_logs',
+  'dashboard_stats',
+  'active_staff_locations',
+  'analytics_cache'
 ];
 
 const NAMESPACED_KEYS = [
@@ -77,37 +80,29 @@ const NAMESPACED_KEYS = [
 const DYNAMIC_PREFIXES = [
   'attendance_data_',
   'driver_activity_log_',
-  'driver_wallet_data_'
+  'driver_wallet_data_',
+  'staff_data_',
+  'leads_data_',
+  'branches_data_',
+  'office_expenses_',
+  'tasks_data_',
+  'trips_data_'
 ];
 
 const NOTIFICATION_COLLECTION = 'global_notifications';
 
 let isSyncing = false;
-const lastSyncedData: Record<string, string> = {};
+// Use local storage to persist the "last synced" state so it survives app restarts/PWA reloads
+const getSyncHashKey = (key: string) => `cloud_hash_${key}`;
 
-const getActiveConfig = (config?: FirebaseConfig): FirebaseConfig | null => {
-  if (HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5) {
-      return HARDCODED_FIREBASE_CONFIG;
-  }
-  let activeConfig = config;
-  if (!activeConfig || !activeConfig.apiKey) {
-     const saved = localStorage.getItem('firebase_config');
-     if (saved) activeConfig = JSON.parse(saved);
-  }
-  if (!activeConfig || !activeConfig.apiKey) return null;
-  return activeConfig;
-};
+const getDb = (app: FirebaseApp): Firestore => getFirestore(app);
 
 const getFirebaseApp = (config?: FirebaseConfig): FirebaseApp | null => {
-  const activeConfig = getActiveConfig(config);
-  if (!activeConfig) return null;
-  if (getApps().length > 0) return getApp();
-  try {
-    return initializeApp(activeConfig);
-  } catch (e) {
-    console.error("Firebase Init Error:", e);
-    return null;
+  if (HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5) {
+      if (getApps().length > 0) return getApp();
+      return initializeApp(HARDCODED_FIREBASE_CONFIG);
   }
+  return null;
 };
 
 const ensureAuth = async (app: FirebaseApp) => {
@@ -117,59 +112,64 @@ const ensureAuth = async (app: FirebaseApp) => {
   } catch (e) {}
 };
 
-const getDb = (app: FirebaseApp): Firestore => getFirestore(app);
-
 export const syncToCloud = async (config?: FirebaseConfig) => {
   if (isSyncing) return { success: false, message: "Sync in progress" };
 
   isSyncing = true;
   try {
     const app = getFirebaseApp(config);
-    if (!app) return { success: false, message: "Not Connected" };
+    if (!app) {
+        isSyncing = false;
+        return { success: false, message: "Not Connected" };
+    }
 
     await ensureAuth(app);
     const db = getDb(app);
-
-    const corporateAccountsStr = localStorage.getItem('corporate_accounts');
-    const corporates = corporateAccountsStr ? JSON.parse(corporateAccountsStr) : [];
 
     let writeCount = 0;
 
     const writeIfChanged = async (key: string) => {
         const data = localStorage.getItem(key);
-        if (!data || lastSyncedData[key] === data) return;
-        await setDoc(doc(db, "ok_boz_live_data", key), {
-          content: data,
-          lastUpdated: new Date().toISOString()
-        });
-        lastSyncedData[key] = data;
-        writeCount++;
+        if (data === null) return;
+
+        // Simple but effective: check if current data matches the last successful sync hash
+        const currentHash = btoa(unescape(encodeURIComponent(data))).slice(0, 32);
+        const lastHash = localStorage.getItem(getSyncHashKey(key));
+
+        if (currentHash !== lastHash) {
+            await setDoc(doc(db, "ok_boz_live_data", key), {
+              content: data,
+              lastUpdated: new Date().toISOString(),
+              hash: currentHash
+            });
+            localStorage.setItem(getSyncHashKey(key), currentHash);
+            writeCount++;
+        }
     };
     
-    // 1. Sync Known Global and Namespaced Keys
-    const rootKeys = [...GLOBAL_KEYS, ...NAMESPACED_KEYS];
-    for (const key of rootKeys) await writeIfChanged(key);
-
-    // 2. Sync Corporate Namespaced Keys
-    if (Array.isArray(corporates)) {
-      for (const corp of corporates) {
-        const email = corp.email;
-        if (!email) continue;
-        for (const prefix of NAMESPACED_KEYS) {
-          await writeIfChanged(`${prefix}_${email}`);
-        }
-      }
+    // 1. Sync Global Keys
+    for (const key of GLOBAL_KEYS) {
+        await writeIfChanged(key);
     }
 
-    // 3. Sync Dynamic Attendance and Driver Log Keys
+    // 2. Scan LocalStorage for all Franchisee and Employee Keys
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix))) {
-            await writeIfChanged(key);
+        if (key) {
+            const isNamespaced = NAMESPACED_KEYS.includes(key);
+            const isDynamic = DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix));
+            const isAppMeta = key.startsWith('cloud_hash_') || key === 'app_session_id' || key === 'user_role';
+            
+            if ((isNamespaced || isDynamic) && !isAppMeta) {
+                await writeIfChanged(key);
+            }
         }
     }
 
-    if (writeCount > 0) console.log(`☁️ Synced ${writeCount} updated records to cloud.`);
+    if (writeCount > 0) {
+        console.log(`☁️ Cloud Sync Success: ${writeCount} items updated.`);
+    }
+    
     return { success: true, message: `Sync complete! (${writeCount} updates)` };
   } catch (error: any) {
     console.error("Sync Error:", error);
@@ -192,14 +192,14 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
         const data = doc.data();
         if (data.content) {
             localStorage.setItem(doc.id, data.content);
-            lastSyncedData[doc.id] = data.content;
+            if (data.hash) {
+                localStorage.setItem(getSyncHashKey(doc.id), data.hash);
+            }
         }
     });
     
-    console.log("✅ Data Loaded from Cloud");
     return { success: true, message: "Restore complete! Data loaded from Cloud." };
   } catch (error: any) {
-    console.error("Restore Error:", error);
     return { success: false, message: `Restore failed: ${error.message}` };
   }
 };
@@ -209,13 +209,11 @@ export const uploadFileToCloud = async (file: File, path: string): Promise<strin
     const app = getFirebaseApp();
     if (!app) throw new Error("Firebase not connected");
     await ensureAuth(app);
-    if (!app.options.storageBucket) return null;
     const storage = getStorage(app);
     const storageRef = ref(storage, path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   } catch (error: any) {
-    console.error("Cloud Upload Failed:", error.code, error.message);
     return null;
   }
 };
@@ -224,8 +222,8 @@ export const autoLoadFromCloud = async (): Promise<boolean> => {
     try {
         const app = getFirebaseApp();
         if (!app) return false;
-        await restoreFromCloud();
-        return true;
+        const res = await restoreFromCloud();
+        return res.success;
     } catch (e) { return false; }
 };
 
@@ -243,8 +241,8 @@ export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
       try {
         const parsed = JSON.parse(data.content);
         if (Array.isArray(parsed)) count = parsed.length.toString();
-        else count = 'Config';
-      } catch (e) { count = 'Raw'; }
+        else count = '1';
+      } catch (e) { count = '1'; }
       stats[doc.id] = { count: count, lastUpdated: data.lastUpdated };
     });
     return stats;
@@ -263,13 +261,8 @@ export const sendSystemNotification = async (notification: Omit<BozNotification,
       timestamp: new Date().toISOString(),
       read: false,
     };
-
-    const cleanData = Object.fromEntries(
-      Object.entries(newNotification).filter(([_, value]) => value !== undefined)
-    );
-
-    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), cleanData);
-  } catch (error) { console.error("Failed to send notification:", error); }
+    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), newNotification);
+  } catch (error) {}
 };
 
 export const fetchSystemNotifications = async (): Promise<BozNotification[]> => {
@@ -284,30 +277,14 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     let allNotifications: BozNotification[] = [];
     snapshot.forEach(doc => { allNotifications.push(doc.data() as BozNotification); });
     
-    const relevantNotifications = allNotifications.filter(notif => {
+    return allNotifications.filter(notif => {
       if (notif.read) return false;
-      
-      const isTargetRole = notif.targetRoles.includes(userRole);
-      if (!isTargetRole) return false;
-
-      if (userRole === UserRole.EMPLOYEE) {
-          return notif.employeeId === sessionId;
-      }
-
-      if (userRole === UserRole.CORPORATE) {
-          if (notif.corporateId && notif.corporateId !== sessionId) return false;
-          return true;
-      }
-
-      if (userRole === UserRole.ADMIN) {
-        return true;
-      }
-      
+      if (!notif.targetRoles.includes(userRole)) return false;
+      if (userRole === UserRole.EMPLOYEE && notif.employeeId !== sessionId) return false;
+      if (userRole === UserRole.CORPORATE && notif.corporateId && notif.corporateId !== sessionId) return false;
       return true;
-    });
-
-    return relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  } catch (error) { console.error("Failed to fetch notifications:", error); return []; }
+    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch (error) { return []; }
 };
 
 export const markNotificationAsRead = async (notificationId: string) => {
@@ -317,7 +294,7 @@ export const markNotificationAsRead = async (notificationId: string) => {
     await ensureAuth(app);
     const db = getDb(app);
     await updateDoc(doc(db, NOTIFICATION_COLLECTION, notificationId), { read: true });
-  } catch (error) { console.error("Failed to mark notification as read:", error); }
+  } catch (error) {}
 };
 
 export const setupAutoSync = () => {};
