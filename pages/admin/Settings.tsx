@@ -5,9 +5,9 @@ import {
   Cloud, Database, Globe, Save,
   UploadCloud, DownloadCloud, Loader2, RefreshCw, Eye,
   PhoneForwarded, Headset, ClipboardList,
-  FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
+  FileText, Activity, Map as MapIcon, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
-  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check
+  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -15,6 +15,13 @@ import {
 } from '../../services/cloudService';
 import { useBranding } from '../../context/BrandingContext';
 import { UserRole, Employee } from '../../types';
+
+// Add interface for collection items to fix type errors
+interface CollectionItem {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+}
 
 const Settings: React.FC = () => {
   const { companyName, primaryColor, updateBranding } = useBranding();
@@ -52,9 +59,8 @@ const Settings: React.FC = () => {
 
   // Determine what modules are visible in the sidebar for the current user
   const visibleModules = useMemo(() => {
-    if (isSuperAdmin) return null; // Admin sees all
+    if (isSuperAdmin) return null; // Admin sees everything
 
-    // 1. Logic for Corporate
     if (role === UserRole.CORPORATE) {
         return [
             'Dashboard', 'Reports', 'Boz Chat', 'Customer Care', 'Trip Booking', 'Live Tracking',
@@ -64,21 +70,21 @@ const Settings: React.FC = () => {
         ];
     }
 
-    // 2. Logic for Employee (Base + dynamic permissions)
     if (role === UserRole.EMPLOYEE) {
+        // Core employee base modules
         const base = [
             'My Attendance', 'Auto Dialer', 'My Salary', 'KM Claims (TA)', 'My Documents', 
             'Apply Leave', 'My Profile', 'Customer Care', 'Boz Chat', 'My Tasks', 'Vendor Attachment'
         ];
 
-        // Fetch dynamic permissions from profile
+        // Add dynamic permissions
         let profile: Employee | null = null;
         try {
             const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
             profile = adminStaff.find((e: Employee) => e.id === sessionId);
             if (!profile) {
                 const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-                for (const corp of corps) {
+                for (const corp of (corps as any[])) {
                     const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
                     profile = corpStaff.find((e: Employee) => e.id === sessionId);
                     if (profile) break;
@@ -105,9 +111,12 @@ const Settings: React.FC = () => {
   }, [role, isSuperAdmin, sessionId]);
 
   const generateCollectionStats = (cloudData: any) => {
-    const sessionId = localStorage.getItem('app_session_id') || 'admin';
-    
-    const collections = [
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+
+    // Define mapping of UI labels to specific Storage Keys based on role/session
+    const collections: CollectionItem[] = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
         { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
@@ -116,27 +125,35 @@ const Settings: React.FC = () => {
         { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
         { key: isSuperAdmin ? 'auto_dialer_data' : `auto_dialer_data_${sessionId}`, label: 'Auto Dialer', icon: PhoneForwarded },
         { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
-        { key: isSuperAdmin ? 'trips_data' : `trips_data_${sessionId}`, label: 'Trip Booking', icon: Map },
+        { key: isSuperAdmin ? 'trips_data' : `trips_data_${sessionId}`, label: 'Trip Booking', icon: MapIcon },
         { key: isSuperAdmin ? 'driver_payment_records' : `driver_payment_records_${sessionId}`, label: 'Driver Payments', icon: ReceiptIndianRupee },
         { key: isSuperAdmin ? 'leads_data' : `leads_data_${sessionId}`, label: 'Franchisee Leads', icon: Target },
-        { key: 'attendance_data_admin', label: 'Attendance Dashboard', icon: Activity },
-        { key: isSuperAdmin ? 'tasks_data' : `tasks_data_${sessionId}`, label: 'Tasks', icon: ClipboardList },
+        { key: role === UserRole.EMPLOYEE ? `attendance_data_${sessionId}_${year}_${month}` : 'attendance_data_admin', label: 'Attendance Dashboard', icon: Activity },
+        { key: role === UserRole.EMPLOYEE ? `attendance_data_${sessionId}_${year}_${month}` : 'attendance_data_admin', label: 'My Attendance', icon: Activity },
+        { key: isSuperAdmin ? 'tasks_data' : `tasks_data`, label: 'Tasks', icon: ClipboardList },
+        { key: isSuperAdmin ? 'tasks_data' : `tasks_data`, label: 'My Tasks', icon: ClipboardList },
         { key: isSuperAdmin ? 'staff_data' : `staff_data_${sessionId}`, label: 'Staff Management', icon: Users },
         { key: 'app_documents', label: 'Documents', icon: FileText },
+        { key: 'app_documents', label: 'My Documents', icon: FileText },
         { key: isSuperAdmin ? 'branches_data' : `branches_data_${sessionId}`, label: 'Branches', icon: Building },
         { key: isSuperAdmin ? 'vendor_data' : `vendor_data_${sessionId}`, label: 'Vendor Attachment', icon: Car },
         { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
+        { key: 'payroll_history', label: 'My Salary', icon: DollarSign },
         { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
         { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
-        { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike }
+        { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
+        { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane }
     ];
 
-    // Filter based on what's in the sidebar
+    // 1. Filter the list to only show what is in the current sidebar
     const filteredCollections = visibleModules 
         ? collections.filter(c => visibleModules.includes(c.label)) 
         : collections;
 
-    return filteredCollections.map(col => {
+    // 2. Remove duplicates (some labels map to same keys)
+    const uniqueCollections: CollectionItem[] = Array.from(new Map<string, CollectionItem>(filteredCollections.map(item => [item.label, item])).values());
+
+    return uniqueCollections.map(col => {
         let localCount: string | number = 0;
         let localContent: any = null;
         let localStr: string | null = null;
@@ -144,7 +161,19 @@ const Settings: React.FC = () => {
             localStr = localStorage.getItem(col.key);
             if (localStr) {
                 localContent = JSON.parse(localStr);
-                localCount = Array.isArray(localContent) ? localContent.length : (typeof localContent === 'object' ? 1 : '1');
+                // Handle different data structures
+                if (Array.isArray(localContent)) {
+                    // For Franchisee, some global keys need manual filtering if not pre-namespaced
+                    if (role === UserRole.CORPORATE && (col.key === 'global_enquiries_data' || col.key === 'global_travel_requests')) {
+                        localCount = localContent.filter((item: any) => item.corporateId === sessionId || item.assignedCorporate === sessionId).length;
+                    } else {
+                        localCount = localContent.length;
+                    }
+                } else if (typeof localContent === 'object') {
+                    localCount = Object.keys(localContent).length;
+                } else {
+                    localCount = 1;
+                }
             }
         } catch(e) {
             localCount = localStr ? 'Raw' : 0;
@@ -283,17 +312,27 @@ const Settings: React.FC = () => {
                           </p>
                       </div>
                   </div>
-                  <button 
-                      onClick={checkConnection}
-                      disabled={dbStatus === 'Error'}
-                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-indigo-100"
-                  >
-                      <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
-                      Verify Integrity
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                        onClick={handleBackup}
+                        disabled={isBackingUp || dbStatus !== 'Connected'}
+                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-emerald-100 disabled:opacity-50"
+                    >
+                        {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />} 
+                        Push Sync
+                    </button>
+                    <button 
+                        onClick={checkConnection}
+                        disabled={dbStatus === 'Error'}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-indigo-100"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
+                        Verify Integrity
+                    </button>
+                  </div>
               </div>
 
-              {/* Module Grid */}
+              {/* Module Grid - Strictly Filtered by current user's panel functionality */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {collectionStats.map((stat) => (
                       <div key={stat.key} className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col hover:shadow-lg transition-all group border-b-4 border-b-transparent hover:border-b-indigo-500">
@@ -339,7 +378,7 @@ const Settings: React.FC = () => {
                   <div>
                       <p className="font-black uppercase tracking-widest text-xs text-indigo-900 mb-2">Cloud Protected Mode</p>
                       <p className="text-sm text-indigo-700 leading-relaxed font-medium max-w-3xl">
-                          As a Franchise/Employee user, your system settings (Branding, Org Structure) are managed by the Head Office. Your panel exclusively monitors data integrity, ensuring every record created here is safely mirrored to the Super Admin's cloud repository.
+                          Your {role.toLowerCase()} panel is strictly scoped. You only see sync vitals for the employees and data that belong to your account. Everything here is automatically mirrored to the Super Admin's organization-wide database.
                       </p>
                   </div>
               </div>
@@ -487,7 +526,7 @@ const Settings: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                       <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">New PIN</label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">New PIN</label>
                           <div className="relative">
                               <input 
                                   type={showAdminPass.new ? "text" : "password"}
@@ -501,7 +540,7 @@ const Settings: React.FC = () => {
                           </div>
                       </div>
                       <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Verify PIN</label>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1">Verify PIN</label>
                           <input 
                               type="password"
                               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
@@ -566,37 +605,18 @@ const Settings: React.FC = () => {
       </div>
       
       {showCollectionViewer && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-300 border border-white">
-            <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-[3rem]">
-              <div>
-                <h3 className="font-black text-gray-800 text-xl tracking-tighter uppercase">Inspecting Module: {currentViewingCollection}</h3>
-                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Direct Browser Storage Snapshot</p>
-              </div>
-              <button onClick={closeCollectionViewer} className="p-3 bg-white border border-gray-100 rounded-2xl text-gray-400 hover:text-gray-900 transition-all shadow-sm">
-                <X className="w-6 h-6" />
-              </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
+              <h3 className="font-bold text-gray-800">Inspecting Collection: {currentViewingCollection}</h3>
+              <button onClick={closeCollectionViewer} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-8 text-sm bg-slate-900 text-emerald-400 font-mono custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-900 text-emerald-400 font-mono text-xs custom-scrollbar">
                 {collectionError ? (
-                    <div className="bg-rose-500/10 text-rose-400 p-4 rounded-2xl border border-rose-500/20 text-center font-bold text-xs uppercase tracking-widest">
-                        {collectionError}
-                    </div>
+                    <p className="text-rose-500 font-bold">{collectionError}</p>
                 ) : (
-                    <pre className="whitespace-pre-wrap break-all text-xs opacity-90 leading-relaxed">
-                        {JSON.stringify(collectionContent, null, 2)}
-                    </pre>
+                    <pre className="whitespace-pre-wrap">{JSON.stringify(collectionContent, null, 2)}</pre>
                 )}
-            </div>
-
-            <div className="p-6 border-t border-gray-50 bg-gray-50/50 flex justify-end rounded-b-[3rem]">
-              <button 
-                onClick={closeCollectionViewer} 
-                className="px-10 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-slate-900/20"
-              >
-                Close Inspector
-              </button>
             </div>
           </div>
         </div>
