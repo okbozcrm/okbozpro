@@ -29,7 +29,8 @@ const MODULE_PERMISSIONS = [
   { id: 'staff', label: 'Staff Management' },
   { id: 'payroll', label: 'Payroll' },
   { id: 'finance', label: 'Finance & Expenses' },
-  { id: 'leads', label: 'Franchisee Leads' }
+  { id: 'leads', label: 'Franchisee Leads' },
+  { id: 'auto-dialer', label: 'Auto Dialer' }
 ];
 
 const StaffList: React.FC = () => {
@@ -44,11 +45,11 @@ const StaffList: React.FC = () => {
     let allData: DisplayEmployee[] = [];
     
     if (isSuperAdmin) {
-        // SUPER ADMIN: Load EVERYTHING
+        // SUPER ADMIN: Load EVERYTHING from all buckets
         const adminData = localStorage.getItem('staff_data');
         if (adminData) {
             try { 
-                allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'Head Office', franchiseId: 'admin'}))];
+                allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'OK BOZ HEAD OFFICE', franchiseId: 'admin'}))];
             } catch (e) {}
         }
         const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
@@ -175,32 +176,49 @@ const StaffList: React.FC = () => {
         }
     };
 
-    // Determine target storage key
+    // --- TRANSFER LOGIC ---
+    if (editingId) {
+        // Find original record to see if we need to remove it from another corporate bucket
+        const originalEmp = employees.find(emp => emp.id === editingId);
+        const originalFranchiseId = originalEmp?.franchiseId || 'admin';
+        const newFranchiseId = formData.franchiseId || 'admin';
+
+        if (originalFranchiseId !== newFranchiseId) {
+            // Remove from old bucket
+            const oldKey = originalFranchiseId === 'admin' ? 'staff_data' : `staff_data_${originalFranchiseId}`;
+            const oldStorage = JSON.parse(localStorage.getItem(oldKey) || '[]');
+            const updatedOldStorage = oldStorage.filter((e: any) => e.id !== editingId);
+            localStorage.setItem(oldKey, JSON.stringify(updatedOldStorage));
+        }
+    }
+
+    // Determine current target storage key
     const targetId = formData.franchiseId || 'admin';
     const storageKey = targetId === 'admin' ? 'staff_data' : `staff_data_${targetId}`;
     
-    // Load fresh copy from storage to modify
+    // Load target copy from storage to modify
     const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
     let updatedStorage: any[];
     
     if (editingId) {
-        updatedStorage = currentStorage.map((emp: any) => emp.id === editingId ? payload : emp);
+        // Check if employee already exists in target (in case it wasn't a move)
+        const exists = currentStorage.some((emp: any) => emp.id === editingId);
+        if (exists) {
+            updatedStorage = currentStorage.map((emp: any) => emp.id === editingId ? payload : emp);
+        } else {
+            // Moving into this bucket for the first time
+            updatedStorage = [payload, ...currentStorage];
+        }
     } else {
         updatedStorage = [payload, ...currentStorage];
     }
 
-    // Strip DisplayEmployee metadata before saving
+    // Save to storage
     const cleanForStorage = updatedStorage.map(({franchiseName, franchiseId, ...rest}) => rest);
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
 
-    // Update local state list
-    setEmployees(prev => {
-        if (editingId) {
-            return prev.map(e => e.id === editingId ? payload : e);
-        }
-        return [payload, ...prev];
-    });
-
+    // Refresh UI
+    loadScopedStaff();
     setIsModalOpen(false);
     alert(editingId ? "Staff profile updated!" : "New staff member onboarded!");
   };
@@ -280,7 +298,7 @@ const StaffList: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-3xl shrink-0">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-3xl">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Staff Details' : 'Onboard New Staff'}</h3>
                 <p className="text-gray-400 text-xs mt-0.5">{editingId ? 'Update employee information' : 'Create a new employee profile'}</p>
@@ -305,7 +323,7 @@ const StaffList: React.FC = () => {
                   </div>
                 </section>
 
-                {/* 2. EDIT STAFF DETAILS */}
+                {/* 2. EDIT STAFF DETAILS (Renamed from Extended Personal Details) */}
                 <section className="space-y-6">
                   <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-50">
                     <Heart className="w-3.5 h-3.5" /> Edit Staff Details
@@ -423,7 +441,7 @@ const StaffList: React.FC = () => {
 
             </form>
             
-            <div className="p-8 border-t border-gray-100 bg-gray-50/50 rounded-b-3xl flex justify-end items-center gap-8 shrink-0">
+            <div className="p-8 border-t border-gray-100 bg-gray-50 rounded-b-3xl flex justify-end items-center gap-8 shrink-0">
               <button type="button" onClick={() => setIsModalOpen(false)} className="text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest">Cancel</button>
               <button onClick={handleSubmit} className="px-12 py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Update Profile</button>
             </div>
