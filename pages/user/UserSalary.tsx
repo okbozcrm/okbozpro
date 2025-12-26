@@ -1,23 +1,19 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance } from '../../types';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest } from '../../types';
 
-// Helper to convert "09:30 AM" to total minutes from midnight
 const timeToMinutes = (timeStr?: string) => {
   if (!timeStr || timeStr === '--:--') return 0;
   const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if (!match) return 0;
-  
   let hours = parseInt(match[1], 10);
   const minutes = parseInt(match[2], 10);
   const modifier = match[3].toUpperCase();
-
   if (hours === 12) hours = 0;
   if (modifier === 'PM') hours += 12;
-  
   return hours * 60 + minutes;
 };
 
@@ -26,504 +22,163 @@ const UserSalary: React.FC = () => {
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ amount: '', reason: '' });
   const [advanceHistory, setAdvanceHistory] = useState<SalaryAdvanceRequest[]>([]);
+  const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
 
-  // Payout Settings State
-  const [payoutSettings, setPayoutSettings] = useState({
-      dates: {} as Record<string, string>,
-      globalDay: '5'
-  });
+  const [payoutSettings, setPayoutSettings] = useState({ dates: {} as Record<string, string>, globalDay: '5' });
 
-  // Helper to safely calculate payout date
-  const getSafePayoutDate = (year: number, monthIndex: number, targetDay: number): Date => {
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const safeDay = Math.min(targetDay, daysInMonth);
-    return new Date(year, monthIndex, safeDay);
-  };
-
-  // Helper to find employee by ID across all storage locations
-  const findEmployeeById = (id: string): Employee | undefined => {
-      try {
-        const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-        let found = adminStaff.find((e: any) => e.id === id);
-        if (found) return found;
-      } catch(e) {}
-
-      try {
-        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        for (const corp of corporates) {
-            const key = `staff_data_${corp.email}`;
-            const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
-            const found = cStaff.find((e: any) => e.id === id);
-            if (found) return found;
-        }
-      } catch(e) {}
-
-      return undefined;
-  };
-
-  // Resolve Logged In User & Load Settings with Storage Listener
   useEffect(() => {
       const loadUserAndSettings = () => {
           const storedSessionId = localStorage.getItem('app_session_id');
           if (storedSessionId) {
-              const found = findEmployeeById(storedSessionId);
+              const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+              let found = adminStaff.find((e: any) => e.id === storedSessionId);
+              if (!found) {
+                const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+                for (const corp of corporates) {
+                    const key = `staff_data_${corp.email}`;
+                    const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
+                    found = cStaff.find((e: any) => e.id === storedSessionId);
+                    if (found) break;
+                }
+              }
               setUser(found || null);
           }
-
-          try {
-              const dates = JSON.parse(localStorage.getItem('company_payout_dates') || '{}');
-              const globalDay = localStorage.getItem('company_global_payout_day') || '5';
-              setPayoutSettings({ dates, globalDay });
-          } catch(e) {
-              console.error("Error loading payout settings", e);
-          }
+          setPayoutSettings({ 
+              dates: JSON.parse(localStorage.getItem('company_payout_dates') || '{}'), 
+              globalDay: localStorage.getItem('company_global_payout_day') || '5' 
+          });
           setRefreshToggle(v => v + 1);
       };
-
       loadUserAndSettings();
-      
-      // SYNC: Listen for Admin updates to staff_data or payroll settings
-      const handleStorage = (e: StorageEvent) => {
-          if (e.key?.includes('staff_data') || e.key?.includes('payout') || e.key?.includes('attendance_data')) {
-              loadUserAndSettings();
-          }
-      };
-
-      window.addEventListener('storage', handleStorage);
-      return () => window.removeEventListener('storage', handleStorage);
+      window.addEventListener('storage', loadUserAndSettings);
+      return () => window.removeEventListener('storage', loadUserAndSettings);
   }, []);
 
-  // Load Advance History
   useEffect(() => {
       if(!user) return;
-      
-      const loadAdvances = () => {
+      const loadHistories = () => {
           const allAdvances = JSON.parse(localStorage.getItem('salary_advances') || '[]');
-          const myAdvances = allAdvances.filter((a: SalaryAdvanceRequest) => a.employeeId === user.id);
-          setAdvanceHistory(myAdvances.sort((a: any, b: any) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime()));
+          setAdvanceHistory(allAdvances.filter((a: SalaryAdvanceRequest) => a.employeeId === user.id));
+          const allClaims = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
+          setKmClaims(allClaims.filter((c: TravelAllowanceRequest) => c.employeeId === user.id));
       };
-      
-      loadAdvances();
-      
-      const handleStorageChange = (e: StorageEvent) => {
-          if (e.key === 'salary_advances') loadAdvances();
-      };
-      window.addEventListener('storage', handleStorageChange);
-      return () => window.removeEventListener('storage', handleStorageChange);
+      loadHistories();
+      window.addEventListener('storage', loadHistories);
+      return () => window.removeEventListener('storage', loadHistories);
   }, [user]);
 
-  const handleRequestAdvance = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-      
-      if (!advanceForm.amount || !advanceForm.reason) {
-          alert("Please fill all details");
-          return;
-      }
-
-      const newRequest: SalaryAdvanceRequest = {
-          id: `ADV-${Date.now()}`,
-          employeeId: user.id,
-          employeeName: user.name,
-          amountRequested: parseFloat(advanceForm.amount),
-          amountApproved: 0,
-          reason: advanceForm.reason,
-          status: 'Pending',
-          requestDate: new Date().toISOString(),
-      };
-
-      const existing = JSON.parse(localStorage.getItem('salary_advances') || '[]');
-      localStorage.setItem('salary_advances', JSON.stringify([newRequest, ...existing]));
-      
-      setAdvanceHistory(prev => [newRequest, ...prev]);
-      setIsAdvanceModalOpen(false);
-      setAdvanceForm({ amount: '', reason: '' });
-      alert("Advance request submitted successfully!");
-  };
-
-  // Dynamically calculate salary based on REAL attendance logs
   const salaryData = useMemo(() => {
     if (!user) return null;
-
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth();
-
+    const currentMonthStr = today.toISOString().slice(0, 7);
     const monthlyCtc = parseFloat(user.salary || '0');
     
-    // 1. Try to load REAL punched data
-    const attendanceKey = `attendance_data_${user.id}_${year}_${month}`;
-    const savedAttendance = localStorage.getItem(attendanceKey);
-    const attendance: DailyAttendance[] = savedAttendance 
-        ? JSON.parse(savedAttendance) 
-        : getEmployeeAttendance(user, year, month);
-
+    const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
+    const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
     let payableDays = 0;
     let totalWorkMinutes = 0;
-
     attendance.forEach(day => {
-        if (day.status === AttendanceStatus.PRESENT || 
-            day.status === AttendanceStatus.WEEK_OFF || 
-            day.status === AttendanceStatus.PAID_LEAVE) {
-            payableDays += 1;
-        } else if (day.status === AttendanceStatus.HALF_DAY) {
-            payableDays += 0.5;
-        }
-
-        // Calculate actual working hours
+        if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) payableDays += 1;
+        else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
         if (day.checkIn && day.checkOut) {
             const start = timeToMinutes(day.checkIn);
             const end = timeToMinutes(day.checkOut);
-            if (end > start) {
-                totalWorkMinutes += (end - start);
-            }
+            if (end > start) totalWorkMinutes += (end - start);
         }
     });
 
-    const totalHours = Math.floor(totalWorkMinutes / 60);
-    const remainingMins = totalWorkMinutes % 60;
-
     const perDaySalary = monthlyCtc / daysInMonth;
     const grossEarned = Math.round(perDaySalary * payableDays);
+    const paidAdvances = advanceHistory.filter(a => a.status === 'Paid').reduce((sum, item) => sum + (item.amountApproved || 0), 0);
+    const travelIncentive = kmClaims.filter(c => c.status === 'Approved' && c.date.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.totalAmount, 0);
+    const netPay = grossEarned + travelIncentive - paidAdvances;
 
-    const basicSalary = Math.round(grossEarned * 0.5);
-    const hra = Math.round(grossEarned * 0.3);
-    const allowances = Math.round(grossEarned * 0.2);
-    
-    const paidAdvances = advanceHistory
-        .filter(a => a.status === 'Paid')
-        .reduce((sum, item) => sum + (item.amountApproved || 0), 0);
-
-    const netPay = grossEarned - paidAdvances;
-
-    // Determine Payout Date
-    let payoutDay = parseInt(payoutSettings.globalDay) || 5;
-    if (user.department && payoutSettings.dates[user.department]) {
-        payoutDay = parseInt(payoutSettings.dates[user.department]) || payoutDay;
-    }
-    
-    // Payout is for previous month (if looking at current calendar)
-    const payoutDateObj = getSafePayoutDate(year, month, payoutDay); 
-    const payoutDateStr = payoutDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+    const earnings = [
+        { label: 'Basic Salary & HRA', amount: grossEarned },
+        { label: 'Travel Allowance (KM Claims)', amount: travelIncentive }
+    ];
 
     return {
         month: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         netPay,
-        grossEarned,
+        grossEarned: grossEarned + travelIncentive,
         workingDays: daysInMonth,
         paidDays: payableDays,
-        totalWorkTime: `${totalHours}h ${remainingMins}m`,
-        payoutDate: payoutDateStr,
-        status: 'Active',
-        earnings: [
-            { label: 'Basic Salary', amount: basicSalary },
-            { label: 'HRA', amount: hra },
-            { label: 'Special Allowance', amount: allowances },
-        ],
+        totalWorkTime: `${Math.floor(totalWorkMinutes / 60)}h ${totalWorkMinutes % 60}m`,
+        earnings,
         deductions: paidAdvances > 0 ? [{ label: 'Salary Advance Rec.', amount: paidAdvances }] : []
     };
-  }, [user, advanceHistory, payoutSettings, refreshToggle]);
+  }, [user, advanceHistory, kmClaims, payoutSettings, refreshToggle]);
 
-  // Generate History based on Joining Date
-  const salaryHistory = useMemo(() => {
-    if (!user) return [];
-
-    let payoutDay = parseInt(payoutSettings.globalDay) || 5;
-    if (user.department && payoutSettings.dates[user.department]) {
-        payoutDay = parseInt(payoutSettings.dates[user.department]) || payoutDay;
-    }
-
-    const history = [];
-    const joinDate = new Date(user.joiningDate);
-    const joinMonthStart = new Date(joinDate.getFullYear(), joinDate.getMonth(), 1); 
-    
-    const today = new Date();
-    let iteratorDate = new Date(today.getFullYear(), today.getMonth() - 1, 1); 
-
-    for (let i = 0; i < 6; i++) {
-        if (iteratorDate < joinMonthStart) break;
-
-        const monthStr = iteratorDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        const baseAmount = parseFloat(user.salary || '0');
-        let amount = baseAmount;
-        
-        if (iteratorDate.getMonth() === joinDate.getMonth() && iteratorDate.getFullYear() === joinDate.getFullYear()) {
-             const daysInMonth = new Date(iteratorDate.getFullYear(), iteratorDate.getMonth() + 1, 0).getDate();
-             const daysWorked = daysInMonth - joinDate.getDate() + 1;
-             if (daysWorked < daysInMonth) {
-                 amount = Math.round((baseAmount / daysInMonth) * daysWorked);
-             }
-        }
-
-        const payoutMonthIndex = iteratorDate.getMonth() + 1; 
-        const payoutYear = iteratorDate.getFullYear() + (payoutMonthIndex > 11 ? 1 : 0);
-        const normPayoutMonthIndex = payoutMonthIndex > 11 ? 0 : payoutMonthIndex;
-        const payoutDate = getSafePayoutDate(payoutYear, normPayoutMonthIndex, payoutDay);
-
-        history.push({
-            month: monthStr,
-            amount: amount,
-            status: 'Paid',
-            date: payoutDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
-        });
-
-        iteratorDate.setMonth(iteratorDate.getMonth() - 1);
-    }
-
-    return history;
-  }, [user, payoutSettings, refreshToggle]);
-
-  if (!user || !salaryData) {
-      return (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-              <Clock className="w-12 h-12 mb-4 opacity-20" />
-              <p className="font-bold">Loading your salary structure...</p>
-              <p className="text-xs">Ensure your profile has been completed by HR.</p>
-          </div>
-      );
-  }
-
-  const totalEarnings = salaryData.earnings.reduce((acc, curr) => acc + curr.amount, 0);
-  const totalDeductions = salaryData.deductions.reduce((acc, curr) => acc + curr.amount, 0);
-
-  const chartData = [...salaryHistory].reverse().map(item => ({
-    name: item.month.split(' ')[0],
-    amount: item.amount
-  }));
+  if (!user || !salaryData) return <div className="p-10 text-center font-bold text-gray-500">Loading salary structure...</div>;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">My Salary</h2>
-          <p className="text-gray-500">View your salary structure and payslip history</p>
-        </div>
-        <button 
-            onClick={() => setIsAdvanceModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center gap-2"
-        >
-           <Plus className="w-4 h-4" /> Request Advance
-        </button>
+        <div><h2 className="text-2xl font-bold text-gray-800">My Salary</h2><p className="text-gray-500">Structure and history overview</p></div>
+        <button onClick={() => setIsAdvanceModalOpen(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md flex items-center gap-2"><Plus className="w-4 h-4" /> Request Advance</button>
       </div>
 
-      {/* Advance Request Modal */}
-      {isAdvanceModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
-                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                      <h3 className="font-bold text-gray-800">Request Salary Advance</h3>
-                      <button onClick={() => setIsAdvanceModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
-                  </div>
-                  <form onSubmit={handleRequestAdvance} className="p-6 space-y-4">
-                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800 mb-2">
-                          <AlertCircle className="w-3 h-3 inline mr-1" />
-                          Advance amount will be deducted from your next salary payout.
-                      </div>
-                      <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount Required (₹)</label>
-                          <input 
-                              type="number" 
-                              required 
-                              min="500"
-                              max={parseFloat(user.salary || '0') / 2}
-                              value={advanceForm.amount}
-                              onChange={(e) => setAdvanceForm({...advanceForm, amount: e.target.value})}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                              placeholder="e.g. 5000"
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason</label>
-                          <textarea 
-                              required
-                              rows={3}
-                              value={advanceForm.reason}
-                              onChange={(e) => setAdvanceForm({...advanceForm, reason: e.target.value})}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                              placeholder="Reason for advance..."
-                          />
-                      </div>
-                      <button type="submit" className="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
-                          <Send className="w-4 h-4" /> Submit Request
-                      </button>
-                  </form>
-              </div>
-          </div>
-      )}
-
-      {/* Dashboard Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-          <div className="absolute -top-6 -right-6 p-8 opacity-10 rotate-12">
-            <DollarSign className="w-48 h-48" />
-          </div>
-          
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <p className="text-emerald-100 font-medium mb-1 flex items-center gap-2">
-                   Net Pay for {salaryData.month}
-                   {salaryData.status === 'Paid' ? (
-                       <CheckCircle className="w-4 h-4 text-emerald-200" />
-                   ) : (
-                       <Clock className="w-4 h-4 text-emerald-200" />
-                   )}
-                </p>
-                <h3 className="text-5xl font-bold tracking-tight">₹{salaryData.netPay.toLocaleString()}</h3>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl text-sm font-bold shadow-sm border border-white/10">
-                {salaryData.status}
-              </div>
+        <div className="md:col-span-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+          <DollarSign className="absolute -top-6 -right-6 w-48 h-48 opacity-10 rotate-12" />
+          <div className="relative z-10 space-y-8">
+            <div>
+                <p className="text-emerald-100 font-black uppercase tracking-widest text-[10px]">Net Payout for {salaryData.month}</p>
+                <h3 className="text-5xl font-black tracking-tighter mt-1">₹{salaryData.netPay.toLocaleString()}</h3>
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-8">
-              <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Payout Date</p>
-                <p className="font-semibold text-lg">{salaryData.payoutDate}</p>
-              </div>
-              <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Paid Days</p>
-                <p className="font-semibold text-lg">{salaryData.paidDays} / {salaryData.workingDays}</p>
-              </div>
-              <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Work Hours</p>
-                <p className="font-semibold text-lg flex items-center gap-1.5"><Timer className="w-4 h-4 text-emerald-300" />{salaryData.totalWorkTime}</p>
-              </div>
-              <div className="bg-black/10 rounded-lg p-3 backdrop-blur-sm border border-white/5">
-                 <p className="text-emerald-100 text-xs mb-1 opacity-80 uppercase tracking-wider font-bold">Deductions</p>
-                 <p className="font-semibold text-lg text-white">₹{totalDeductions}</p>
-              </div>
+            <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white/10 p-3 rounded-xl border border-white/10 backdrop-blur-sm"><p className="text-[9px] font-black uppercase opacity-60">Paid Days</p><p className="font-bold">{salaryData.paidDays} / {salaryData.workingDays}</p></div>
+                <div className="bg-white/10 p-3 rounded-xl border border-white/10 backdrop-blur-sm"><p className="text-[9px] font-black uppercase opacity-60">Total Time</p><p className="font-bold">{salaryData.totalWorkTime}</p></div>
+                <div className="bg-white/10 p-3 rounded-xl border border-white/10 backdrop-blur-sm"><p className="text-[9px] font-black uppercase opacity-60">Earnings</p><p className="font-bold text-emerald-200">₹{salaryData.grossEarned.toLocaleString()}</p></div>
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col h-full">
-           <div className="mb-auto">
-             <h4 className="font-semibold text-gray-800 mb-1 flex items-center gap-2 uppercase text-xs tracking-widest">
-               <TrendingUp className="w-4 h-4 text-emerald-500" /> Income Trend
-             </h4>
-             <p className="text-xs text-gray-400">Monthly breakdown</p>
-           </div>
-           
-           <div className="h-48 mt-4">
-             {chartData.length > 0 ? (
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={chartData}>
-                   <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} tick={{fill: '#9ca3af'}} dy={10} />
-                   <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                   <Bar dataKey="amount" fill="#10b981" radius={[4, 4, 4, 4]} barSize={32} />
-                 </BarChart>
-               </ResponsiveContainer>
-             ) : (
-                <div className="h-full flex items-center justify-center text-gray-300 text-xs italic">
-                    Waiting for history...
-                </div>
-             )}
-           </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+            <div className="p-4 bg-blue-50 rounded-full text-blue-600 mb-4"><Bike className="w-8 h-8" /></div>
+            <h4 className="font-black text-gray-800 uppercase tracking-widest text-[10px] mb-1">Approved Travel Allowances</h4>
+            <p className="text-2xl font-black text-blue-600">₹{kmClaims.filter(c => c.status === 'Approved' && c.date.startsWith(new Date().toISOString().slice(0, 7))).reduce((s, c) => s + c.totalAmount, 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-400 mt-2">Calculated from approved KM claims</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Structure */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-            <h3 className="font-bold text-gray-800">Salary Breakdown</h3>
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">CTC: ₹{user.salary || '0'}</span>
-          </div>
-          
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center"><h3 className="font-black uppercase tracking-widest text-[11px] text-gray-400">Current Month Breakdown</h3></div>
           <div className="p-6 space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                 <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Earnings (Current Month)</h4>
-                 <span className="text-xs text-gray-400">Amount (₹)</span>
-              </div>
-              <div className="space-y-3">
+            <div className="space-y-4">
                 {salaryData.earnings.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm group">
-                    <span className="text-gray-600 group-hover:text-gray-900 transition-colors">{item.label}</span>
-                    <span className="font-medium text-gray-900">₹{item.amount.toLocaleString()}</span>
+                  <div key={idx} className="flex justify-between items-center border-b border-gray-50 pb-3">
+                    <span className="text-gray-600 font-medium flex items-center gap-2">{item.label.includes('Travel') && <Bike className="w-4 h-4 text-blue-500" />}{item.label}</span>
+                    <span className={`font-black ${item.label.includes('Travel') ? 'text-blue-600' : 'text-gray-900'}`}>₹{item.amount.toLocaleString()}</span>
                   </div>
                 ))}
-                <div className="flex justify-between text-sm pt-4 border-t border-dashed border-gray-200 mt-2">
-                  <span className="font-bold text-gray-700">Gross Earnings</span>
-                  <span className="font-black text-gray-900 text-lg">₹{totalEarnings.toLocaleString()}</span>
-                </div>
-              </div>
+                {salaryData.deductions.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-red-500 border-b border-gray-50 pb-3">
+                    <span className="font-medium">{item.label}</span>
+                    <span className="font-black">-₹{item.amount.toLocaleString()}</span>
+                  </div>
+                ))}
             </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-4 pt-2">
-                 <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest">Deductions</h4>
-                 <span className="text-xs text-gray-400">Amount (₹)</span>
-              </div>
-              <div className="space-y-3">
-                {salaryData.deductions.length > 0 ? (
-                    salaryData.deductions.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm group">
-                        <span className="text-gray-600 group-hover:text-gray-900 transition-colors">{item.label}</span>
-                        <span className="font-medium text-red-600">-₹{item.amount.toLocaleString()}</span>
-                    </div>
-                    ))
-                ) : (
-                    <div className="text-sm text-gray-400 italic py-2">No active deductions</div>
-                )}
-              </div>
-            </div>
-            
-            <div className="bg-emerald-50 rounded-2xl p-5 flex justify-between items-center border border-emerald-100 shadow-inner">
-               <div>
-                  <span className="text-sm text-emerald-800 font-bold uppercase tracking-wide">Net Monthly Pay</span>
-                  <p className="text-xs text-emerald-600">Post-deduction estimation</p>
-               </div>
-               <span className="font-black text-3xl text-emerald-700">₹{salaryData.netPay.toLocaleString()}</span>
-            </div>
+            <div className="pt-4 flex justify-between items-center"><span className="text-lg font-black text-gray-800">Net Payable Amount</span><span className="text-3xl font-black text-emerald-600">₹{salaryData.netPay.toLocaleString()}</span></div>
           </div>
         </div>
-
-        {/* Payslips */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-            <h3 className="font-bold text-gray-800">Payslip History</h3>
-            <button className="text-xs font-bold text-emerald-600 hover:underline uppercase tracking-wider">
-               Archived
-            </button>
-          </div>
-          <div className="divide-y divide-gray-100 flex-1 overflow-auto max-h-[400px]">
-            {salaryHistory.length > 0 ? (
-                salaryHistory.map((slip, idx) => (
-                <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group cursor-pointer">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-indigo-50 p-2.5 rounded-xl text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                            <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-gray-800 text-sm">Salary Slip - {slip.month}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded tracking-tighter ${slip.status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'}`}>
-                                {slip.status.toUpperCase()}
-                            </span>
-                            <p className="text-[11px] text-gray-400">{slip.date}</p>
-                            </div>
-                        </div>
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50"><h3 className="font-black uppercase tracking-widest text-[11px] text-gray-400">Recent KM Claims (Approved)</h3></div>
+            <div className="flex-1 overflow-y-auto max-h-[400px] p-4 space-y-3">
+                {kmClaims.filter(c => c.status === 'Approved').map(claim => (
+                    <div key={claim.id} className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 flex justify-between items-center">
+                        <div><p className="text-xs font-black text-blue-800">{claim.date}</p><p className="text-[10px] text-blue-600">{claim.totalKm} KM journey</p></div>
+                        <p className="font-black text-blue-700">₹{claim.totalAmount.toLocaleString()}</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <span className="font-black text-gray-700 text-sm">₹{slip.amount.toLocaleString()}</span>
-                        <button className="text-gray-300 hover:text-emerald-600 p-2 rounded-full transition-colors">
-                            <Download className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-                ))
-            ) : (
-                <div className="p-12 text-center text-gray-400">
-                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <p className="text-sm italic">No generated slips found.</p>
-                </div>
-            )}
-          </div>
+                ))}
+                {kmClaims.filter(c => c.status === 'Approved').length === 0 && <div className="py-10 text-center text-gray-400 italic text-sm">No approved claims for current month.</div>}
+            </div>
         </div>
       </div>
     </div>

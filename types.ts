@@ -12,6 +12,7 @@ export enum AttendanceStatus {
   PAID_LEAVE = 'PAID_LEAVE',
   WEEK_OFF = 'WEEK_OFF',
   HOLIDAY = 'HOLIDAY',
+  ALTERNATE_DAY = 'ALTERNATE_DAY',
   NOT_MARKED = 'NOT_MARKED'
 }
 

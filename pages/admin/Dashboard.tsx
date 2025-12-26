@@ -4,7 +4,6 @@ import {
   Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, 
   DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset, 
   Bike, AlertCircle, Check, X, Wallet, Calculator, Zap, RefreshCcw,
-  // Added missing icon imports to fix "Cannot find name" errors
   FileText, Map
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -101,7 +100,7 @@ const Dashboard = () => {
     }
     setBranches(loadedBranches);
 
-    // 4. Employees
+    // 4. Employees - FILTERED FOR FRANCHISE
     let allEmployees: ExtendedEmployee[] = [];
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
     allEmployees = [...adminStaff.map((e:any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))];
@@ -109,11 +108,15 @@ const Dashboard = () => {
         const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
         allEmployees = [...allEmployees, ...corpStaff.map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
     });
-    setEmployees(allEmployees);
+    
+    // Scoping for Dashboard
+    const scopedEmployees = isSuperAdmin ? allEmployees : allEmployees.filter(e => e.corporateId === sessionId);
+    setEmployees(scopedEmployees);
 
-    // 5. Enquiries
-    const enqs: Enquiry[] = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
-    setEnquiries(enqs);
+    // 5. Enquiries - FILTERED FOR FRANCHISE
+    const enqsRaw: Enquiry[] = JSON.parse(localStorage.getItem('global_enquiries_data') || '[]');
+    const scopedEnqs = isSuperAdmin ? enqsRaw : enqsRaw.filter(e => e.assignedCorporate === sessionId);
+    setEnquiries(scopedEnqs);
 
     // 6. Trips
     let allTrips: Trip[] = [];
@@ -123,7 +126,8 @@ const Dashboard = () => {
         const cTrips = JSON.parse(localStorage.getItem(`trips_data_${c.email}`) || '[]');
         allTrips = [...allTrips, ...cTrips.map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
     });
-    setTrips(allTrips);
+    const scopedTrips = isSuperAdmin ? allTrips : allTrips.filter(t => t.ownerId === sessionId);
+    setTrips(scopedTrips);
 
     // 7. Action Center Items
     let actions: DashboardAction[] = [];
@@ -278,14 +282,17 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Dashboard Main Stats */}
           <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Staff</p>
-                      <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-gray-800">{statsSummary.totalStaff}</h3>
-                        <Users className="w-6 h-6 text-emerald-500 opacity-20" />
-                      </div>
-                  </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {/* HIDE STAFF COUNT KPI FOR FRANCHISE PANEL AS REQUESTED */}
+                  {isSuperAdmin && (
+                    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Staff</p>
+                        <div className="flex justify-between items-end">
+                            <h3 className="text-3xl font-black text-gray-800">{statsSummary.totalStaff}</h3>
+                            <Users className="w-6 h-6 text-emerald-500 opacity-20" />
+                        </div>
+                    </div>
+                  )}
                   <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Enquiry Convs.</p>
                       <div className="flex justify-between items-end">
@@ -300,6 +307,16 @@ const Dashboard = () => {
                         <Building2 className="w-6 h-6 text-purple-500 opacity-20" />
                       </div>
                   </div>
+                  {/* If not admin, show assigned trips instead to maintain balance */}
+                  {!isSuperAdmin && (
+                      <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Assigned Trips</p>
+                        <div className="flex justify-between items-end">
+                            <h3 className="text-3xl font-black text-emerald-600">{trips.length}</h3>
+                            <Truck className="w-6 h-6 text-emerald-500 opacity-20" />
+                        </div>
+                    </div>
+                  )}
               </div>
 
               {/* Chart Section */}

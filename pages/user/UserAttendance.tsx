@@ -8,8 +8,7 @@ import {
   QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
-  // Add missing icons
-  History, Trash2, Plus
+  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -71,7 +70,7 @@ const formatDuration = (mins: number) => {
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status'>(isAdmin ? 'Daily Status' : 'Dashboard');
+  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status'>('Dashboard');
   
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [attendanceData, setAttendanceData] = useState<DailyAttendance[]>([]);
@@ -182,21 +181,23 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   const dashboardStats = useMemo(() => {
     if (!isAdmin) {
-        let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0;
+        let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, holidays = 0;
         attendanceData.forEach(day => {
-            if (day.status === AttendanceStatus.PRESENT) { present++; if (day.isLate) late++; }
+            if (day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY) { present++; if (day.isLate) late++; }
             else if (day.status === AttendanceStatus.ABSENT) absent++;
             else if (day.status === AttendanceStatus.HALF_DAY) halfDay++;
             else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
+            else if (day.status === AttendanceStatus.HOLIDAY) holidays++;
         });
-        return { total: attendanceData.length, present, absent, late, halfDay, leave, onField: present };
+        return { total: attendanceData.length, present, absent, late, halfDay, leave, holidays, onField: present };
     }
-    const present = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT).length;
+    const present = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT || l.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY).length;
     const absent = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length;
     const late = staffDailyLogs.filter(l => l.dailyRecord.isLate).length;
     const halfDay = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HALF_DAY).length;
     const leave = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PAID_LEAVE).length;
-    return { total: filteredStaffList.length, present, absent, late, halfDay, leave, onField: present };
+    const holidays = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HOLIDAY).length;
+    return { total: filteredStaffList.length, present, absent, late, halfDay, leave, holidays, onField: present };
   }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, refreshToggle]);
 
   const availableBranchesList = useMemo(() => {
@@ -236,6 +237,58 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       setIsEditModalOpen(false);
   };
 
+  // Handle Manual status marking for Range (Month till Date)
+  const handleMarkStatusRange = async (status: AttendanceStatus) => {
+    if (!selectedEmployee) return;
+    const now = new Date();
+    const currentDay = now.getDate();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const key = `attendance_data_${selectedEmployee.id}_${year}_${month}`;
+    const currentData = JSON.parse(localStorage.getItem(key) || JSON.stringify(getEmployeeAttendance(selectedEmployee, year, month)));
+
+    const updated = currentData.map((d: DailyAttendance) => {
+      const dDate = new Date(d.date);
+      // Only affect from 1st of month till today, and skip pre-existing Week Offs
+      if (dDate.getDate() <= currentDay && d.status !== AttendanceStatus.WEEK_OFF) {
+        let punches = d.punches || [];
+        if (status === AttendanceStatus.PRESENT && punches.length === 0) {
+          punches = [{ in: '09:30 AM', out: '06:30 PM' }];
+        } else if (status === AttendanceStatus.ABSENT || status === AttendanceStatus.HOLIDAY) {
+          punches = [];
+        }
+        return { 
+          ...d, 
+          status, 
+          punches, 
+          checkIn: punches.length > 0 ? punches[0].in : undefined,
+          checkOut: punches.length > 0 ? punches[punches.length - 1].out : undefined,
+          isLate: false
+        };
+      }
+      return d;
+    });
+
+    localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('attendance-updated'));
+    window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
+
+    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+    await sendSystemNotification({
+        type: 'system',
+        title: `Batch Attendance: ${status.replace('_', ' ')}`,
+        message: `${selectedEmployee.name} was marked ${status.toLowerCase().replace('_', ' ')} for the current month till date.`,
+        targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+        corporateId: ownerId === 'admin' ? undefined : ownerId,
+        employeeId: selectedEmployee.id,
+        link: '/admin/attendance'
+    });
+
+    setAttendanceData(updated);
+    alert(`Updated month-till-date status to ${status.replace('_', ' ')}!`);
+  };
+
   const handlePunchAction = async (action: 'In' | 'Out') => {
     if (!selectedEmployee) return;
     const now = new Date();
@@ -255,7 +308,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     ...d, 
                     status: AttendanceStatus.PRESENT, 
                     punches, 
-                    checkIn: d.checkIn || time, // Set checkIn if first punch
+                    checkIn: d.checkIn || time, 
                     isLate: punches.length === 1 ? now.getHours() >= 10 : d.isLate 
                 };
             } else {
@@ -277,7 +330,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     await sendSystemNotification({
         type: 'system',
         title: `Employee Punched ${action}`,
-        message: `${selectedEmployee.name} (${selectedEmployee.id}) has just punched ${action.toLowerCase()} at ${time}. Today's Punch Count: ${updated.find((d: any) => d.date === today)?.punches?.length || 1}`,
+        message: `${selectedEmployee.name} punched ${action.toLowerCase()} at ${time}.`,
         targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
         corporateId: ownerId === 'admin' ? undefined : ownerId,
         employeeId: selectedEmployee.id,
@@ -368,7 +421,17 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                         <span className={`text-lg font-black ${durationStr ? 'text-gray-800' : 'text-gray-300'}`}>{durationStr || '--:--'}</span>
                                     </div>
                                 </td>
-                                <td className="px-10 py-8 text-center"><span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>{log.dailyRecord.status.replace('_', ' ')}</span></td>
+                                <td className="px-10 py-8 text-center">
+                                    <span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
+                                        log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                                        log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' : 
+                                        log.dailyRecord.status === AttendanceStatus.HOLIDAY ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                        log.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                        'bg-gray-100 text-gray-500 border-gray-200'
+                                    }`}>
+                                        {log.dailyRecord.status.replace('_', ' ')}
+                                    </span>
+                                </td>
                                 <td className="px-10 py-8 text-right"><button onClick={() => handleEditClick(log.dailyRecord, log.id)} className="p-3 hover:bg-white rounded-2xl text-gray-400 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 hover:shadow-md"><Edit2 className="w-5 h-5" /></button></td>
                             </tr>
                         );
@@ -400,6 +463,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     <button onClick={handleNextMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronRight className="w-6 h-6"/></button>
                 </div>
             </div>
+            {isAdmin && selectedEmployee && (
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm"><CheckCircle className="w-3.5 h-3.5" /> Present (Month)</button>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-4 py-2 bg-rose-50 text-rose-700 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-2 shadow-sm"><XCircle className="w-3.5 h-3.5" /> Absent (Month)</button>
+                </div>
+            )}
         </div>
         <div className="p-8 md:p-12">
             <div className="grid grid-cols-7 gap-px bg-gray-50 border border-gray-50 rounded-[2.5rem] overflow-hidden shadow-inner">
@@ -419,7 +488,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             <div className="flex justify-between items-start z-10">
                                 <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'}`}>{new Date(day.date).getDate()}</span>
                                 {day.status !== AttendanceStatus.NOT_MARKED ? (
-                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{day.status.replace('_', ' ')}</span>
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${
+                                        day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                                        day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' : 
+                                        day.status === AttendanceStatus.HOLIDAY ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                        day.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                        'bg-rose-50 text-rose-600 border-rose-100'
+                                    }`}>{day.status.replace('_', ' ')}</span>
                                 ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : null}
                             </div>
                             
@@ -447,13 +522,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   return (
     <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 rounded-2xl"><Calendar className="w-8 h-8 text-emerald-600" /></div><div><h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2><p className="text-gray-400 text-sm font-bold uppercase tracking-widest">{isAdmin ? "Track daily shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}</p></div></div>
-        {isAdmin && <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">{['Dashboard', 'Daily Status'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab === 'Daily Status' ? <div className="flex items-center gap-2"><Timer className="w-4 h-4" /> Daily Status</div> : tab}</button>)}</div>}
+        <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 rounded-2xl"><Calendar className="w-8 h-8 text-emerald-600" /></div><div><h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2><p className="text-gray-400 text-sm font-bold uppercase tracking-widest">{isAdmin ? "Track monthly shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}</p></div></div>
+        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">{['Dashboard', 'Daily Status'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab === 'Daily Status' ? <div className="flex items-center gap-2"><Timer className="w-4 h-4" /> Daily Status</div> : tab}</button>)}</div>
       </div>
 
       {activeTab === 'Dashboard' && (
           <div className="space-y-8 animate-in zoom-in-95 duration-500">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                   {[
                       { label: isAdmin ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
                       { label: 'PRESENT', val: dashboardStats.present, icon: UserCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
@@ -461,11 +536,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                       { label: 'LATE', val: dashboardStats.late, icon: Clock, color: 'text-orange-700', bg: 'bg-orange-50' },
                       { label: 'ON FIELD', val: dashboardStats.onField, icon: Send, color: 'text-blue-700', bg: 'bg-blue-50' },
                       { label: 'HALF DAY', val: dashboardStats.halfDay, icon: Activity, color: 'text-amber-700', bg: 'bg-amber-50' },
-                      { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                      { label: 'HOLIDAY', val: dashboardStats.holidays, icon: CalendarDays, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                      { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-slate-700', bg: 'bg-slate-50' },
                   ].map((kpi, i) => (
-                      <div key={i} className={`${kpi.bg} p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-32`}><p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-4xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-7 h-7 opacity-20 ${kpi.color}`} /></div></div>
+                      <div key={i} className={`${kpi.bg} p-5 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-28`}><p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-3xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-6 h-6 opacity-20 ${kpi.color}`} /></div></div>
                   ))}
               </div>
+              
               {!isAdmin && selectedEmployee && (
                   <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
                     <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
@@ -473,32 +550,46 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         <div className="text-center md:text-left space-y-10">
                             <div className="space-y-2">
                                 <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
-                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Ready for today's shift?</p>
+                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Quick Batch Actions (Month Till Date)</p>
                             </div>
-                            <div className="inline-flex flex-col items-start gap-4">
-                                <div className="inline-flex items-center gap-8 px-12 py-8 bg-emerald-50 rounded-[3rem] border border-emerald-100 transition-all hover:scale-105 shadow-[0_20px_40px_rgba(16,185,129,0.1)]">
-                                    <Clock className="w-12 h-12 text-emerald-600" />
-                                    <span className="text-7xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <div className="flex flex-col gap-6 w-full">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                                    <button 
+                                        onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)}
+                                        className="px-6 py-4 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
+                                    >
+                                        <CheckCircle className="w-4 h-4" /> Mark Present (Month)
+                                    </button>
+                                    <button 
+                                        onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)}
+                                        className="px-6 py-4 bg-rose-50 text-rose-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-rose-100 hover:bg-rose-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
+                                    >
+                                        <XCircle className="w-4 h-4" /> Mark Absent (Month)
+                                    </button>
+                                    <button 
+                                        onClick={() => handleMarkStatusRange(AttendanceStatus.ALTERNATE_DAY)}
+                                        className="px-6 py-4 bg-amber-50 text-amber-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-amber-100 hover:bg-amber-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
+                                    >
+                                        <Star className="w-4 h-4" /> Alternate Day (Month)
+                                    </button>
                                 </div>
-                                {attendanceData.find(d => d.date === todayDateStr)?.punches && (
-                                    <div className="flex gap-4 animate-in fade-in slide-in-from-left-4">
-                                        <div className="px-6 py-3 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-3">
-                                            <ListOrdered className="w-5 h-5 text-indigo-600" />
-                                            <span className="text-sm font-black text-indigo-800 uppercase tracking-widest">{attendanceData.find(d => d.date === todayDateStr)?.punches?.length || 0} Punches Today</span>
-                                        </div>
-                                        <div className="px-6 py-3 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3">
-                                            <Timer className="w-5 h-5 text-emerald-600" />
-                                            <span className="text-sm font-black text-emerald-800 uppercase tracking-widest">Total: {formatDuration(calculateTotalWorkTime(attendanceData.find(d => d.date === todayDateStr)?.punches)) || '0h 0m'}</span>
-                                        </div>
+                                <div className="pt-6 border-t border-gray-50 flex items-center gap-8">
+                                    <div className="inline-flex items-center gap-6 px-8 py-4 bg-gray-50 rounded-[2rem] border border-gray-100">
+                                        <Clock className="w-8 h-8 text-emerald-600" />
+                                        <span className="text-4xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
-                                )}
+                                    <button onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')} className={`h-16 px-10 rounded-2xl text-white font-black uppercase tracking-widest transition-all transform hover:scale-105 active:scale-95 ${isPunchedIn ? 'bg-rose-600 shadow-xl shadow-rose-900/20' : 'bg-emerald-600 shadow-xl shadow-emerald-900/20'}`}>
+                                        {isPunchedIn ? 'Punch Out' : 'Punch In'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <button onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')} className={`relative w-72 h-72 rounded-full shadow-[0_60px_100px_rgba(0,0,0,0.15)] flex flex-col items-center justify-center text-white transition-all transform hover:scale-110 active:scale-90 overflow-hidden group ${isPunchedIn ? 'bg-gradient-to-br from-rose-500 via-red-600 to-red-800 shadow-red-200' : 'bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 shadow-emerald-200'}`}>
-                            <Fingerprint className="w-24 h-24 mb-4 group-hover:scale-125 transition-transform duration-500" />
-                            <span className="text-2xl font-black uppercase tracking-[0.2em]">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
-                            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        </button>
+                        <div className="hidden lg:block">
+                            <div className="w-64 h-64 rounded-[3rem] bg-emerald-50 flex items-center justify-center border-2 border-emerald-100 shadow-inner relative overflow-hidden">
+                                <Zap className="w-24 h-24 text-emerald-200" />
+                                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent"></div>
+                            </div>
+                        </div>
                     </div>
                   </div>
               )}
@@ -512,12 +603,39 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
               <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
                 <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                    <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Punch History - {editingRecord.date}</h3>
+                    <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Modify Attendance - {editingRecord.date}</h3>
                     <button onClick={() => setIsEditModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-2xl transition-all text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
                 </div>
                 <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => {
+                                setEditingRecord({
+                                    ...editingRecord,
+                                    status: AttendanceStatus.PRESENT,
+                                    punches: editingRecord.punches?.length === 0 ? [{ in: '09:30 AM', out: '06:30 PM' }] : editingRecord.punches
+                                });
+                            }}
+                            className={`py-4 rounded-2xl text-xs font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${editingRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'}`}
+                        >
+                            <CheckCircle className="w-4 h-4" /> Present
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setEditingRecord({
+                                    ...editingRecord,
+                                    status: AttendanceStatus.ABSENT,
+                                    punches: []
+                                });
+                            }}
+                            className={`py-4 rounded-2xl text-xs font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${editingRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'}`}
+                        >
+                            <XCircle className="w-4 h-4" /> Absent
+                        </button>
+                    </div>
+
                     <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Status</label>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Detailed Status Select</label>
                         <div className="relative group">
                             <select value={editingRecord.status} onChange={(e) => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full px-6 py-5 bg-white border border-gray-100 rounded-[1.75rem] text-sm font-black text-gray-800 outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer shadow-sm transition-all">
                                 <option value={AttendanceStatus.PRESENT}>PRESENT</option>
@@ -525,6 +643,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 <option value={AttendanceStatus.HALF_DAY}>HALF DAY</option>
                                 <option value={AttendanceStatus.PAID_LEAVE}>PAID LEAVE</option>
                                 <option value={AttendanceStatus.WEEK_OFF}>WEEK OFF</option>
+                                <option value={AttendanceStatus.HOLIDAY}>HOLIDAY</option>
+                                <option value={AttendanceStatus.ALTERNATE_DAY}>ALTERNATE WORKING DAY</option>
                             </select>
                             <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 pointer-events-none group-hover:text-emerald-500" />
                         </div>
@@ -532,7 +652,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
                     <div className="space-y-4">
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
-                            <History className="w-3 h-3" /> Detailed Punch Logs
+                            <History className="w-3 h-3" /> Punch Logs
                         </label>
                         {(editingRecord.punches || []).length > 0 ? (
                             <div className="space-y-3">
@@ -582,7 +702,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         ) : (
                             <div className="text-center py-10 bg-gray-50 rounded-3xl border border-dashed border-gray-200 text-gray-400">
                                 <Fingerprint className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                                <p className="text-xs font-black uppercase tracking-widest">No punch logs recorded</p>
+                                <p className="text-xs font-black uppercase tracking-widest">No punch logs</p>
                             </div>
                         )}
                         <button 
@@ -593,13 +713,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             }}
                             className="w-full py-3 bg-gray-50 hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 rounded-xl border border-dashed border-gray-200 hover:border-emerald-200 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
                         >
-                            <Plus className="w-3 h-3" /> Add New Entry
+                            <Plus className="w-3 h-3" /> Add Log Entry
                         </button>
                     </div>
 
                     <div className="pt-8 flex gap-5 border-t border-gray-100">
                         <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-5 bg-gray-100 text-gray-500 rounded-[1.75rem] font-black text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-sm">Cancel</button>
-                        <button onClick={handleSaveChanges} className="flex-[1.5] py-5 bg-emerald-600 text-white rounded-[1.75rem] font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Sync & Save Changes</button>
+                        <button onClick={handleSaveChanges} className="flex-[1.5] py-5 bg-emerald-600 text-white rounded-[1.75rem] font-black text-sm shadow-2xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-[1.02] active:scale-95">Save Update</button>
                     </div>
                 </div>
               </div>

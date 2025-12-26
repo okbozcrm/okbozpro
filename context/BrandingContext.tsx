@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface BrandingConfig {
@@ -12,7 +13,7 @@ interface BrandingContextType extends BrandingConfig {
 }
 
 const defaultBranding: BrandingConfig = {
-  companyName: 'OK BOZ',
+  companyName: 'OK BOZ SUPER APP',
   logoUrl: '', // Empty string implies default 'M' icon
   primaryColor: '#10b981', // Default Emerald-500
 };

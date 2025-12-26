@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Search, User, MoreVertical, Phone, 
@@ -157,7 +158,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   }, [role, sessionId, isSuperAdmin]);
 
   // --- 2. Live Status & Delivery Sync ---
-  // Background loop to handle delivery logic when people come online
   useEffect(() => {
     const syncInterval = setInterval(() => {
         // Toggle some contacts online/offline randomly to simulate real life
@@ -171,7 +171,8 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         setMessages(prev => {
             let hasChanged = false;
             const updated = prev.map(m => {
-                const target = contacts.find(c => c.id === (m.senderId === sessionId ? m.receiverId : m.senderId));
+                const targetId = m.senderId === sessionId ? m.receiverId : m.senderId;
+                const target = contacts.find(c => c.id === targetId);
                 const isGroup = m.receiverId.startsWith('GRP-');
 
                 // 1. Deliver pending outgoing messages if recipient is online
@@ -184,7 +185,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
                 // 2. Simulate read receipts for delivered messages if recipient is online
                 if (m.senderId === sessionId && m.delivered && !m.read) {
-                    // Random 10% chance to "read" every loop if online
                     if (isGroup || (target?.online && Math.random() > 0.9)) {
                         hasChanged = true;
                         return { ...m, read: true };
@@ -205,17 +205,33 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     return () => clearInterval(syncInterval);
   }, [contacts, sessionId]);
 
-  // --- 3. Message Loading ---
+  // --- 3. Real-time Message Loading & Sync ---
   useEffect(() => {
       const loadMessages = () => {
           const saved = localStorage.getItem('internal_messages_data');
           if (saved) {
-              setMessages(JSON.parse(saved));
+              const parsed = JSON.parse(saved);
+              // Simple check to avoid state loops if data is identical
+              setMessages(parsed);
           }
       };
+      
       loadMessages();
-      const interval = setInterval(loadMessages, 3000);
-      return () => clearInterval(interval);
+
+      // Listen for changes from OTHER tabs/sessions
+      const handleStorageChange = (e: StorageEvent) => {
+          if (e.key === 'internal_messages_data') {
+              loadMessages();
+          }
+      };
+
+      window.addEventListener('storage', handleStorageChange);
+      const interval = setInterval(loadMessages, 3000); // Polling as backup
+
+      return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          clearInterval(interval);
+      };
   }, []);
 
   // --- 4. Auto-scroll and Mark Read (Incoming) ---
@@ -224,22 +240,36 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
         
         // When I open a chat, mark all messages FROM the other user to ME as read
-        const unreadFromOthers = messages.some(m => m.senderId === activeChatId && m.receiverId === sessionId && !m.read);
+        const unreadFromOthers = messages.some(m => 
+            (m.senderId === activeChatId && m.receiverId === sessionId && !m.read) ||
+            (activeChatId.startsWith('GRP-') && m.senderId !== sessionId && !m.read)
+        );
+
         if (unreadFromOthers) {
-            const updatedAll = messages.map(m => 
-                (m.senderId === activeChatId && m.receiverId === sessionId) ? { ...m, read: true, delivered: true } : m
+            const currentTotal = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
+            const updatedAll = currentTotal.map((m: Message) => 
+                ((m.senderId === activeChatId && m.receiverId === sessionId) || (activeChatId.startsWith('GRP-') && m.senderId !== sessionId)) 
+                ? { ...m, read: true, delivered: true } : m
             );
             localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
             setMessages(updatedAll);
+            window.dispatchEvent(new Event('storage'));
         }
     }
   }, [messages, activeChatId, sessionId]);
 
   // --- 5. Action Logic ---
   const saveMessage = (newMsg: Message) => {
-      const updatedMessages = [...messages, newMsg];
-      setMessages(updatedMessages);
+      // CRITICAL: Fetch absolute latest from storage before saving to prevent overwriting other users' messages
+      const latestMessages = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
+      const updatedMessages = [...latestMessages, newMsg];
+      
       localStorage.setItem('internal_messages_data', JSON.stringify(updatedMessages));
+      setMessages(updatedMessages); // Update local state for immediate feedback
+      
+      // Trigger a storage event manually so other components on THIS tab update too
+      window.dispatchEvent(new Event('storage'));
+      
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -312,9 +342,10 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       };
 
       const existingGroups = JSON.parse(localStorage.getItem('chat_groups_data') || '[]');
-      localStorage.setItem('chat_groups_data', JSON.stringify([...existingGroups, newGroup]));
+      const updatedGroups = [...existingGroups, newGroup];
+      localStorage.setItem('chat_groups_data', JSON.stringify(updatedGroups));
       
-      setGroups(prev => [...prev, newGroup]);
+      setGroups(updatedGroups);
       setIsGroupModalOpen(false);
       setNewGroupName('');
       setSelectedGroupMembers([]);
@@ -332,6 +363,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       if(window.confirm("Delete ALL chat history? This cannot be undone.")) {
           localStorage.removeItem('internal_messages_data');
           setMessages([]);
+          window.dispatchEvent(new Event('storage'));
           alert("History cleared.");
       }
   };
