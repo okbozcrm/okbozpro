@@ -8,7 +8,8 @@ import {
   QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
-  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield
+  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield,
+  Coffee, RefreshCw
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -89,7 +90,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const currentSessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = currentSessionId === 'admin';
   const [isPunchedIn, setIsPunchedIn] = useState(false);
-  const [isPunching, setIsPunching] = useState(false); // New animation state
+  const [isPunching, setIsPunching] = useState(false); 
 
   useEffect(() => {
     const triggerRefresh = () => {
@@ -176,30 +177,65 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const saved = localStorage.getItem(key);
         const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
         const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED, punches: [] };
-        return { ...emp, dailyRecord: record };
+        
+        // AUTO-ABSENT LOGIC: If date is today or past and no punch exists, treat as Absent in view
+        let displayStatus = record.status;
+        if (displayStatus === AttendanceStatus.NOT_MARKED && selectedDate <= todayDateStr) {
+            displayStatus = AttendanceStatus.ABSENT;
+        }
+
+        return { ...emp, dailyRecord: { ...record, status: displayStatus } };
     });
-  }, [filteredStaffList, selectedDate, isAdmin, refreshToggle]);
+  }, [filteredStaffList, selectedDate, isAdmin, todayDateStr, refreshToggle]);
 
   const dashboardStats = useMemo(() => {
-    if (!isAdmin) {
-        let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, holidays = 0;
+    // SCENARIO 1: Individual View (Employee or Admin looking at a specific staff's month)
+    if (!isAdmin || (isAdmin && activeTab === 'Dashboard' && selectedEmployee)) {
+        let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, holidays = 0, weekOff = 0, onField = 0;
+        const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
+        
         attendanceData.forEach(day => {
-            if (day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY) { present++; if (day.isLate) late++; }
-            else if (day.status === AttendanceStatus.ABSENT) absent++;
-            else if (day.status === AttendanceStatus.HALF_DAY) halfDay++;
+            const isPresent = day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY;
+            if (isPresent) { 
+                present++; 
+                if (day.isLate) late++; 
+                if (isFieldStaff) onField++;
+            }
+            else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && day.date <= todayDateStr)) {
+                absent++;
+            }
+            else if (day.status === AttendanceStatus.HALF_DAY) {
+                halfDay++;
+                if (isFieldStaff) onField += 0.5;
+            }
             else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
             else if (day.status === AttendanceStatus.HOLIDAY) holidays++;
+            else if (day.status === AttendanceStatus.WEEK_OFF) weekOff++;
         });
-        return { total: attendanceData.length, present, absent, late, halfDay, leave, holidays, onField: present };
+        return { 
+            total: attendanceData.length, 
+            present, absent, late, halfDay, leave, holidays, weekOff, onField 
+        };
     }
-    const present = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT || l.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY).length;
+
+    // SCENARIO 2: Admin Daily Status View (Aggregated for all staff for selected date)
+    const presentLogs = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT || l.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY);
+    const present = presentLogs.length;
+    const onField = presentLogs.filter(l => l.attendanceConfig?.locationRestriction === 'Anywhere').length;
+    
+    // Absent includes explicit ABSENT and auto-calculated ABSENT (previously NOT_MARKED)
     const absent = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length;
     const late = staffDailyLogs.filter(l => l.dailyRecord.isLate).length;
     const halfDay = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HALF_DAY).length;
     const leave = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PAID_LEAVE).length;
     const holidays = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HOLIDAY).length;
-    return { total: filteredStaffList.length, present, absent, late, halfDay, leave, holidays, onField: present };
-  }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, refreshToggle]);
+    const weekOff = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.WEEK_OFF).length;
+    
+    return { 
+        total: filteredStaffList.length, 
+        present, absent, late, halfDay, leave, holidays, weekOff, onField 
+    };
+  }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, activeTab, selectedEmployee, todayDateStr, refreshToggle]);
 
   const availableBranchesList = useMemo(() => {
     if (filterCorporate === 'All') return branches;
@@ -291,9 +327,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const handlePunchAction = async (action: 'In' | 'Out') => {
     if (!selectedEmployee || isPunching) return;
     
-    setIsPunching(true); // Start animation
-    
-    // Simulate biometric processing time
+    setIsPunching(true); 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const now = new Date();
@@ -344,7 +378,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
     setAttendanceData(updated);
     setIsPunchedIn(action === 'In');
-    setIsPunching(false); // End animation
+    setIsPunching(false); 
   };
 
   const renderDailyStatus = () => (
@@ -363,6 +397,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     <span className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-black border border-rose-100">
                         <div className="w-2 h-2 rounded-full bg-rose-500"></div> {dashboardStats.absent} Absent
                     </span>
+                    <button 
+                        onClick={() => setRefreshToggle(v => v + 1)}
+                        className="p-2.5 bg-white hover:bg-gray-100 rounded-xl border border-gray-200 text-gray-400 hover:text-emerald-600 shadow-sm transition-all"
+                        title="Recalculate Stats"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
             <div className="flex gap-4">
@@ -432,6 +473,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                         log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' : 
                                         log.dailyRecord.status === AttendanceStatus.HOLIDAY ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                                         log.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                        log.dailyRecord.status === AttendanceStatus.WEEK_OFF ? 'bg-slate-50 text-slate-700 border-slate-200' :
                                         'bg-gray-100 text-gray-500 border-gray-200'
                                     }`}>
                                         {log.dailyRecord.status.replace('_', ' ')}
@@ -470,6 +512,12 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             </div>
             {isAdmin && selectedEmployee && (
                 <div className="flex flex-wrap gap-2">
+                    <button 
+                        onClick={() => setRefreshToggle(v => v + 1)}
+                        className="px-4 py-2 bg-gray-50 text-gray-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-200 hover:bg-white transition-all flex items-center gap-2 shadow-sm"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" /> Recalculate
+                    </button>
                     <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm"><CheckCircle className="w-3.5 h-3.5" /> Present (Month)</button>
                     <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-4 py-2 bg-rose-50 text-rose-700 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-2 shadow-sm"><XCircle className="w-3.5 h-3.5" /> Absent (Month)</button>
                 </div>
@@ -500,7 +548,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                         day.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
                                         'bg-rose-50 text-rose-600 border-rose-100'
                                     }`}>{day.status.replace('_', ' ')}</span>
-                                ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : null}
+                                ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : (day.date <= todayDateStr ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-rose-50 text-rose-600 border-rose-100">ABSENT</span> : null)}
                             </div>
                             
                             {punchCount > 0 && (
@@ -531,108 +579,102 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">{['Dashboard', 'Daily Status'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab === 'Daily Status' ? <div className="flex items-center gap-2"><Timer className="w-4 h-4" /> Daily Status</div> : tab}</button>)}</div>
       </div>
 
-      {activeTab === 'Dashboard' && (
-          <div className="space-y-8 animate-in zoom-in-95 duration-500">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                  {[
-                      { label: isAdmin ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
-                      { label: 'PRESENT', val: dashboardStats.present, icon: UserCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-                      { label: 'ABSENT', val: dashboardStats.absent, icon: UserX, color: 'text-rose-700', bg: 'bg-rose-50' },
-                      { label: 'LATE', val: dashboardStats.late, icon: Clock, color: 'text-orange-700', bg: 'bg-orange-50' },
-                      { label: 'ON FIELD', val: dashboardStats.onField, icon: Send, color: 'text-blue-700', bg: 'bg-blue-50' },
-                      { label: 'HALF DAY', val: dashboardStats.halfDay, icon: Activity, color: 'text-amber-700', bg: 'bg-amber-50' },
-                      { label: 'HOLIDAY', val: dashboardStats.holidays, icon: CalendarDays, color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                      { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-slate-700', bg: 'bg-slate-50' },
-                  ].map((kpi, i) => (
-                      <div key={i} className={`${kpi.bg} p-5 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-28`}><p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-3xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-6 h-6 opacity-20 ${kpi.color}`} /></div></div>
-                  ))}
-              </div>
-              
-              {!isAdmin && selectedEmployee && (
-                  <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
-                    <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
-                    <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
-                        <div className="text-center md:text-left space-y-10">
-                            <div className="space-y-2">
-                                <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
-                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Welcome to your attendance portal</p>
-                            </div>
-                            
-                            <div className="flex flex-col items-center md:items-start gap-10 w-full">
-                                <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
-                                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-                                        <Clock className="w-10 h-10 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
-                                        <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                    </div>
-                                </div>
-
-                                <div className="relative group">
-                                    {/* Biometric Animation Background */}
-                                    <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
-                                    
-                                    {/* Main Fingerprint Button */}
-                                    <button 
-                                        onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
-                                        disabled={isPunching}
-                                        className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
-                                            isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
-                                            isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
-                                        }`}
-                                    >
-                                        {isPunching ? (
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="relative">
-                                                    <Fingerprint className="w-16 h-16 text-white animate-pulse" />
-                                                    <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                </div>
-                                                <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
-                                                <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
-                                            </>
-                                        )}
-                                        
-                                        {/* Progress Ring during scan */}
-                                        {isPunching && (
-                                            <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
-                                        )}
-                                    </button>
-
-                                    {/* Subtext info */}
-                                    {!isPunching && (
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
-                                            <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
-                                                <Shield className="w-3.5 h-3.5" /> Biometric Identity
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="hidden lg:block relative">
-                            <div className="w-80 h-80 rounded-[4rem] bg-gray-50 flex items-center justify-center border-2 border-gray-100 shadow-inner relative overflow-hidden group-hover:border-emerald-100 transition-colors duration-700">
-                                <Zap className={`w-32 h-32 transition-all duration-700 ${isPunching ? 'text-indigo-400 scale-110' : isPunchedIn ? 'text-rose-100' : 'text-emerald-100'}`} />
-                                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent"></div>
-                                
-                                {/* Orbiting data points */}
-                                <div className="absolute inset-4 border border-dashed border-gray-200 rounded-full animate-[spin_20s_linear_infinite]"></div>
-                                <div className="absolute top-1/2 left-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
-                            </div>
-                        </div>
-                    </div>
-                  </div>
-              )}
-              {renderMonthlyCalendar()}
+      <div className="space-y-8 animate-in zoom-in-95 duration-500">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
+              {[
+                  { label: isAdmin && activeTab === 'Daily Status' ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
+                  { label: 'WEEK OFF', val: dashboardStats.weekOff, icon: Coffee, color: 'text-slate-700', bg: 'bg-slate-50' },
+                  { label: 'PRESENT', val: dashboardStats.present, icon: UserCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+                  { label: 'ABSENT', val: dashboardStats.absent, icon: UserX, color: 'text-rose-700', bg: 'bg-rose-50' },
+                  { label: 'LATE', val: dashboardStats.late, icon: Clock, color: 'text-orange-700', bg: 'bg-orange-50' },
+                  { label: 'ON FIELD', val: dashboardStats.onField, icon: Send, color: 'text-blue-700', bg: 'bg-blue-50' },
+                  { label: 'HALF DAY', val: dashboardStats.halfDay, icon: Activity, color: 'text-amber-700', bg: 'bg-amber-50' },
+                  { label: 'HOLIDAY', val: dashboardStats.holidays, icon: CalendarDays, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                  { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-slate-700', bg: 'bg-slate-50' },
+              ].map((kpi, i) => (
+                  <div key={i} className={`${kpi.bg} p-5 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-28`}><p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-3xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-6 h-6 opacity-20 ${kpi.color}`} /></div></div>
+              ))}
           </div>
-      )}
+          
+          {activeTab === 'Dashboard' && (
+              <>
+                  {!isAdmin && selectedEmployee && (
+                      <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
+                        <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
+                        <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
+                            <div className="text-center md:text-left space-y-10">
+                                <div className="space-y-2">
+                                    <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
+                                    <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Welcome to your attendance portal</p>
+                                </div>
+                                
+                                <div className="flex flex-col items-center md:items-start gap-10 w-full">
+                                    <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
+                                        <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
+                                            <Clock className="w-10 h-10 text-emerald-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
+                                            <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        </div>
+                                    </div>
 
-      {isAdmin && activeTab === 'Daily Status' && renderDailyStatus()}
+                                    <div className="relative group">
+                                        <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
+                                        <button 
+                                            onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
+                                            disabled={isPunching}
+                                            className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
+                                                isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
+                                                isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
+                                            }`}
+                                        >
+                                            {isPunching ? (
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="relative">
+                                                        <Fingerprint className="w-16 h-16 text-white animate-pulse" />
+                                                        <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                    </div>
+                                                    <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
+                                                    <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
+                                                </>
+                                            )}
+                                            {isPunching && (
+                                                <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
+                                            )}
+                                        </button>
+                                        {!isPunching && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
+                                                <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
+                                                    <Shield className="w-3.5 h-3.5" /> Biometric Identity
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="hidden lg:block relative">
+                                <div className="w-80 h-80 rounded-[4rem] bg-gray-50 flex items-center justify-center border-2 border-gray-100 shadow-inner relative overflow-hidden group-hover:border-emerald-100 transition-colors duration-700">
+                                    <Zap className={`w-32 h-32 transition-all duration-700 ${isPunching ? 'text-indigo-400 scale-110' : isPunchedIn ? 'text-rose-100' : 'text-emerald-100'}`} />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent"></div>
+                                    <div className="absolute inset-4 border border-dashed border-gray-200 rounded-full animate-[spin_20s_linear_infinite]"></div>
+                                    <div className="absolute top-1/2 left-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+                  )}
+                  {renderMonthlyCalendar()}
+              </>
+          )}
+
+          {activeTab === 'Daily Status' && renderDailyStatus()}
+      </div>
 
       {isEditModalOpen && editingRecord && isAdmin && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
@@ -672,7 +714,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 px-1">Detailed Status Select</label>
                         <div className="relative group">
-                            <select value={editingRecord.status} onChange={(e) => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full px-6 py-5 bg-white border border-gray-100 rounded-[1.75rem] text-sm font-black text-gray-800 outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer shadow-sm transition-all">
+                            <select value={editingRecord.status} onChange={(e) => setEditingRecord({...editingRecord, status: e.target.value as any})} className="w-full px-6 py-5 bg-white border border-gray-300 rounded-[1.75rem] text-sm font-black text-gray-800 outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer shadow-sm transition-all">
                                 <option value={AttendanceStatus.PRESENT}>PRESENT</option>
                                 <option value={AttendanceStatus.ABSENT}>ABSENT</option>
                                 <option value={AttendanceStatus.HALF_DAY}>HALF DAY</option>
