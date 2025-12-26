@@ -7,7 +7,7 @@ import {
   Users, Target, Building2, Car, Wallet, MapPin, Truck, Layers, RefreshCw, Eye,
   Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff,
   MessageSquare, HardDrive, Bike, Megaphone, PhoneForwarded, Headset, ClipboardList,
-  FileText, Activity, Map, ReceiptIndianRupee, Building
+  FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -23,22 +23,18 @@ const Settings: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(false);
   const [collectionStats, setCollectionStats] = useState<any[]>([]);
 
-  // Local state for branding form
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
 
-  // Maps API Key State
   const isMapsHardcoded = !!(HARDCODED_MAPS_API_KEY && HARDCODED_MAPS_API_KEY.length > 5);
   const [mapsKey, setMapsKey] = useState(HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key') || '');
   const [showMapsInput, setShowMapsInput] = useState(false);
 
-  // Collection Viewer Modal State
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<any[] | string | null>(null);
   const [collectionError, setCollectionError] = useState<string | null>(null);
 
-  // Password Management State
   const [adminPasswords, setAdminPasswords] = useState({ current: '', new: '', confirm: '' });
   const [showAdminPass, setShowAdminPass] = useState({ current: false, new: false });
   const [adminPassMsg, setAdminPassMsg] = useState({ type: '', text: '' });
@@ -54,28 +50,29 @@ const Settings: React.FC = () => {
   }, []);
 
   const generateCollectionStats = (cloudData: any) => {
+    // Mapping all 21 requested modules to their internal storage keys
     const collections = [
-        { key: 'staff_data', label: 'Staff Management', icon: Users },
-        { key: 'corporate_accounts', label: 'Corporate Accounts', icon: Building2 },
-        { key: 'branches_data', label: 'Branches', icon: Building },
-        { key: 'trips_data', label: 'Trip Bookings', icon: Map },
-        { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
-        { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
-        { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
-        { key: 'leads_data', label: 'Franchisee Leads', icon: Layers },
-        { key: 'vendor_data', label: 'Vendor Attachment', icon: Car },
+        { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
+        { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
         { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
+        { key: 'company_shifts', label: 'Employee Setting', icon: Clock },
+        { key: 'analytics_cache', label: 'Reports', icon: FileText },
         { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
         { key: 'auto_dialer_data', label: 'Auto Dialer', icon: PhoneForwarded },
-        { key: 'tasks_data', label: 'Tasks', icon: ClipboardList },
-        { key: 'attendance_cycle', label: 'Attendance Dashboard', icon: Activity },
-        { key: 'app_documents', label: 'Documents', icon: FileText },
+        { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
+        { key: 'trips_data', label: 'Trip Booking', icon: Map },
         { key: 'driver_payment_records', label: 'Driver Payments', icon: ReceiptIndianRupee },
-        { key: 'driver_wallet_data', label: 'Driver Wallet', icon: Wallet },
-        { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
-        { key: 'company_departments', label: 'Departments & Roles', icon: BriefcaseIcon },
-        { key: 'company_shifts', label: 'Employee Setting', icon: Clock },
-        { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin }
+        { key: 'leads_data', label: 'Franchisee Leads', icon: Target },
+        { key: 'attendance_data_admin', label: 'Attendance Dashboard', icon: Activity },
+        { key: 'tasks_data', label: 'Tasks', icon: ClipboardList },
+        { key: 'staff_data', label: 'Staff Management', icon: Users },
+        { key: 'app_documents', label: 'Documents', icon: FileText },
+        { key: 'branches_data', label: 'Branches', icon: Building },
+        { key: 'vendor_data', label: 'Vendor Attachment', icon: Car },
+        { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
+        { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
+        { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
+        { key: 'system_backup_logs', label: 'Data & Backup', icon: Database }
     ];
 
     return collections.map(col => {
@@ -86,10 +83,10 @@ const Settings: React.FC = () => {
             localStr = localStorage.getItem(col.key);
             if (localStr) {
                 localContent = JSON.parse(localStr);
-                localCount = Array.isArray(localContent) ? localContent.length : 1;
+                localCount = Array.isArray(localContent) ? localContent.length : (typeof localContent === 'object' ? 1 : '1');
             }
         } catch(e) {
-            localCount = 'Err';
+            localCount = localStr ? 'Raw' : 0;
             localContent = localStr;
         }
 
@@ -103,7 +100,7 @@ const Settings: React.FC = () => {
             local: localCount,
             localContent: localContent,
             cloud: cloudCount,
-            status: 'Synced' 
+            status: localCount !== 0 && cloudCount !== '-' ? 'Synced' : 'Pending'
         };
     });
   };
@@ -220,7 +217,62 @@ const Settings: React.FC = () => {
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <SettingsIcon className="w-6 h-6 text-gray-600" /> Site Settings
         </h2>
-        <p className="text-gray-500">System configuration, branding, and data management</p>
+        <p className="text-gray-500">System configuration, branding, and cloud data manifest</p>
+      </div>
+
+      {/* Cloud Repository Monitor (All 21 Modules) */}
+      <div className="space-y-4">
+          <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                  <Database className="w-5 h-5 text-indigo-500" /> CLOUD DATABASE REPOSITORY (21 MODULES)
+              </h3>
+              <button 
+                  onClick={checkConnection}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+              >
+                  <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
+                  Refresh Health
+              </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {collectionStats.map(stat => (
+                  <div key={stat.key} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow group">
+                      <div className="flex justify-between items-start mb-3">
+                          <div className={`p-2 rounded-lg transition-colors ${stat.local !== 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+                              <stat.icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                             <div className={`w-1.5 h-1.5 rounded-full ${stat.status === 'Synced' ? 'bg-emerald-500' : 'bg-amber-400'}`}></div>
+                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{stat.status}</span>
+                          </div>
+                      </div>
+                      
+                      <div>
+                          <h4 className="font-bold text-gray-800 text-sm mb-3 truncate">{stat.label}</h4>
+                          <div className="flex items-center text-xs bg-gray-50 rounded-lg p-2 border border-gray-100">
+                              <div className="flex-1">
+                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Local</span>
+                                  <span className="text-lg font-bold text-gray-800">{stat.local}</span>
+                              </div>
+                              <div className="w-px h-6 bg-gray-200 mx-3"></div>
+                              <div className="flex-1 text-right">
+                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Cloud</span>
+                                  <span className="text-lg font-bold text-blue-600">{stat.cloud}</span>
+                              </div>
+                          </div>
+                      </div>
+                      <div className="mt-3">
+                          <button 
+                              onClick={() => handleViewCollection(stat.key, stat.localContent)}
+                              className="w-full px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                              <Eye className="w-3 h-3" /> Inspect
+                          </button>
+                      </div>
+                  </div>
+              ))}
+          </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
@@ -320,7 +372,7 @@ const Settings: React.FC = () => {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <Cloud className="w-5 h-5 text-blue-500" /> Cloud Database Manifest
+            <Cloud className="w-5 h-5 text-blue-500" /> Cloud Sync Controls
           </h3>
           <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
             dbStatus === 'Connected' ? 'bg-green-100 text-green-700' : 
@@ -332,38 +384,6 @@ const Settings: React.FC = () => {
         </div>
         
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                   <Database className="w-4 h-4" /> Connection Info
-                </h4>
-                <div className="space-y-2 text-sm text-blue-800">
-                   <div className="flex justify-between">
-                      <span className="opacity-70">Project ID:</span>
-                      <span className="font-mono font-bold">{HARDCODED_FIREBASE_CONFIG.projectId || 'Not Configured'}</span>
-                   </div>
-                   <div className="flex justify-between">
-                      <span className="opacity-70">Status:</span>
-                      <span className="font-bold">{isDbPermanent ? 'Permanent Link' : 'Temporary'}</span>
-                   </div>
-                </div>
-             </div>
-
-             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <h4 className="font-bold text-gray-700 mb-2">Live Sync Health</h4>
-                <div className="space-y-2 text-sm">
-                   <div className="flex justify-between text-gray-600">
-                      <span>Total Sync Modules:</span>
-                      <span className="font-bold text-gray-900">21 Modules</span>
-                   </div>
-                   <div className="flex justify-between text-gray-600">
-                      <span>Sync Mode:</span>
-                      <span className="font-bold text-emerald-600">Immediate Broadcast</span>
-                   </div>
-                </div>
-             </div>
-          </div>
-
           <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-4 justify-between items-center mt-4">
               <span className="text-xs text-gray-400">
                   {isDbPermanent ? '🔒 Connected via Hardcoded Config' : 'ℹ️ Using Temporary Config'}
@@ -390,116 +410,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <div className="space-y-4">
-          <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-gray-500" /> LIVE CLOUD REPOSITORY (21 MODULES)
-              </h3>
-              <button 
-                  onClick={checkConnection}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
-              >
-                  <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
-                  Refresh Stats
-              </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {collectionStats.map(stat => (
-                  <div key={stat.key} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow group">
-                      <div className="flex justify-between items-start mb-3">
-                          <div className="p-2 bg-gray-50 rounded-lg text-gray-600 border border-gray-100 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-                              <stat.icon className="w-5 h-5" />
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Live</span>
-                          </div>
-                      </div>
-                      
-                      <div>
-                          <h4 className="font-bold text-gray-800 text-sm mb-3 truncate">{stat.label}</h4>
-                          <div className="flex items-center text-xs bg-gray-50 rounded-lg p-2 border border-gray-100">
-                              <div className="flex-1">
-                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Local</span>
-                                  <span className="text-lg font-bold text-gray-800">{stat.local}</span>
-                              </div>
-                              <div className="w-px h-6 bg-gray-200 mx-3"></div>
-                              <div className="flex-1 text-right">
-                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Cloud</span>
-                                  <span className="text-lg font-bold text-blue-600">{stat.cloud}</span>
-                              </div>
-                          </div>
-                      </div>
-                      <div className="mt-3">
-                          <button 
-                              onClick={() => handleViewCollection(stat.key, stat.localContent)}
-                              className="w-full px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
-                          >
-                              <Eye className="w-3 h-3" /> Inspect Data
-                          </button>
-                      </div>
-                  </div>
-              ))}
-          </div>
-      </div>
       
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-         <h3 className="font-bold text-gray-800 mb-4">Integrations</h3>
-         <div className="space-y-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-               <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <div className="p-2 bg-yellow-50 rounded text-yellow-600">
-                         <MapIcon className="w-6 h-6" />
-                      </div>
-                      <div>
-                         <h4 className="font-bold text-gray-800">Google Maps API</h4>
-                         <p className="text-xs text-gray-500">For location tracking and address search</p>
-                      </div>
-                   </div>
-                   {!isMapsHardcoded && (
-                       <button 
-                          className="text-xs font-bold text-blue-600 hover:underline border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                          onClick={() => setShowMapsInput(!showMapsInput)}
-                       >
-                          {showMapsInput ? 'Cancel' : (mapsKey ? 'Edit Key' : 'Configure')}
-                       </button>
-                   )}
-                   {isMapsHardcoded && (
-                       <span className="text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">Permanent Link</span>
-                   )}
-               </div>
-               
-               {showMapsInput && !isMapsHardcoded && (
-                   <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
-                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">API Key</label>
-                       <div className="flex gap-2">
-                           <input 
-                               type="text" 
-                               value={mapsKey}
-                               onChange={(e) => setMapsKey(e.target.value)}
-                               placeholder="Paste your AIza... API Key here"
-                               className="flex-1 p-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none"
-                           />
-                           <button 
-                               onClick={handleSaveMapsKey}
-                               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-1 shadow-sm"
-                           >
-                               <Check className="w-4 h-4" /> Save
-                           </button>
-                       </div>
-                       <div className="mt-2 text-[10px] text-gray-500 space-y-1">
-                           <p>Get this key from Google Cloud Console (Maps JavaScript API & Places API)</p>
-                           <p className="text-red-500 font-medium">Important: You must enable BILLING on the Google Cloud Project for the map to work.</p>
-                       </div>
-                   </div>
-               )}
-            </div>
-         </div>
-      </div>
-
       {showCollectionViewer && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">
@@ -516,31 +427,9 @@ const Settings: React.FC = () => {
                         {collectionError}
                     </div>
                 ) : (
-                    <>
-                        {Array.isArray(collectionContent) ? (
-                            collectionContent.length > 0 ? (
-                                <ul className="space-y-3">
-                                    {collectionContent.map((item, index) => (
-                                        <li key={index} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                                            <pre className="whitespace-pre-wrap break-all text-xs">
-                                                {JSON.stringify(item, null, 2)}
-                                            </pre>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-center text-gray-500">This module has no records.</p>
-                            )
-                        ) : (
-                            typeof collectionContent === 'object' && collectionContent !== null ? (
-                                <pre className="whitespace-pre-wrap break-all text-xs">
-                                    {JSON.stringify(collectionContent, null, 2)}
-                                </pre>
-                            ) : (
-                                <p className="text-center text-gray-500">{collectionContent || "No content available."}</p>
-                            )
-                        )}
-                    </>
+                    <pre className="whitespace-pre-wrap break-all text-xs">
+                        {JSON.stringify(collectionContent, null, 2)}
+                    </pre>
                 )}
             </div>
 

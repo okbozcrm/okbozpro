@@ -55,7 +55,9 @@ const GLOBAL_KEYS = [
   'internal_messages_data',
   'campaign_history',
   'app_documents',
-  'admin_sidebar_order'
+  'admin_sidebar_order',
+  'driver_activity_summary',
+  'system_backup_logs'
 ];
 
 const NAMESPACED_KEYS = [

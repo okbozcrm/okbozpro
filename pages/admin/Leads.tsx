@@ -4,10 +4,14 @@ import {
   Plus, Search, Filter, Download, MoreVertical, 
   MapPin, IndianRupee, Calendar, Clock, Sparkles,
   X, Briefcase, Mail, Phone, Calculator, Target, User,
-  Pencil, Trash2, MessageCircle, Send, Loader2, FileText, Upload
+  Pencil, Trash2, MessageCircle, Send, Loader2, FileText, Upload,
+  LayoutGrid, List, ThumbsUp, ThumbsDown, PhoneOff, BookOpen, 
+  Zap, Building, Activity, TrendingUp, BadgeCheck,
+  Layers, Settings, Users, CheckCircle, Edit2, BrainCircuit,
+  PhoneCall, LayoutDashboard, ChevronDown
 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
-import ContactDisplay from '../../components/ContactDisplay';
+import { UserRole } from '../../types';
 
 interface Lead {
   id: string;
@@ -15,776 +19,550 @@ interface Lead {
   role: string;
   location: string;
   totalValue: number;
-  billValue: number;
-  franchiseValue: number;
-  adFee: number;
-  status: 'New' | 'Contacted' | 'Qualified' | 'Converted' | 'Lost';
-  source: string;
+  status: 'New' | 'Contacted' | 'Qualified' | 'Converted' | 'Lost' | 'Booked';
   priority: 'Hot' | 'Warm' | 'Cold';
-  nextCallDate: string;
-  nextCallTime: string;
+  nextFollowUp?: string; // ISO String or YYYY-MM-DD
   notes: string;
   email?: string;
   phone?: string;
-  tags: string[];
+  source: string;
   createdAt: string;
+  outcome?: 'Interested' | 'Rejected' | 'Callback' | 'No Ans';
 }
 
-const MOCK_LEADS: Lead[] = [];
-
 const Leads = () => {
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const role = localStorage.getItem('user_role') as UserRole;
+
   const [leads, setLeads] = useState<Lead[]>(() => {
     const saved = localStorage.getItem('leads_data');
-    return saved ? JSON.parse(saved) : MOCK_LEADS;
+    return saved ? JSON.parse(saved) : [
+      { id: 'L1', name: 'John Doe', role: 'MANAGER', location: 'Mumbai', totalValue: 50000, status: 'Qualified', priority: 'Hot', nextFollowUp: '2025-12-26T10:00', notes: 'Interested in Erode branch.', phone: '9876543210', source: 'Google Ads', createdAt: '2025-11-20' },
+      { id: 'L2', name: 'Jane Smith', role: 'DIRECTOR', location: 'Delhi', totalValue: 100000, status: 'New', priority: 'Warm', nextFollowUp: '2025-12-26T14:30', notes: 'Needs pricing package.', phone: '9123456780', source: 'LinkedIn', createdAt: '2025-11-21' },
+      { id: 'L3', name: 'rajan', role: 'LEAD', location: 'salem', totalValue: 0, status: 'New', priority: 'Cold', nextFollowUp: '2025-12-26T11:00', notes: '', phone: '9150449959', source: 'Direct', createdAt: '2025-12-01' }
+    ];
   });
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [priorityFilter, setPriorityFilter] = useState('All Priority');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    role: 'LEAD',
+    priority: 'Warm' as 'Hot' | 'Warm' | 'Cold',
+    outcome: 'Interested' as 'Interested' | 'Rejected' | 'Callback' | 'No Ans',
+    followUpDate: '2025-12-26',
+    followUpTime: '10:00',
+    notes: '',
+    location: ''
+  });
+
+  // AI State
+  const [aiText, setAiText] = useState('');
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('leads_data', JSON.stringify(leads));
   }, [leads]);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Form State
-  const initialFormState = {
-    name: '',
-    role: '', // Job Title
-    city: '',
-    phone: '',
-    email: '',
-    billValue: '',
-    franchiseValue: '',
-    adFee: '',
-    source: 'Google Ads',
-    priority: 'Warm',
-    nextCallDate: '',
-    nextCallTime: '',
-    notes: ''
-  };
-  const [formData, setFormData] = useState(initialFormState);
-
-  // AI Communication State
-  const [communicationText, setCommunicationText] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const totalValue = useMemo(() => {
-    const bill = parseFloat(formData.billValue) || 0;
-    const franchise = parseFloat(formData.franchiseValue) || 0;
-    const ad = parseFloat(formData.adFee) || 0;
-    return bill + franchise + ad;
-  }, [formData.billValue, formData.franchiseValue, formData.adFee]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const resetForm = () => {
-    setFormData(initialFormState);
-    setCommunicationText('');
+    setFormData({
+      name: '', phone: '', role: 'LEAD', priority: 'Warm',
+      outcome: 'Interested', followUpDate: '2025-12-26',
+      followUpTime: '10:00', notes: '', location: ''
+    });
+    setAiText('');
     setEditingId(null);
     setIsModalOpen(false);
   };
 
   const handleEdit = (lead: Lead) => {
+    setEditingId(lead.id);
+    const followUp = lead.nextFollowUp || '';
+    const [date, time] = followUp.includes('T') ? followUp.split('T') : [followUp, '10:00'];
     setFormData({
       name: lead.name,
-      role: lead.role,
-      city: lead.location,
       phone: lead.phone || '',
-      email: lead.email || '',
-      // SAFE GUARD: Handle potentially undefined numeric values before toString()
-      billValue: (lead.billValue !== undefined && lead.billValue !== null) ? lead.billValue.toString() : '0',
-      franchiseValue: (lead.franchiseValue !== undefined && lead.franchiseValue !== null) ? lead.franchiseValue.toString() : '0',
-      adFee: (lead.adFee !== undefined && lead.adFee !== null) ? lead.adFee.toString() : '0',
-      source: lead.source,
+      role: lead.role,
       priority: lead.priority,
-      nextCallDate: lead.nextCallDate,
-      nextCallTime: lead.nextCallTime,
-      notes: lead.notes
+      outcome: (lead.outcome as any) || 'Interested',
+      followUpDate: date || '2025-12-26',
+      followUpTime: time || '10:00',
+      notes: lead.notes,
+      location: lead.location
     });
-    setEditingId(lead.id);
-    setCommunicationText(''); // Reset AI text on new edit
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this lead?")) {
-      setLeads(leads.filter(l => l.id !== id));
-      // Trigger immediate cloud sync
-      window.dispatchEvent(new Event('cloud-sync-immediate'));
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!formData.name || !formData.phone) {
+      alert("Required fields missing.");
+      return;
     }
-  };
+    const leadData: Lead = {
+      id: editingId || `L${Date.now()}`,
+      name: formData.name,
+      role: formData.role.toUpperCase(),
+      location: formData.location || 'Unknown',
+      phone: formData.phone,
+      priority: formData.priority,
+      status: formData.outcome === 'Interested' ? 'Qualified' : 'New',
+      outcome: formData.outcome,
+      nextFollowUp: `${formData.followUpDate}T${formData.followUpTime}`,
+      notes: formData.notes,
+      totalValue: editingId ? (leads.find(l => l.id === editingId)?.totalValue || 0) : 0,
+      source: 'Internal CRM',
+      createdAt: editingId ? (leads.find(l => l.id === editingId)?.createdAt || '') : new Date().toISOString()
+    };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
     if (editingId) {
-      // Update existing lead
-      setLeads(prev => prev.map(lead => {
-        if (lead.id === editingId) {
-          return {
-            ...lead,
-            name: formData.name,
-            role: formData.role,
-            location: formData.city,
-            phone: formData.phone,
-            email: formData.email,
-            billValue: parseFloat(formData.billValue) || 0,
-            franchiseValue: parseFloat(formData.franchiseValue) || 0,
-            adFee: parseFloat(formData.adFee) || 0,
-            totalValue: totalValue,
-            source: formData.source,
-            priority: formData.priority as any,
-            nextCallDate: formData.nextCallDate,
-            nextCallTime: formData.nextCallTime,
-            notes: formData.notes,
-          };
-        }
-        return lead;
-      }));
+      setLeads(prev => prev.map(l => l.id === editingId ? leadData : l));
     } else {
-      // Create new lead
-      const newLead: Lead = {
-        id: `L${Date.now()}`,
-        name: formData.name,
-        role: formData.role,
-        location: formData.city,
-        phone: formData.phone,
-        email: formData.email,
-        billValue: parseFloat(formData.billValue) || 0,
-        franchiseValue: parseFloat(formData.franchiseValue) || 0,
-        adFee: parseFloat(formData.adFee) || 0,
-        totalValue: totalValue,
-        status: 'New',
-        source: formData.source,
-        priority: formData.priority as any,
-        nextCallDate: formData.nextCallDate,
-        nextCallTime: formData.nextCallTime,
-        notes: formData.notes,
-        tags: [formData.priority],
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setLeads([newLead, ...leads]);
+      setLeads([leadData, ...leads]);
     }
 
-    // Trigger immediate cloud sync
     window.dispatchEvent(new Event('cloud-sync-immediate'));
     resetForm();
   };
 
-  // --- Import & Sample Functions ---
-  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n');
-        if (lines.length < 2) {
-            alert("Invalid CSV. Please use the sample format.");
-            return;
-        }
-
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
-        const newLeads: Lead[] = [];
-
-        for(let i = 1; i < lines.length; i++) {
-            if(!lines[i].trim()) continue;
-            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-            const data: any = {};
-            headers.forEach((h, idx) => { data[h] = values[idx] });
-
-            if (data.name) {
-                // Handle potential missing fields safely
-                const total = parseFloat(data.totalvalue || '0');
-                newLeads.push({
-                    id: `L${Date.now() + i}`,
-                    name: data.name,
-                    role: data.role || 'Lead',
-                    location: data.location || data.city || 'Unknown',
-                    phone: data.phone || '',
-                    email: data.email || '',
-                    totalValue: total,
-                    billValue: total, // Simplify for import
-                    franchiseValue: 0,
-                    adFee: 0,
-                    status: 'New',
-                    source: data.source || 'Import',
-                    priority: (['Hot', 'Warm', 'Cold'].includes(data.priority) ? data.priority : 'Warm') as any,
-                    nextCallDate: new Date().toISOString().split('T')[0],
-                    nextCallTime: '10:00',
-                    notes: 'Imported via CSV',
-                    tags: ['Imported'],
-                    createdAt: new Date().toISOString().split('T')[0]
-                });
-            }
-        }
-        
-        if (newLeads.length > 0) {
-            setLeads(prev => [...newLeads, ...prev]);
-            window.dispatchEvent(new Event('cloud-sync-immediate'));
-            alert(`Successfully imported ${newLeads.length} leads.`);
-        } else {
-            alert("No valid leads found in file.");
-        }
-    };
-    reader.readAsText(file);
-    if(fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const downloadSampleCSV = () => {
-    const headers = "Name,Role,Location,Phone,Email,TotalValue,Source,Priority";
-    const row1 = "John Doe,Manager,Mumbai,9876543210,john@example.com,50000,LinkedIn,Hot";
-    const row2 = "Jane Smith,Director,Delhi,9123456780,jane@example.com,100000,Referral,Warm";
-    const csvContent = "data:text/csv;charset=utf-8," + [headers, row1, row2].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "leads_sample.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // AI Handlers
-  const handleGenerateMessage = async (type: 'Proposal' | 'Follow-up' | 'Intro') => {
-    if (!formData.name) {
-        alert("Please enter lead name first.");
-        return;
-    }
-    setIsGenerating(true);
+  const handleSynthesize = async () => {
+    if (!formData.name) return;
+    setIsSynthesizing(true);
+    const prompt = `Synthesize a highly personalized follow-up outreach for a franchisee lead.
+    Name: ${formData.name}
+    Interaction Outcome: ${formData.outcome}
+    Conversation Notes: ${formData.notes}
+    Goal: Professional, strategic, and encouraging. Keep it short for WhatsApp/Email.`;
     
-    const prompt = `Write a professional sales ${type} message for a potential client.
-    Lead Name: ${formData.name}
-    Lead Role: ${formData.role}
-    Lead Location: ${formData.city}
-    Context/Notes: ${formData.notes}
-    My Product: "OK BOZ" (A staff management and payroll platform).
-    Tone: Professional, persuasive, and concise.
-    Format: Plain text, ready to copy.`;
-
     try {
-        const text = await generateGeminiResponse(prompt);
-        setCommunicationText(text);
-    } catch (error) {
-        console.error(error);
-        setCommunicationText("Failed to generate message. Please try again.");
+      const res = await generateGeminiResponse(prompt);
+      setAiText(res);
+    } catch (e) {
+      setAiText("Failed to generate outreach. Please try again.");
     }
-    setIsGenerating(false);
+    setIsSynthesizing(false);
   };
 
-  const handleCall = () => {
-      if (formData.phone) window.location.href = `tel:${formData.phone}`;
-  };
+  // Safe Stats Calculation
+  const stats = useMemo(() => {
+    const today = "2025-12-26"; // Mocked to match screenshot date context
+    return {
+      total: leads.length,
+      followUps: leads.filter(l => l.nextFollowUp?.startsWith(today)).length,
+      qualified: leads.filter(l => l.status === 'Qualified').length,
+      valuation: leads.reduce((sum, l) => sum + (Number(l.totalValue) || 0), 0)
+    };
+  }, [leads]);
 
-  const handleWhatsApp = () => {
-      if (formData.phone) {
-          const cleanPhone = formData.phone.replace(/\D/g, '');
-          const text = encodeURIComponent(communicationText);
-          window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
-      }
-  };
-
-  const handleEmail = () => {
-      if (formData.email) {
-          const subject = encodeURIComponent("Proposal from OK BOZ");
-          const body = encodeURIComponent(communicationText);
-          window.location.href = `mailto:${formData.email}?subject=${subject}&body=${body}`;
-      }
-  };
-
-  // Stats
-  const pipelineValue = leads.reduce((sum, l) => sum + l.totalValue, 0);
-  const activeLeads = leads.filter(l => l.status !== 'Converted' && l.status !== 'Lost').length;
-  const hotLeads = leads.filter(l => l.priority === 'Hot').length;
-  const conversionRate = Math.round((leads.filter(l => l.status === 'Converted').length / (leads.length || 1)) * 100);
-
-  const filteredLeads = leads.filter(l => 
-    l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    l.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getStatusColor = (status: string) => {
-    switch(status) {
-        case 'New': return 'bg-blue-500';
-        case 'Contacted': return 'bg-purple-500';
-        case 'Qualified': return 'bg-yellow-500';
-        case 'Converted': return 'bg-emerald-500';
-        default: return 'bg-gray-400';
-    }
-  };
+  // Safe Filter Logic
+  const filteredLeads = leads.filter(l => {
+    const matchesSearch = (l.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           l.phone?.includes(searchTerm) || 
+                           l.location?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatus = statusFilter === 'All Status' || l.status === statusFilter;
+    const matchesPriority = priorityFilter === 'All Priority' || l.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Franchisee Leads</h2>
-        <div className="flex gap-3 items-center">
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input 
-                    type="text" 
-                    placeholder="Search..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm w-64"
-                />
-            </div>
-            <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-            </button>
-            <div className="w-8 h-8 bg-blue-500 rounded-full text-white flex items-center justify-center font-bold">A</div>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+             <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Franchisee Leads</h2>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Engagement Terminal & Pipeline Strategy</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button className="bg-white border border-gray-100 text-gray-600 px-5 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm">
+             <Settings className="w-4 h-4" /> Message Settings
+          </button>
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-[#00a86b] hover:bg-[#008f5b] text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-[#00a86b]/20 transition-all transform active:scale-95">
+             <Plus className="w-5 h-5" /> New Lead
+          </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pipeline Value</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">₹{(pipelineValue/100000).toFixed(1)}L</h3>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                <IndianRupee className="w-5 h-5" />
-            </div>
-         </div>
-         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Leads</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{activeLeads}</h3>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
-                <Target className="w-5 h-5" />
-            </div>
-         </div>
-         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hot Leads</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{hotLeads}</h3>
-            </div>
-            <div className="p-3 bg-orange-50 rounded-lg text-orange-600">
-                <Sparkles className="w-5 h-5" />
-            </div>
-         </div>
-         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Conversion</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{conversionRate}%</h3>
-            </div>
-            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-                <Briefcase className="w-5 h-5" />
-            </div>
-         </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-2 items-center justify-between">
-         <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+      {/* Strategic Command Bar */}
+      <div className="flex flex-col lg:flex-row gap-4 items-center">
+          <div className="relative flex-1 group w-full">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 w-5 h-5 transition-colors group-focus-within:text-indigo-500" />
             <input 
                 type="text" 
-                placeholder="Search leads..." 
+                placeholder="Search leads by name, phone or city..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-lg focus:ring-0 text-sm"
+                className="w-full pl-14 pr-4 py-4 bg-white border border-gray-100 rounded-full text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-200 transition-all shadow-sm placeholder:text-gray-300"
             />
-         </div>
-         <div className="flex gap-2">
-            <button 
-                onClick={downloadSampleCSV}
-                className="px-3 py-2 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium flex items-center gap-2"
-                title="Download Sample CSV"
-            >
-                <FileText className="w-4 h-4" /> Sample
-            </button>
-            
-            <input 
-                type="file" 
-                accept=".csv" 
-                ref={fileInputRef} 
-                className="hidden" 
-                onChange={handleCSVImport} 
-            />
-            <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-2 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium flex items-center gap-2"
-            >
-                <Upload className="w-4 h-4" /> Import
-            </button>
-
-            <button className="p-2 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600"><Filter className="w-4 h-4" /> Filter</button>
-            <button className="px-4 py-2 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium flex items-center gap-2"><Download className="w-4 h-4" /> Export</button>
-            <button 
-                onClick={() => { resetForm(); setIsModalOpen(true); }}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-            >
-                <Plus className="w-4 h-4" /> Add New Lead
-            </button>
-         </div>
+          </div>
+          <div className="flex gap-4 items-center w-full lg:w-auto">
+             <div className="flex bg-white rounded-full border border-gray-100 p-1.5 shadow-sm">
+               <select 
+                 value={statusFilter} 
+                 onChange={e => setStatusFilter(e.target.value)} 
+                 className="bg-transparent text-[11px] font-black uppercase text-gray-500 px-4 outline-none cursor-pointer"
+               >
+                  <option>All Status</option>
+                  <option>New</option>
+                  <option>Qualified</option>
+                  <option>Contacted</option>
+               </select>
+               <div className="w-px h-4 bg-gray-200 self-center"></div>
+               <select 
+                 value={priorityFilter} 
+                 onChange={e => setPriorityFilter(e.target.value)} 
+                 className="bg-transparent text-[11px] font-black uppercase text-gray-500 px-4 outline-none cursor-pointer"
+               >
+                  <option>All Priority</option>
+                  <option>Hot</option>
+                  <option>Warm</option>
+                  <option>Cold</option>
+               </select>
+             </div>
+             <div className="flex bg-white rounded-xl border border-gray-100 p-1.5 shadow-sm">
+                <button className="p-2 rounded-lg text-gray-300 hover:text-gray-500"><LayoutDashboard className="w-5 h-5" /></button>
+                <button className="p-2 rounded-lg bg-indigo-50 text-indigo-600 shadow-inner"><List className="w-5 h-5" /></button>
+             </div>
+          </div>
       </div>
 
-      {/* Leads Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         {filteredLeads.map(lead => (
-            <div key={lead.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow-md transition-shadow group relative">
-               <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-2">
-                     <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(lead.status)}`}></div>
-                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">{lead.status}</span>
-                     <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-mono">
-                        {lead.priority === 'Hot' ? '🔥' : lead.priority === 'Warm' ? '👍' : '❄️'}
-                     </span>
-                  </div>
-                  <div className="flex gap-1">
-                    <button 
-                        onClick={() => handleEdit(lead)} 
-                        className="text-gray-400 hover:text-blue-600 p-1 hover:bg-blue-50 rounded transition-colors"
-                        title="Edit Lead"
-                    >
-                        <Pencil className="w-4 h-4" />
-                    </button>
-                    <button 
-                        onClick={() => handleDelete(lead.id)} 
-                        className="text-gray-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors"
-                        title="Delete Lead"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-               </div>
-
-               <h3 className="text-lg font-bold text-gray-900">{lead.name}</h3>
-               <p className="text-gray-500 text-sm mb-3">{lead.role}</p>
-
-               <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                     <MapPin className="w-4 h-4 text-gray-400" /> {lead.location}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
-                     <IndianRupee className="w-4 h-4 text-gray-400" /> {lead.totalValue.toLocaleString()}
-                  </div>
-               </div>
-               
-               <div className="space-y-1 mb-4 border-t border-gray-50 pt-2">
-                  <div className="text-sm">
-                      <ContactDisplay type="phone" value={lead.phone || ''} />
-                  </div>
-                  <div className="text-sm">
-                      <ContactDisplay type="email" value={lead.email || ''} />
-                  </div>
-               </div>
-
-               <div className="flex flex-wrap gap-2 mb-4">
-                  {lead.tags.map((tag, i) => (
-                     <span key={i} className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-medium border border-gray-200">
-                        {tag}
-                     </span>
-                  ))}
-               </div>
-
-               <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                     lead.name.startsWith('R') ? 'bg-blue-500' : lead.name.startsWith('S') ? 'bg-emerald-500' : 'bg-purple-500'
-                  }`}>
-                     {lead.name.charAt(0)}
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1">
-                     <Calendar className="w-3 h-3" /> {new Date(lead.nextCallDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
-               </div>
-            </div>
-         ))}
-         {filteredLeads.length === 0 && (
-            <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-               <Target className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-               <p>No leads found matching your search.</p>
-            </div>
-         )}
-      </div>
-
-      {/* Add/Edit Lead Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl shrink-0">
-                 <h3 className="font-bold text-gray-800 text-lg">{editingId ? 'Edit Lead' : 'Add New Lead'}</h3>
-                 <button onClick={resetForm} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                 </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto">
-                <div className="flex flex-col lg:flex-row h-full">
-                  
-                  {/* Left Column: Details Form */}
-                  <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-5 lg:border-r border-gray-100">
-                     {/* Basic Info */}
-                     <div>
-                        <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input 
-                                required
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                placeholder="Full Name"
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="relative">
-                            <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input 
-                                name="role"
-                                value={formData.role}
-                                onChange={handleInputChange}
-                                placeholder="Job Title"
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                        <div className="relative">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input 
-                                name="city"
-                                value={formData.city}
-                                onChange={handleInputChange}
-                                placeholder="City"
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input 
-                                name="phone"
-                                value={formData.phone}
-                                onChange={handleInputChange}
-                                placeholder="Phone"
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input 
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                placeholder="Email"
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                     </div>
-
-                     {/* Financial Value Section */}
-                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                           <IndianRupee className="w-3 h-3" /> Financial Value
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                           <div>
-                              <label className="text-xs text-gray-500 block mb-1">Bill Value</label>
-                              <input 
-                                 type="number"
-                                 name="billValue"
-                                 value={formData.billValue}
-                                 onChange={handleInputChange}
-                                 placeholder="0.00"
-                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                           </div>
-                           <div>
-                              <label className="text-xs text-gray-500 block mb-1">Franchise</label>
-                              <input 
-                                 type="number"
-                                 name="franchiseValue"
-                                 value={formData.franchiseValue}
-                                 onChange={handleInputChange}
-                                 placeholder="0.00"
-                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                           </div>
-                           <div>
-                              <label className="text-xs text-gray-500 block mb-1">Ad Fee</label>
-                              <input 
-                                 type="number"
-                                 name="adFee"
-                                 value={formData.adFee}
-                                 onChange={handleInputChange}
-                                 placeholder="0.00"
-                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                           </div>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
-                           <div className="flex items-center gap-2 text-indigo-700 font-medium text-sm">
-                              <Calculator className="w-4 h-4" /> Total Value
-                           </div>
-                           <div className="font-bold text-indigo-700 text-lg">
-                              ${totalValue.toLocaleString()}
-                           </div>
-                        </div>
-                     </div>
-
-                     {/* Meta Info */}
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Target className="w-3 h-3" /> Source</label>
-                           <select 
-                              name="source"
-                              value={formData.source}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                           >
-                              <option>Google Ads</option>
-                              <option>LinkedIn</option>
-                              <option>Referral</option>
-                              <option>Cold Call</option>
-                           </select>
-                        </div>
-                        <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Priority</label>
-                           <select 
-                              name="priority"
-                              value={formData.priority}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                           >
-                              <option>Hot</option>
-                              <option>Warm</option>
-                              <option>Cold</option>
-                           </select>
-                        </div>
-                     </div>
-
-                     {/* Schedule */}
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Calendar className="w-3 h-3" /> Next Call Date</label>
-                           <input 
-                              type="date"
-                              name="nextCallDate"
-                              value={formData.nextCallDate}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                           />
-                        </div>
-                        <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><Clock className="w-3 h-3" /> Time</label>
-                           <input 
-                              type="time"
-                              name="nextCallTime"
-                              value={formData.nextCallTime}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                           />
-                        </div>
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Initial Notes</label>
-                        <textarea 
-                           name="notes"
-                           rows={3}
-                           value={formData.notes}
-                           onChange={handleInputChange}
-                           placeholder="Add any context or notes here..."
-                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                        />
-                     </div>
-
-                     <div className="flex gap-4 pt-2">
-                        <button 
-                           type="button"
-                           onClick={resetForm}
-                           className="flex-1 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
-                        >
-                           Cancel
-                        </button>
-                        <button 
-                           type="submit"
-                           className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-colors"
-                        >
-                           {editingId ? 'Update Lead' : 'Create Lead'}
-                        </button>
-                     </div>
-                  </form>
-
-                  {/* Right Column: Engagement / AI */}
-                  <div className="lg:w-[40%] bg-gray-50 p-6 flex flex-col">
-                     <div className="mb-6">
-                        <h4 className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                           <Sparkles className="w-4 h-4 text-indigo-600" /> AI Sales Assistant
-                        </h4>
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                           <button 
-                              onClick={() => handleGenerateMessage('Proposal')}
-                              disabled={isGenerating}
-                              className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
-                           >
-                              Draft Proposal
-                           </button>
-                           <button 
-                              onClick={() => handleGenerateMessage('Follow-up')}
-                              disabled={isGenerating}
-                              className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
-                           >
-                              Draft Follow-up
-                           </button>
-                           <button 
-                              onClick={() => handleGenerateMessage('Intro')}
-                              disabled={isGenerating}
-                              className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
-                           >
-                              Draft Intro
-                           </button>
-                        </div>
-                        
-                        <div className="relative">
-                           <textarea 
-                              value={communicationText}
-                              onChange={(e) => setCommunicationText(e.target.value)}
-                              placeholder="Select an option above to generate a message or type here..."
-                              className="w-full p-3 pb-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none shadow-sm h-40"
-                           />
-                           <button 
-                              onClick={() => {navigator.clipboard.writeText(communicationText);}}
-                              className="absolute bottom-3 right-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                              title="Copy Message"
-                           >
-                              <Send className="w-4 h-4" />
-                           </button>
-                        </div>
-                     </div>
-
-                     {/* Quick Actions based on generated text */}
-                     <div className="mt-auto space-y-3">
-                        <button onClick={handleCall} className="w-full py-3 border border-gray-300 text-gray-700 font-medium rounded-xl flex items-center justify-center gap-2 hover:bg-white transition-colors">
-                           <Phone className="w-4 h-4" /> Call Lead
-                        </button>
-                        <div className="grid grid-cols-2 gap-3">
-                           <button onClick={handleWhatsApp} className="py-3 bg-green-50 text-green-700 font-medium rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition-colors border border-green-200">
-                              <MessageCircle className="w-4 h-4" /> WhatsApp
-                           </button>
-                           <button onClick={handleEmail} className="py-3 bg-blue-50 text-blue-700 font-medium rounded-xl flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors border border-blue-200">
-                              <Mail className="w-4 h-4" /> Email
-                           </button>
-                        </div>
-                     </div>
-                  </div>
+      {/* KPI Visualizers */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Active Lead Base */}
+          <div className="bg-gradient-to-br from-[#5c67f2] to-[#424ad1] p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
+             <div className="relative z-10">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6"><Users className="w-6 h-6" /></div>
+                <p className="text-white/70 text-[11px] font-black uppercase tracking-widest">Active Lead Base</p>
+                <h3 className="text-5xl font-black mt-2 tracking-tighter">{stats.total}</h3>
+                <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-2 text-[10px] font-bold text-white/60">
+                   <Activity className="w-3.5 h-3.5" /> System capacity optimized
                 </div>
+             </div>
+             <TrendingUp className="absolute -right-10 -bottom-10 w-48 h-48 opacity-10 group-hover:scale-110 transition-transform duration-700" />
+          </div>
+
+          {/* Follow-up Due */}
+          <div className="bg-gradient-to-br from-[#f2426e] to-[#d1355c] p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
+             <div className="relative z-10">
+                <div className="flex justify-between items-start mb-6">
+                   <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><PhoneCall className="w-6 h-6" /></div>
+                   <div className="bg-white/10 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-2 border border-white/10">
+                      <Calendar className="w-3.5 h-3.5"/> 26/12/2025
+                   </div>
+                </div>
+                <p className="text-white/70 text-[11px] font-black uppercase tracking-widest">Follow-up Due</p>
+                <h3 className="text-5xl font-black mt-2 tracking-tighter">{stats.followUps}</h3>
+                <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-2 text-[10px] font-bold text-white/60">
+                   <Clock className="w-3.5 h-3.5" /> Targeted on selected date
+                </div>
+             </div>
+             <div className="absolute right-4 bottom-4 w-24 h-24 bg-white/5 rounded-3xl rotate-12"></div>
+          </div>
+
+          {/* Qualified Prospects */}
+          <div className="bg-gradient-to-br from-[#00a86b] to-[#008f5b] p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
+             <div className="relative z-10">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6"><ThumbsUp className="w-6 h-6" /></div>
+                <p className="text-white/70 text-[11px] font-black uppercase tracking-widest">Qualified Prospects</p>
+                <h3 className="text-5xl font-black mt-2 tracking-tighter">{stats.qualified}</h3>
+                <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-2 text-[10px] font-bold text-white/60">
+                   <BadgeCheck className="w-3.5 h-3.5" /> Converging to partners
+                </div>
+             </div>
+          </div>
+
+          {/* Pipeline Valuation */}
+          <div className="bg-gradient-to-br from-[#8a5cf6] to-[#7c3aed] p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
+             <div className="relative z-10">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6"><Calculator className="w-6 h-6" /></div>
+                <p className="text-white/70 text-[11px] font-black uppercase tracking-widest">Pipeline Valuation</p>
+                <h3 className="text-5xl font-black mt-2 tracking-tighter">₹{(stats.valuation / 100000).toFixed(1)}L</h3>
+                <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-2 text-[10px] font-bold text-white/60">
+                   <TrendingUp className="w-3.5 h-3.5" /> Projected franchise revenue
+                </div>
+             </div>
+          </div>
+      </div>
+
+      {/* Main Registry Table */}
+      <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 overflow-hidden">
+          <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-white text-gray-400 text-[11px] font-black uppercase tracking-[0.2em] border-b border-gray-50">
+                      <tr>
+                          <th className="px-10 py-10">Lead Identity</th>
+                          <th className="px-10 py-10">Phone Number</th>
+                          <th className="px-10 py-10">Location</th>
+                          <th className="px-10 py-10">Value (INR)</th>
+                          <th className="px-10 py-10">Status</th>
+                          <th className="px-10 py-10">Follow-up</th>
+                          <th className="px-10 py-10 text-right">Actions</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                      {filteredLeads.map((lead) => (
+                          <tr key={lead.id} className="group hover:bg-indigo-50/20 transition-all cursor-pointer" onClick={() => handleEdit(lead)}>
+                              <td className="px-10 py-8">
+                                  <div className="flex items-center gap-5">
+                                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-sm ${
+                                          lead.name.toLowerCase() === 'john doe' ? 'bg-[#ff5a5f]' : 
+                                          lead.name.toLowerCase() === 'jane smith' ? 'bg-[#5c67f2]' : 'bg-slate-400'
+                                      }`}>
+                                          {lead.name.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                          <p className="font-extrabold text-gray-900 text-lg group-hover:text-indigo-600 transition-colors tracking-tight">{lead.name}</p>
+                                          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{lead.role}</p>
+                                      </div>
+                                  </div>
+                              </td>
+                              <td className="px-10 py-8 font-bold text-gray-500">
+                                  <div className="flex items-center gap-3">
+                                      <Phone className="w-4 h-4 text-gray-200" />
+                                      {lead.phone}
+                                  </div>
+                              </td>
+                              <td className="px-10 py-8">
+                                  <div className="flex items-center gap-2.5 text-gray-500 font-bold">
+                                      <MapPin className="w-4 h-4 text-gray-200" />
+                                      {lead.location}
+                                  </div>
+                              </td>
+                              <td className="px-10 py-8 font-black text-gray-900 text-lg">
+                                  ₹{lead.totalValue.toLocaleString()}
+                              </td>
+                              <td className="px-10 py-8">
+                                  <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                                      lead.status === 'Qualified' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                      'bg-gray-50 text-gray-500 border-gray-100'
+                                  }`}>
+                                      {lead.status}
+                                  </span>
+                              </td>
+                              <td className="px-10 py-8">
+                                  <div className="flex items-center gap-2 text-[11px] font-black text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 w-fit">
+                                      <Calendar className="w-3.5 h-3.5 opacity-60" /> {lead.nextFollowUp?.split('T')[0]}
+                                  </div>
+                              </td>
+                              <td className="px-10 py-8 text-right">
+                                  <div className="flex justify-end gap-3">
+                                      <button className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 hover:bg-indigo-100 transition-all"><Edit2 className="w-5 h-5"/></button>
+                                      <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Delete lead?')) setLeads(prev => prev.filter(l => l.id !== lead.id)); }} className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 hover:bg-rose-100 transition-all"><Trash2 className="w-5 h-5"/></button>
+                                  </div>
+                              </td>
+                          </tr>
+                      ))}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+
+      {/* Strategic Onboarding Modal */}
+      {isModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0a0a0c]/40 backdrop-blur-xl animate-in fade-in duration-300">
+              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white">
+                  {/* Modal Header */}
+                  <div className="p-12 border-b border-gray-50 flex justify-between items-start bg-gray-50/30 shrink-0">
+                      <div>
+                        <h3 className="text-5xl font-black text-slate-800 tracking-tighter">Onboard New Opportunity</h3>
+                        <p className="text-gray-400 text-xs font-black uppercase tracking-[0.4em] mt-3">Strategic ID: {editingId || 'Pending Deployment'}</p>
+                      </div>
+                      <button onClick={resetForm} className="p-4 hover:bg-gray-100 rounded-3xl transition-all text-gray-300 hover:text-slate-800"><X className="w-10 h-10"/></button>
+                  </div>
+
+                  <div className="flex-1 flex overflow-hidden">
+                      {/* Left Side: Interaction & Core Details */}
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-12 space-y-16">
+                          
+                          {/* Outcome Segment */}
+                          <div className="space-y-8">
+                            <h4 className="text-[12px] font-black text-[#00a86b] uppercase tracking-[0.3em] flex items-center gap-3">
+                                <Activity className="w-5 h-5" /> Interaction Outcome
+                            </h4>
+                            <div className="grid grid-cols-4 gap-6">
+                                {[
+                                    { id: 'Interested', label: 'INTERESTED', icon: ThumbsUp },
+                                    { id: 'Rejected', label: 'REJECTED', icon: ThumbsDown },
+                                    { id: 'Callback', label: 'CALLBACK', icon: Clock },
+                                    { id: 'No Ans', label: 'NO ANS', icon: PhoneOff }
+                                ].map(item => (
+                                    <button 
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setFormData({...formData, outcome: item.id as any})}
+                                        className={`py-8 rounded-[2.5rem] border-2 transition-all flex flex-col items-center gap-5 group ${formData.outcome === item.id ? 'border-[#00a86b] bg-[#00a86b]/5 shadow-xl shadow-[#00a86b]/10' : 'border-gray-50 bg-gray-50/30 hover:border-gray-200'}`}
+                                    >
+                                        <item.icon className={`w-10 h-10 ${formData.outcome === item.id ? 'text-[#00a86b] scale-110' : 'text-gray-300 group-hover:text-[#00a86b]/50'} transition-all`} />
+                                        <span className={`text-[11px] font-black tracking-[0.2em] ${formData.outcome === item.id ? 'text-[#008f5b]' : 'text-gray-400'}`}>{item.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                          </div>
+
+                          {/* Identity & Contact */}
+                          <div className="space-y-8">
+                            <h4 className="text-[12px] font-black text-indigo-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                                <User className="w-5 h-5" /> Identity & Contact
+                            </h4>
+                            <div className="grid grid-cols-2 gap-10">
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-gray-400 uppercase ml-2">Full Name</label>
+                                    <input 
+                                      name="name" 
+                                      required 
+                                      value={formData.name} 
+                                      onChange={handleInputChange} 
+                                      className="w-full px-8 py-6 bg-gray-50 border border-gray-100 rounded-[2rem] outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-400 font-bold text-slate-800 transition-all text-lg placeholder:text-gray-300" 
+                                      placeholder="Lead Name" 
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-gray-400 uppercase ml-2">Primary Mobile</label>
+                                    <input 
+                                      name="phone" 
+                                      required 
+                                      value={formData.phone} 
+                                      onChange={handleInputChange} 
+                                      className="w-full px-8 py-6 bg-gray-50 border border-gray-100 rounded-[2rem] outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-400 font-bold text-slate-800 transition-all text-lg placeholder:text-gray-300" 
+                                      placeholder="Contact Number" 
+                                    />
+                                </div>
+                            </div>
+                          </div>
+
+                          {/* Lead Priority Segment */}
+                          <div className="space-y-8">
+                            <h4 className="text-[12px] font-black text-[#ff8c00] uppercase tracking-[0.3em] flex items-center gap-3">
+                                <TrendingUp className="w-5 h-5" /> Lead Priority
+                            </h4>
+                            <div className="flex gap-6 p-3 bg-gray-50 rounded-[2.5rem] w-fit">
+                                {['HOT', 'WARM', 'COLD'].map(p => (
+                                    <button 
+                                        key={p}
+                                        type="button"
+                                        onClick={() => setFormData({...formData, priority: p.charAt(0) + p.slice(1).toLowerCase() as any})}
+                                        className={`px-12 py-4 rounded-[2rem] text-[12px] font-black tracking-[0.3em] transition-all ${formData.priority.toUpperCase() === p ? 'bg-slate-900 text-white shadow-2xl' : 'text-gray-400 hover:text-gray-600'}`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                          </div>
+
+                          {/* Follow-up Strategy */}
+                          <div className="space-y-8">
+                            <h4 className="text-[12px] font-black text-[#f2426e] uppercase tracking-[0.3em] flex items-center gap-3">
+                                <Calendar className="w-5 h-5" /> Next Follow-up Strategy
+                            </h4>
+                            <div className="bg-gray-50/50 p-10 rounded-[3rem] border border-gray-100 grid grid-cols-2 gap-10 shadow-inner">
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-gray-400 uppercase ml-2">Scheduled Date</label>
+                                    <div className="relative group">
+                                        <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full pl-14 pr-8 py-5 bg-white border border-gray-100 rounded-3xl outline-none focus:ring-4 focus:ring-rose-500/10 font-bold text-slate-800 transition-all" />
+                                        <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-rose-400 group-focus-within:text-rose-600 transition-colors" />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-gray-400 uppercase ml-2">Time Slot</label>
+                                    <div className="relative group">
+                                        <input type="time" name="followUpTime" value={formData.followUpTime} onChange={handleInputChange} className="w-full pl-14 pr-8 py-5 bg-white border border-gray-100 rounded-3xl outline-none focus:ring-4 focus:ring-rose-500/10 font-bold text-slate-800 transition-all" />
+                                        <Clock className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-rose-400 group-focus-within:text-rose-600 transition-colors" />
+                                    </div>
+                                </div>
+                            </div>
+                          </div>
+
+                          {/* Notes Textarea */}
+                          <div className="space-y-8">
+                            <h4 className="text-[12px] font-black text-indigo-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                                <Send className="w-5 h-5" /> Conversation Brief (Notes)
+                            </h4>
+                            <textarea 
+                              name="notes" 
+                              rows={6} 
+                              value={formData.notes} 
+                              onChange={handleInputChange} 
+                              className="w-full p-10 bg-gray-50 border border-gray-100 rounded-[3rem] outline-none focus:ring-4 focus:ring-indigo-500/5 focus:bg-white font-medium text-slate-700 transition-all italic leading-relaxed shadow-inner placeholder:text-gray-300" 
+                              placeholder="Detail requirements, budget constraints, or specific interests expressed during the call..." 
+                            />
+                          </div>
+
+                          {/* Modal Actions */}
+                          <div className="flex gap-6 pt-12 border-t border-gray-50">
+                              <button onClick={resetForm} type="button" className="flex-1 py-6 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black text-sm uppercase tracking-widest hover:bg-gray-200 transition-all">Dismiss</button>
+                              <button onClick={() => handleSubmit()} type="button" className="flex-[2] py-6 bg-indigo-600 text-white rounded-[2.5rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all transform active:scale-95">Deploy Opportunity</button>
+                          </div>
+                      </div>
+
+                      {/* Right Side: Strategy & AI */}
+                      <div className="w-[450px] bg-gray-50/50 border-l border-gray-100 p-12 space-y-12 overflow-y-auto shrink-0">
+                          
+                          {/* Strategic Assets Section */}
+                          <div className="space-y-8">
+                              <div className="flex justify-between items-center">
+                                  <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
+                                      <FileText className="w-5 h-5 text-indigo-500" /> Strategic Assets
+                                  </h4>
+                                  <button className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">Library</button>
+                              </div>
+                              <div className="border-2 border-dashed border-gray-200 rounded-[2.5rem] p-12 text-center bg-white/50 shadow-inner">
+                                  <p className="text-sm text-gray-400 italic">Library is currently empty.</p>
+                              </div>
+                          </div>
+
+                          {/* AI Synthesis Section */}
+                          <div className="space-y-8">
+                              <div className="flex justify-between items-center">
+                                  <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
+                                      <Zap className="w-5 h-5 text-indigo-500" /> AI Outreach Synthesis
+                                  </h4>
+                                  <button 
+                                    onClick={handleSynthesize} 
+                                    disabled={isSynthesizing || !formData.name}
+                                    className="bg-indigo-400 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-2xl text-[11px] font-black flex items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                                  >
+                                      {isSynthesizing ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4" />}
+                                      Synthesize
+                                  </button>
+                              </div>
+                              
+                              <div className="bg-white rounded-[3rem] p-10 shadow-2xl shadow-indigo-900/5 border border-white min-h-[350px] flex flex-col justify-between group">
+                                  {aiText ? (
+                                      <div className="space-y-8">
+                                          <p className="text-sm text-slate-600 leading-relaxed italic animate-in fade-in slide-in-from-bottom-3">"{aiText}"</p>
+                                          <div className="grid grid-cols-2 gap-4">
+                                              <button onClick={() => window.open(`https://wa.me/${formData.phone.replace(/\D/g,'')}?text=${encodeURIComponent(aiText)}`, '_blank')} className="py-5 bg-[#00a86b] text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-[#008f5b] shadow-xl shadow-[#00a86b]/10 transition-all transform active:scale-95 font-bold text-xs uppercase tracking-widest"><MessageCircle className="w-5 h-5"/> Whatsapp</button>
+                                              <button onClick={() => window.location.href=`mailto:?subject=Franchise Opportunity&body=${encodeURIComponent(aiText)}`} className="py-5 bg-[#424ad1] text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl shadow-indigo-500/10 transition-all transform active:scale-95 font-bold text-xs uppercase tracking-widest"><Mail className="w-5 h-5"/> Email</button>
+                                          </div>
+                                      </div>
+                                  ) : (
+                                      <div className="flex flex-col items-center justify-center py-16 opacity-30 text-center space-y-6">
+                                          <Sparkles className="w-14 h-14 text-indigo-400 mb-2" />
+                                          <p className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] leading-loose max-w-[200px]">Apply a template or use AI to synthesize a personalized communication...</p>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
               </div>
-           </div>
-        </div>
+          </div>
       )}
     </div>
   );
