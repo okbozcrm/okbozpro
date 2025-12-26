@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   DollarSign, Save, Download, Filter, Search, Calculator, 
@@ -8,9 +7,10 @@ import {
   ArrowRight, ShieldCheck, Landmark, Loader2, FileText, Bike
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest } from '../../types';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { sendSystemNotification } from '../../services/cloudService';
 
 const formatCurrency = (amount: number) => {
   return amount.toLocaleString('en-IN', {
@@ -216,11 +216,14 @@ const Payroll: React.FC = () => {
     if (window.confirm(`Confirm total payout of ${formatCurrency(payrollSummary.totalNet)}?`)) {
         setIsProcessingPayout(true);
         setTimeout(() => {
-            const netTotal = (Object.values(payrollData) as PayrollEntry[]).reduce((s: number, e) => s + calculateNetPay(e), 0);
+            // Fix: Explicitly cast Object.values(payrollData) and reduce callback parameter 'e' to avoid 'unknown' type errors
+            const entries = Object.values(payrollData) as PayrollEntry[];
+            const netTotal = entries.reduce((s: number, e: PayrollEntry) => s + calculateNetPay(e), 0);
             const record = { id: Date.now().toString(), name: `Payout Batch ${selectedMonth}`, date: new Date().toISOString(), totalAmount: netTotal, employeeCount: filteredEmployees.length, data: payrollData };
             
             // Mark included KM Claims as 'Paid'
-            const allClaims = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
+            const allClaimsStr = localStorage.getItem('global_travel_requests');
+            const allClaims: TravelAllowanceRequest[] = allClaimsStr ? JSON.parse(allClaimsStr) : [];
             const updatedClaims = allClaims.map((r: TravelAllowanceRequest) => {
                 if (r.status === 'Approved' && r.date.startsWith(selectedMonth)) return { ...r, status: 'Paid' };
                 return r;
@@ -228,13 +231,30 @@ const Payroll: React.FC = () => {
             localStorage.setItem('global_travel_requests', JSON.stringify(updatedClaims));
 
             // Mark included Advances as 'Paid'
-            const allAdvances = JSON.parse(localStorage.getItem('salary_advances') || '[]');
+            const allAdvancesStr = localStorage.getItem('salary_advances');
+            const allAdvances: SalaryAdvanceRequest[] = allAdvancesStr ? JSON.parse(allAdvancesStr) : [];
             const updatedAdvances = allAdvances.map((a: SalaryAdvanceRequest) => {
                 const pData = payrollData[a.employeeId];
                 if (pData && a.status === 'Approved') return { ...a, status: 'Paid' };
                 return a;
             });
             localStorage.setItem('salary_advances', JSON.stringify(updatedAdvances));
+
+            // SEND SYSTEM NOTIFICATIONS TO EACH EMPLOYEE
+            // Fix: Use explicitly typed 'entries' and 'entry' to avoid access errors on 'unknown' type
+            entries.forEach((entry: PayrollEntry) => {
+                const amount = calculateNetPay(entry);
+                if (amount > 0) {
+                    sendSystemNotification({
+                        type: 'system',
+                        title: 'Salary Update',
+                        message: `Your salary of ₹${amount.toLocaleString()} for ${new Date(selectedMonth).toLocaleDateString('en-US', {month:'long', year:'numeric'})} has been disbursed.`,
+                        targetRoles: [UserRole.EMPLOYEE],
+                        employeeId: entry.employeeId,
+                        link: '/user/salary'
+                    });
+                }
+            });
 
             const key = isSuperAdmin ? 'payroll_history' : `payroll_history_${sessionId}`;
             const currentHistory = JSON.parse(localStorage.getItem(key) || '[]');

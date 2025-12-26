@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc, query, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -270,18 +271,36 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     const snapshot = await getDocs(collection(db, NOTIFICATION_COLLECTION));
     let allNotifications: BozNotification[] = [];
     snapshot.forEach(doc => { allNotifications.push(doc.data() as BozNotification); });
+    
     const relevantNotifications = allNotifications.filter(notif => {
       if (notif.read) return false;
+      
       const isTargetRole = notif.targetRoles.includes(userRole);
       if (!isTargetRole) return false;
-      if (userRole === UserRole.CORPORATE && notif.corporateId && notif.corporateId !== sessionId) return false;
-      if (userRole === UserRole.EMPLOYEE && notif.employeeId && notif.employeeId !== sessionId) return false;
-      if (userRole === UserRole.ADMIN) {
-        const isGlobalOrAdminTargeted = (!notif.corporateId && !notif.employeeId) || (notif.targetRoles.includes(UserRole.ADMIN));
-        if (isGlobalOrAdminTargeted) return true;
+
+      // STRICT EMPLOYEE FILTERING:
+      // Employees ONLY see notifications specifically addressed to their ID.
+      // General role notifications or franchise-wide ones are hidden unless targeted.
+      if (userRole === UserRole.EMPLOYEE) {
+          return notif.employeeId === sessionId;
       }
+
+      // CORPORATE FILTERING:
+      // Sees notifications for their role and specifically for their franchise.
+      if (userRole === UserRole.CORPORATE) {
+          if (notif.corporateId && notif.corporateId !== sessionId) return false;
+          return true;
+      }
+
+      // ADMIN FILTERING:
+      // Sees everything targeted at ADMIN role.
+      if (userRole === UserRole.ADMIN) {
+        return true;
+      }
+      
       return true;
     });
+
     return relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   } catch (error) { console.error("Failed to fetch notifications:", error); return []; }
 };

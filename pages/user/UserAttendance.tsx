@@ -8,7 +8,7 @@ import {
   QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
-  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star
+  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -89,6 +89,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const currentSessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = currentSessionId === 'admin';
   const [isPunchedIn, setIsPunchedIn] = useState(false);
+  const [isPunching, setIsPunching] = useState(false); // New animation state
 
   useEffect(() => {
     const triggerRefresh = () => {
@@ -237,7 +238,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       setIsEditModalOpen(false);
   };
 
-  // Handle Manual status marking for Range (Month till Date)
   const handleMarkStatusRange = async (status: AttendanceStatus) => {
     if (!selectedEmployee) return;
     const now = new Date();
@@ -249,7 +249,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
     const updated = currentData.map((d: DailyAttendance) => {
       const dDate = new Date(d.date);
-      // Only affect from 1st of month till today, and skip pre-existing Week Offs
       if (dDate.getDate() <= currentDay && d.status !== AttendanceStatus.WEEK_OFF) {
         let punches = d.punches || [];
         if (status === AttendanceStatus.PRESENT && punches.length === 0) {
@@ -290,7 +289,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   };
 
   const handlePunchAction = async (action: 'In' | 'Out') => {
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || isPunching) return;
+    
+    setIsPunching(true); // Start animation
+    
+    // Simulate biometric processing time
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -339,7 +344,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
     setAttendanceData(updated);
     setIsPunchedIn(action === 'In');
-    alert(`Successfully Punched ${action}! Current Time: ${time}`);
+    setIsPunching(false); // End animation
   };
 
   const renderDailyStatus = () => (
@@ -550,44 +555,74 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         <div className="text-center md:text-left space-y-10">
                             <div className="space-y-2">
                                 <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
-                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Quick Batch Actions (Month Till Date)</p>
+                                <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Welcome to your attendance portal</p>
                             </div>
-                            <div className="flex flex-col gap-6 w-full">
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in slide-in-from-bottom-2 duration-700">
-                                    <button 
-                                        onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)}
-                                        className="px-6 py-4 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
-                                    >
-                                        <CheckCircle className="w-4 h-4" /> Mark Present (Month)
-                                    </button>
-                                    <button 
-                                        onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)}
-                                        className="px-6 py-4 bg-rose-50 text-rose-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-rose-100 hover:bg-rose-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
-                                    >
-                                        <XCircle className="w-4 h-4" /> Mark Absent (Month)
-                                    </button>
-                                    <button 
-                                        onClick={() => handleMarkStatusRange(AttendanceStatus.ALTERNATE_DAY)}
-                                        className="px-6 py-4 bg-amber-50 text-amber-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-amber-100 hover:bg-amber-100 transition-all shadow-sm flex items-center justify-center gap-2 transform active:scale-95"
-                                    >
-                                        <Star className="w-4 h-4" /> Alternate Day (Month)
-                                    </button>
-                                </div>
-                                <div className="pt-6 border-t border-gray-50 flex items-center gap-8">
-                                    <div className="inline-flex items-center gap-6 px-8 py-4 bg-gray-50 rounded-[2rem] border border-gray-100">
-                                        <Clock className="w-8 h-8 text-emerald-600" />
-                                        <span className="text-4xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            
+                            <div className="flex flex-col items-center md:items-start gap-10 w-full">
+                                <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
+                                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
+                                        <Clock className="w-10 h-10 text-emerald-600" />
                                     </div>
-                                    <button onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')} className={`h-16 px-10 rounded-2xl text-white font-black uppercase tracking-widest transition-all transform hover:scale-105 active:scale-95 ${isPunchedIn ? 'bg-rose-600 shadow-xl shadow-rose-900/20' : 'bg-emerald-600 shadow-xl shadow-emerald-900/20'}`}>
-                                        {isPunchedIn ? 'Punch Out' : 'Punch In'}
+                                    <div>
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
+                                        <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                </div>
+
+                                <div className="relative group">
+                                    {/* Biometric Animation Background */}
+                                    <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
+                                    
+                                    {/* Main Fingerprint Button */}
+                                    <button 
+                                        onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
+                                        disabled={isPunching}
+                                        className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
+                                            isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
+                                            isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
+                                        }`}
+                                    >
+                                        {isPunching ? (
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="relative">
+                                                    <Fingerprint className="w-16 h-16 text-white animate-pulse" />
+                                                    <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                </div>
+                                                <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
+                                                <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
+                                            </>
+                                        )}
+                                        
+                                        {/* Progress Ring during scan */}
+                                        {isPunching && (
+                                            <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
+                                        )}
                                     </button>
+
+                                    {/* Subtext info */}
+                                    {!isPunching && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
+                                            <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
+                                                <Shield className="w-3.5 h-3.5" /> Biometric Identity
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                        <div className="hidden lg:block">
-                            <div className="w-64 h-64 rounded-[3rem] bg-emerald-50 flex items-center justify-center border-2 border-emerald-100 shadow-inner relative overflow-hidden">
-                                <Zap className="w-24 h-24 text-emerald-200" />
+                        <div className="hidden lg:block relative">
+                            <div className="w-80 h-80 rounded-[4rem] bg-gray-50 flex items-center justify-center border-2 border-gray-100 shadow-inner relative overflow-hidden group-hover:border-emerald-100 transition-colors duration-700">
+                                <Zap className={`w-32 h-32 transition-all duration-700 ${isPunching ? 'text-indigo-400 scale-110' : isPunchedIn ? 'text-rose-100' : 'text-emerald-100'}`} />
                                 <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent"></div>
+                                
+                                {/* Orbiting data points */}
+                                <div className="absolute inset-4 border border-dashed border-gray-200 rounded-full animate-[spin_20s_linear_infinite]"></div>
+                                <div className="absolute top-1/2 left-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
                             </div>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
+import { sendSystemNotification } from '../../services/cloudService';
 
 interface Message {
   id: string;
@@ -267,6 +268,22 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       localStorage.setItem('internal_messages_data', JSON.stringify(updatedMessages));
       setMessages(updatedMessages); // Update local state for immediate feedback
       
+      // SEND SYSTEM NOTIFICATION TO RECIPIENT
+      if (!newMsg.receiverId.startsWith('GRP-')) {
+          const targetIsAdmin = newMsg.receiverId === 'admin';
+          const targetIsFranchise = contacts.find(c => c.id === newMsg.receiverId)?.type === 'Franchise';
+          
+          sendSystemNotification({
+              type: 'custom_message',
+              title: `New Message from ${newMsg.senderName || 'Staff'}`,
+              message: newMsg.type === 'text' ? newMsg.content : `Sent a ${newMsg.type}`,
+              targetRoles: targetIsAdmin ? [UserRole.ADMIN] : targetIsFranchise ? [UserRole.CORPORATE] : [UserRole.EMPLOYEE],
+              employeeId: (!targetIsAdmin && !targetIsFranchise) ? newMsg.receiverId : undefined,
+              corporateId: targetIsFranchise ? newMsg.receiverId : undefined,
+              link: targetIsAdmin ? '/admin/chat' : targetIsFranchise ? '/admin/chat' : '/user/chat'
+          });
+      }
+
       // Trigger a storage event manually so other components on THIS tab update too
       window.dispatchEvent(new Event('storage'));
       
