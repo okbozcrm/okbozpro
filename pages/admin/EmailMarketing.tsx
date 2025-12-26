@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Send, Users, Filter, Clock, CheckCircle, AlertCircle, RefreshCcw, ChevronRight, Target, Megaphone, Sparkles, Search, User, CheckSquare, Square, Building2, UserPlus, AtSign } from 'lucide-react';
+import { Mail, Send, Users, Filter, Clock, CheckCircle, AlertCircle, RefreshCcw, ChevronRight, Target, Megaphone, Sparkles, Search, User, CheckSquare, Square, Building2, UserPlus, AtSign, Loader2 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
 
 interface Campaign {
@@ -54,10 +54,17 @@ const EmailMarketing: React.FC = () => {
   const TOTAL_CUSTOMERS = 20450;
   const [targetCount, setTargetCount] = useState(TOTAL_CUSTOMERS);
 
-  const [campaigns, setCampaigns] = useState<Campaign[]>([
-    { id: '1', subject: 'New Year Sale - 50% Off', audience: 'All Customers', sentCount: 20450, totalCount: 20450, status: 'Completed', date: '2025-01-01' },
-    { id: '2', subject: 'Exclusive Franchise Offer', audience: 'High Value Leads', sentCount: 1200, totalCount: 1200, status: 'Completed', date: '2025-02-15' }
-  ]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
+      const saved = localStorage.getItem('campaign_history');
+      return saved ? JSON.parse(saved) : [
+        { id: '1', subject: 'New Year Sale - 50% Off', audience: 'All Customers', sentCount: 20450, totalCount: 20450, status: 'Completed', date: '2025-01-01' },
+        { id: '2', subject: 'Exclusive Franchise Offer', audience: 'High Value Leads', sentCount: 1200, totalCount: 1200, status: 'Completed', date: '2025-02-15' }
+      ];
+  });
+
+  useEffect(() => {
+      localStorage.setItem('campaign_history', JSON.stringify(campaigns));
+  }, [campaigns]);
 
   // Load potential contacts from Leads, Staff & Corporate on mount
   useEffect(() => {
@@ -184,7 +191,8 @@ const EmailMarketing: React.FC = () => {
                 status: 'Completed',
                 date: new Date().toISOString().split('T')[0]
             };
-            setCampaigns([newCampaign, ...campaigns]);
+            setCampaigns(prev => [newCampaign, ...prev]);
+            window.dispatchEvent(new Event('cloud-sync-immediate'));
             setIsSending(false);
             alert(`Email sent to ${individualEmail} successfully!`);
             
@@ -229,7 +237,8 @@ const EmailMarketing: React.FC = () => {
                 status: 'Completed',
                 date: new Date().toISOString().split('T')[0]
             };
-            setCampaigns([newCampaign, ...campaigns]);
+            setCampaigns(prev => [newCampaign, ...prev]);
+            window.dispatchEvent(new Event('cloud-sync-immediate'));
             alert("Campaign sent successfully!");
             setSubject('');
             setBody('');

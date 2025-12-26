@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings as SettingsIcon, Lock as LockIcon, 
@@ -5,7 +6,8 @@ import {
   UploadCloud, DownloadCloud, Loader2, Map as MapIcon, Check,
   Users, Target, Building2, Car, Wallet, MapPin, Truck, Layers, RefreshCw, Eye,
   Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff,
-  MessageSquare, HardDrive, Bike
+  MessageSquare, HardDrive, Bike, Megaphone, PhoneForwarded, Headset, ClipboardList,
+  FileText, Activity, Map, ReceiptIndianRupee, Building
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -41,7 +43,6 @@ const Settings: React.FC = () => {
   const [showAdminPass, setShowAdminPass] = useState({ current: false, new: false });
   const [adminPassMsg, setAdminPassMsg] = useState({ type: '', text: '' });
 
-
   const isDbPermanent = !!(HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5);
 
   useEffect(() => {
@@ -54,18 +55,27 @@ const Settings: React.FC = () => {
 
   const generateCollectionStats = (cloudData: any) => {
     const collections = [
-        { key: 'staff_data', label: 'Staff Records', icon: Users },
+        { key: 'staff_data', label: 'Staff Management', icon: Users },
         { key: 'corporate_accounts', label: 'Corporate Accounts', icon: Building2 },
-        { key: 'global_enquiries_data', label: 'Enquiries', icon: Phone },
-        { key: 'trips_data', label: 'Trip Logs', icon: Truck },
+        { key: 'branches_data', label: 'Branches', icon: Building },
+        { key: 'trips_data', label: 'Trip Bookings', icon: Map },
+        { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
+        { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
+        { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
+        { key: 'leads_data', label: 'Franchisee Leads', icon: Layers },
+        { key: 'vendor_data', label: 'Vendor Attachment', icon: Car },
+        { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
+        { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
+        { key: 'auto_dialer_data', label: 'Auto Dialer', icon: PhoneForwarded },
+        { key: 'tasks_data', label: 'Tasks', icon: ClipboardList },
+        { key: 'attendance_cycle', label: 'Attendance Dashboard', icon: Activity },
+        { key: 'app_documents', label: 'Documents', icon: FileText },
+        { key: 'driver_payment_records', label: 'Driver Payments', icon: ReceiptIndianRupee },
+        { key: 'driver_wallet_data', label: 'Driver Wallet', icon: Wallet },
         { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
-        { key: 'driver_payment_records', label: 'Driver Pay', icon: DollarSign },
-        { key: 'driver_wallet_data', label: 'Driver Wallets', icon: Wallet },
-        { key: 'internal_messages_data', label: 'Chat History', icon: MessageSquare },
-        { key: 'office_expenses', label: 'Expense Data', icon: HardDrive },
-        { key: 'branches_data', label: 'Branch Config', icon: MapPin },
-        { key: 'app_branding', label: 'Site Branding', icon: Palette },
-        { key: 'leads_data', label: 'Active Leads', icon: Target }
+        { key: 'company_departments', label: 'Departments & Roles', icon: BriefcaseIcon },
+        { key: 'company_shifts', label: 'Employee Setting', icon: Clock },
+        { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin }
     ];
 
     return collections.map(col => {
@@ -310,7 +320,7 @@ const Settings: React.FC = () => {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <Cloud className="w-5 h-5 text-blue-500" /> Cloud Database
+            <Cloud className="w-5 h-5 text-blue-500" /> Cloud Database Manifest
           </h3>
           <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
             dbStatus === 'Connected' ? 'bg-green-100 text-green-700' : 
@@ -340,29 +350,17 @@ const Settings: React.FC = () => {
              </div>
 
              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <h4 className="font-bold text-gray-700 mb-2">Database Stats</h4>
-                {stats ? (
-                   <div className="space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-600">
-                         <span>Collections:</span>
-                         <span className="font-bold text-gray-900">{Object.keys(stats).length}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-600">
-                         <span>Staff Records:</span>
-                         <span className="font-bold text-gray-900">{stats['staff_data']?.count || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-600">
-                         <span>Last Cloud Update:</span>
-                         <span className="font-bold text-gray-900">
-                            {stats['staff_data']?.lastUpdated ? new Date(stats['staff_data'].lastUpdated).toLocaleDateString() : '-'}
-                         </span>
-                      </div>
+                <h4 className="font-bold text-gray-700 mb-2">Live Sync Health</h4>
+                <div className="space-y-2 text-sm">
+                   <div className="flex justify-between text-gray-600">
+                      <span>Total Sync Modules:</span>
+                      <span className="font-bold text-gray-900">21 Modules</span>
                    </div>
-                ) : (
-                   <div className="h-full flex items-center justify-center text-gray-400 text-sm italic">
-                      {dbStatus === 'Connected' ? 'Loading stats...' : 'No connection'}
+                   <div className="flex justify-between text-gray-600">
+                      <span>Sync Mode:</span>
+                      <span className="font-bold text-emerald-600">Immediate Broadcast</span>
                    </div>
-                )}
+                </div>
              </div>
           </div>
 
@@ -378,7 +376,7 @@ const Settings: React.FC = () => {
                       className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
                   >
                       {isRestoring ? <Loader2 className="w-4 h-4 animate-spin"/> : <DownloadCloud className="w-4 h-4" />}
-                      Restore
+                      Full Restore
                   </button>
                   <button 
                       onClick={handleBackup}
@@ -386,7 +384,7 @@ const Settings: React.FC = () => {
                       className="px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 disabled:opacity-50"
                   >
                       {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />}
-                      Backup
+                      Instant Backup
                   </button>
               </div>
           </div>
@@ -396,49 +394,50 @@ const Settings: React.FC = () => {
       <div className="space-y-4">
           <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-gray-500" /> LIVE DATA COLLECTIONS
+                  <Layers className="w-5 h-5 text-gray-500" /> LIVE CLOUD REPOSITORY (21 MODULES)
               </h3>
               <button 
                   onClick={checkConnection}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
               >
                   <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
-                  Refresh
+                  Refresh Stats
               </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {collectionStats.map(stat => (
-                  <div key={stat.key} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-4">
-                          <div className="p-3 bg-gray-50 rounded-xl text-gray-600 border border-gray-100">
-                              <stat.icon className="w-6 h-6" />
+                  <div key={stat.key} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow group">
+                      <div className="flex justify-between items-start mb-3">
+                          <div className="p-2 bg-gray-50 rounded-lg text-gray-600 border border-gray-100 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                              <stat.icon className="w-5 h-5" />
                           </div>
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100">
-                              {stat.status}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Live</span>
+                          </div>
                       </div>
                       
                       <div>
-                          <h4 className="font-bold text-gray-800 text-lg mb-4">{stat.label}</h4>
-                          <div className="flex items-center text-sm bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <h4 className="font-bold text-gray-800 text-sm mb-3 truncate">{stat.label}</h4>
+                          <div className="flex items-center text-xs bg-gray-50 rounded-lg p-2 border border-gray-100">
                               <div className="flex-1">
-                                  <span className="text-gray-500 block text-xs uppercase font-bold mb-1 tracking-wider">Local</span>
-                                  <span className="text-xl font-bold text-gray-800">{stat.local}</span>
+                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Local</span>
+                                  <span className="text-lg font-bold text-gray-800">{stat.local}</span>
                               </div>
-                              <div className="w-px h-8 bg-gray-200 mx-4"></div>
+                              <div className="w-px h-6 bg-gray-200 mx-3"></div>
                               <div className="flex-1 text-right">
-                                  <span className="text-gray-500 block text-xs uppercase font-bold mb-1 tracking-wider">Cloud</span>
-                                  <span className="text-xl font-bold text-blue-600">{stat.cloud}</span>
+                                  <span className="text-gray-500 block text-[9px] uppercase font-bold mb-0.5">Cloud</span>
+                                  <span className="text-lg font-bold text-blue-600">{stat.cloud}</span>
                               </div>
                           </div>
                       </div>
-                      <div className="mt-4">
+                      <div className="mt-3">
                           <button 
                               onClick={() => handleViewCollection(stat.key, stat.localContent)}
-                              className="w-full px-4 py-2 bg-blue-50 text-blue-600 text-sm font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                              className="w-full px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
                           >
-                              <Eye className="w-4 h-4" /> View Items
+                              <Eye className="w-3 h-3" /> Inspect Data
                           </button>
                       </div>
                   </div>
@@ -505,7 +504,7 @@ const Settings: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-              <h3 className="font-bold text-gray-800">Viewing Collection: {currentViewingCollection}</h3>
+              <h3 className="font-bold text-gray-800">Viewing Module: {currentViewingCollection}</h3>
               <button onClick={closeCollectionViewer} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
@@ -530,7 +529,7 @@ const Settings: React.FC = () => {
                                     ))}
                                 </ul>
                             ) : (
-                                <p className="text-center text-gray-500">This collection is empty.</p>
+                                <p className="text-center text-gray-500">This module has no records.</p>
                             )
                         ) : (
                             typeof collectionContent === 'object' && collectionContent !== null ? (
@@ -548,7 +547,7 @@ const Settings: React.FC = () => {
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end rounded-b-2xl">
               <button 
                 onClick={closeCollectionViewer} 
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
               >
                 Close
               </button>

@@ -45,11 +45,17 @@ const GLOBAL_KEYS = [
   'company_shifts',
   'company_payout_dates',
   'company_global_payout_day',
+  'company_auto_live_track',
+  'global_attendance_modes',
   'salary_advances',
   'app_branding',
   'app_theme',
   'maps_api_key',
-  'chat_groups_data'
+  'chat_groups_data',
+  'internal_messages_data',
+  'campaign_history',
+  'app_documents',
+  'admin_sidebar_order'
 ];
 
 const NAMESPACED_KEYS = [
