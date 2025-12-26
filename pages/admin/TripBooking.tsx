@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Download, X, Save,
@@ -636,7 +635,7 @@ export const TripBooking: React.FC = () => {
                        
                        {isSuperAdmin && (
                            <div>
-                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign to (Corporate/HO)</label>
+                               <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">ASSIGN TO (CORPORATE/HO)</label>
                                <select 
                                    name="ownerId" 
                                    value={formData.ownerId} 
@@ -652,7 +651,7 @@ export const TripBooking: React.FC = () => {
                        )}
 
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">BRANCH</label>
                           <select 
                               name="branch" 
                               value={formData.branch} 
@@ -668,7 +667,7 @@ export const TripBooking: React.FC = () => {
 
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Trip ID *</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TRIP ID *</label>
                              <input 
                                 type="text" 
                                 name="tripId" 
@@ -680,23 +679,24 @@ export const TripBooking: React.FC = () => {
                              />
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date *</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">DATE *</label>
                              <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" required />
                           </div>
                        </div>
 
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Booking Type *</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">BOOKING TYPE *</label>
                              <select name="bookingType" value={formData.bookingType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm">
                                 <option>Online</option>
                                 <option>Offline</option>
                                 <option>Call</option>
                                 <option>WhatsApp</option>
+                                <option>Test Order</option>
                              </select>
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Order Type</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">ORDER TYPE</label>
                              <select name="orderType" value={formData.orderType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm">
                                 <option>Scheduled</option>
                                 <option>Instant</option>
@@ -705,7 +705,7 @@ export const TripBooking: React.FC = () => {
                        </div>
 
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Transport Type *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TRANSPORT TYPE *</label>
                           <select name="transportType" value={formData.transportType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm">
                              <option>Sedan</option>
                              <option>SUV</option>
@@ -715,7 +715,7 @@ export const TripBooking: React.FC = () => {
                        </div>
 
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Trip Category *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TRIP CATEGORY *</label>
                           <select name="tripCategory" value={formData.tripCategory} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm">
                              <option>Local</option>
                              <option>Rental</option>
@@ -725,7 +725,7 @@ export const TripBooking: React.FC = () => {
 
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status *</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">STATUS *</label>
                              <select name="bookingStatus" value={formData.bookingStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm">
                                 <option>Pending</option>
                                 <option>Completed</option>
@@ -733,7 +733,7 @@ export const TripBooking: React.FC = () => {
                              </select>
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cancel By</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">CANCEL BY</label>
                              <select name="cancelBy" value={formData.cancelBy} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none bg-white text-sm" disabled={formData.bookingStatus !== 'Cancelled'}>
                                 <option>-</option>
                                 <option>Head Office Admin</option>
@@ -749,25 +749,25 @@ export const TripBooking: React.FC = () => {
                     <div className="space-y-4">
                        <h4 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><User className="w-4 h-4 text-blue-500"/> People</h4>
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">User Name *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">USER NAME *</label>
                           <input type="text" name="userName" value={formData.userName} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="Customer Name" required />
                        </div>
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">User Mobile *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">USER MOBILE *</label>
                           <input type="text" name="userMobile" value={formData.userMobile} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="+91..." />
                        </div>
                        
                        <div className="pt-2 border-t border-dashed">
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Driver Name</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">DRIVER NAME</label>
                           <input type="text" name="driverName" value={formData.driverName} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="Driver Name" />
                        </div>
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Driver Mobile</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">DRIVER MOBILE</label>
                           <input type="text" name="driverMobile" value={formData.driverMobile} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="+91..." />
                        </div>
 
                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">REMARKS</label>
                           <textarea name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm resize-none h-20" placeholder="Any special notes..." />
                        </div>
                     </div>
@@ -778,39 +778,39 @@ export const TripBooking: React.FC = () => {
                        
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Trip Price (₹) *</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TRIP PRICE (₹) *</label>
                              <input type="number" name="tripPrice" value={formData.tripPrice} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="0.00" />
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tax %</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TAX %</label>
                              <input type="number" name="taxPercentage" value={formData.taxPercentage} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="5" />
                           </div>
                        </div>
 
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tax Amt</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">TAX AMT</label>
                              <div className="w-full p-2 border border-gray-200 bg-gray-100 rounded-lg text-sm text-gray-600">{formatCurrency(formData.tax)}</div>
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Waiting Chg.</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">WAITING CHG.</label>
                              <input type="number" name="waitingCharge" value={formData.waitingCharge} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="0.00" />
                           </div>
                        </div>
 
                        <div className="grid grid-cols-2 gap-2">
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cancel Chg.</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">CANCEL CHG.</label>
                              <input type="number" name="cancellationCharge" value={formData.cancellationCharge} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="0.00" />
                           </div>
                           <div>
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Discount</label>
+                             <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">DISCOUNT</label>
                              <input type="number" name="discount" value={formData.discount} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="0.00" />
                           </div>
                        </div>
 
                        <div className="pt-2">
-                          <label className="block text-xs font-bold text-emerald-700 uppercase mb-1">Total Price</label>
+                          <label className="block text-sm font-medium text-emerald-700 mb-1 font-bold uppercase">Total Price</label>
                           <div className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-2xl font-bold text-emerald-600">
                              {formatCurrency(totalPrice)}
                           </div>
@@ -820,11 +820,11 @@ export const TripBooking: React.FC = () => {
                        <div className="border-t border-gray-200 pt-3 mt-2">
                           <div className="grid grid-cols-2 gap-2">
                               <div>
-                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Admin Comm %</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">ADMIN COMM %</label>
                                   <input type="number" name="adminCommissionPercentage" value={formData.adminCommissionPercentage} onChange={handleFinancialChange} className="w-full p-2 border border-gray-300 rounded-lg outline-none text-sm" placeholder="10" />
                               </div>
                               <div>
-                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Admin Comm Amt</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">ADMIN COMM AMT</label>
                                   <div className="w-full p-2 border border-gray-200 bg-gray-100 rounded-lg text-sm text-gray-600">{formatCurrency(formData.adminCommission)}</div>
                               </div>
                           </div>
