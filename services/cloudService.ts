@@ -32,11 +32,9 @@ const GLOBAL_KEYS = [
   'corporate_accounts',
   'global_enquiries_data',
   'call_enquiries_history',
-  'recription_recent_transfers',
+  'reception_recent_transfers',
   'payroll_history',
   'leave_history',
-  'global_leave_requests',
-  'global_travel_requests',
   'app_settings',
   'transport_pricing_rules_v2',
   'transport_rental_packages_v2',
@@ -45,22 +43,10 @@ const GLOBAL_KEYS = [
   'company_shifts',
   'company_payout_dates',
   'company_global_payout_day',
-  'company_auto_live_track',
-  'global_attendance_modes',
   'salary_advances',
   'app_branding',
   'app_theme',
-  'maps_api_key',
-  'chat_groups_data',
-  'internal_messages_data',
-  'campaign_history',
-  'app_documents',
-  'admin_sidebar_order',
-  'driver_activity_summary',
-  'system_backup_logs',
-  'dashboard_stats',
-  'active_staff_locations',
-  'analytics_cache'
+  'maps_api_key'
 ];
 
 const NAMESPACED_KEYS = [
@@ -71,38 +57,44 @@ const NAMESPACED_KEYS = [
   'office_expenses',
   'tasks_data',
   'sub_admins',
-  'trips_data',
-  'driver_payment_records',
-  'driver_wallet_data',
-  'auto_dialer_data'
+  'app_settings',
+  'trips_data'
 ];
 
 const DYNAMIC_PREFIXES = [
   'attendance_data_',
   'driver_activity_log_',
-  'driver_wallet_data_',
-  'staff_data_',
-  'leads_data_',
-  'branches_data_',
-  'office_expenses_',
-  'tasks_data_',
-  'trips_data_'
+  'driver_wallet_data_'
 ];
 
 const NOTIFICATION_COLLECTION = 'global_notifications';
 
 let isSyncing = false;
-// Use local storage to persist the "last synced" state so it survives app restarts/PWA reloads
-const getSyncHashKey = (key: string) => `cloud_hash_${key}`;
+const lastSyncedData: Record<string, string> = {};
 
-const getDb = (app: FirebaseApp): Firestore => getFirestore(app);
+const getActiveConfig = (config?: FirebaseConfig): FirebaseConfig | null => {
+  if (HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5) {
+      return HARDCODED_FIREBASE_CONFIG;
+  }
+  let activeConfig = config;
+  if (!activeConfig || !activeConfig.apiKey) {
+     const saved = localStorage.getItem('firebase_config');
+     if (saved) activeConfig = JSON.parse(saved);
+  }
+  if (!activeConfig || !activeConfig.apiKey) return null;
+  return activeConfig;
+};
 
 const getFirebaseApp = (config?: FirebaseConfig): FirebaseApp | null => {
-  if (HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5) {
-      if (getApps().length > 0) return getApp();
-      return initializeApp(HARDCODED_FIREBASE_CONFIG);
+  const activeConfig = getActiveConfig(config);
+  if (!activeConfig) return null;
+  if (getApps().length > 0) return getApp();
+  try {
+    return initializeApp(activeConfig);
+  } catch (e) {
+    console.error("Firebase Init Error:", e);
+    return null;
   }
-  return null;
 };
 
 const ensureAuth = async (app: FirebaseApp) => {
@@ -112,64 +104,59 @@ const ensureAuth = async (app: FirebaseApp) => {
   } catch (e) {}
 };
 
+const getDb = (app: FirebaseApp): Firestore => getFirestore(app);
+
 export const syncToCloud = async (config?: FirebaseConfig) => {
   if (isSyncing) return { success: false, message: "Sync in progress" };
 
   isSyncing = true;
   try {
     const app = getFirebaseApp(config);
-    if (!app) {
-        isSyncing = false;
-        return { success: false, message: "Not Connected" };
-    }
+    if (!app) return { success: false, message: "Not Connected" };
 
     await ensureAuth(app);
     const db = getDb(app);
+
+    const corporateAccountsStr = localStorage.getItem('corporate_accounts');
+    const corporates = corporateAccountsStr ? JSON.parse(corporateAccountsStr) : [];
 
     let writeCount = 0;
 
     const writeIfChanged = async (key: string) => {
         const data = localStorage.getItem(key);
-        if (data === null) return;
-
-        // Simple but effective: check if current data matches the last successful sync hash
-        const currentHash = btoa(unescape(encodeURIComponent(data))).slice(0, 32);
-        const lastHash = localStorage.getItem(getSyncHashKey(key));
-
-        if (currentHash !== lastHash) {
-            await setDoc(doc(db, "ok_boz_live_data", key), {
-              content: data,
-              lastUpdated: new Date().toISOString(),
-              hash: currentHash
-            });
-            localStorage.setItem(getSyncHashKey(key), currentHash);
-            writeCount++;
-        }
+        if (!data || lastSyncedData[key] === data) return;
+        await setDoc(doc(db, "ok_boz_live_data", key), {
+          content: data,
+          lastUpdated: new Date().toISOString()
+        });
+        lastSyncedData[key] = data;
+        writeCount++;
     };
     
-    // 1. Sync Global Keys
-    for (const key of GLOBAL_KEYS) {
-        await writeIfChanged(key);
+    // 1. Sync Known Global and Namespaced Keys
+    const rootKeys = [...GLOBAL_KEYS, ...NAMESPACED_KEYS];
+    for (const key of rootKeys) await writeIfChanged(key);
+
+    // 2. Sync Corporate Namespaced Keys
+    if (Array.isArray(corporates)) {
+      for (const corp of corporates) {
+        const email = corp.email;
+        if (!email) continue;
+        for (const prefix of NAMESPACED_KEYS) {
+          await writeIfChanged(`${prefix}_${email}`);
+        }
+      }
     }
 
-    // 2. Scan LocalStorage for all Franchisee and Employee Keys
+    // 3. NEW: Sync Dynamic Attendance and Driver Log Keys
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key) {
-            const isNamespaced = NAMESPACED_KEYS.includes(key);
-            const isDynamic = DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix));
-            const isAppMeta = key.startsWith('cloud_hash_') || key === 'app_session_id' || key === 'user_role';
-            
-            if ((isNamespaced || isDynamic) && !isAppMeta) {
-                await writeIfChanged(key);
-            }
+        if (key && DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix))) {
+            await writeIfChanged(key);
         }
     }
 
-    if (writeCount > 0) {
-        console.log(`☁️ Cloud Sync Success: ${writeCount} items updated.`);
-    }
-    
+    if (writeCount > 0) console.log(`☁️ Synced ${writeCount} updated records to cloud.`);
     return { success: true, message: `Sync complete! (${writeCount} updates)` };
   } catch (error: any) {
     console.error("Sync Error:", error);
@@ -192,14 +179,14 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
         const data = doc.data();
         if (data.content) {
             localStorage.setItem(doc.id, data.content);
-            if (data.hash) {
-                localStorage.setItem(getSyncHashKey(doc.id), data.hash);
-            }
+            lastSyncedData[doc.id] = data.content;
         }
     });
     
+    console.log("✅ Data Loaded from Cloud");
     return { success: true, message: "Restore complete! Data loaded from Cloud." };
   } catch (error: any) {
+    console.error("Restore Error:", error);
     return { success: false, message: `Restore failed: ${error.message}` };
   }
 };
@@ -209,11 +196,13 @@ export const uploadFileToCloud = async (file: File, path: string): Promise<strin
     const app = getFirebaseApp();
     if (!app) throw new Error("Firebase not connected");
     await ensureAuth(app);
+    if (!app.options.storageBucket) return null;
     const storage = getStorage(app);
     const storageRef = ref(storage, path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   } catch (error: any) {
+    console.error("Cloud Upload Failed:", error.code, error.message);
     return null;
   }
 };
@@ -222,8 +211,8 @@ export const autoLoadFromCloud = async (): Promise<boolean> => {
     try {
         const app = getFirebaseApp();
         if (!app) return false;
-        const res = await restoreFromCloud();
-        return res.success;
+        await restoreFromCloud();
+        return true;
     } catch (e) { return false; }
 };
 
@@ -241,8 +230,8 @@ export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
       try {
         const parsed = JSON.parse(data.content);
         if (Array.isArray(parsed)) count = parsed.length.toString();
-        else count = '1';
-      } catch (e) { count = '1'; }
+        else count = 'Config';
+      } catch (e) { count = 'Raw'; }
       stats[doc.id] = { count: count, lastUpdated: data.lastUpdated };
     });
     return stats;
@@ -261,8 +250,14 @@ export const sendSystemNotification = async (notification: Omit<BozNotification,
       timestamp: new Date().toISOString(),
       read: false,
     };
-    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), newNotification);
-  } catch (error) {}
+
+    // 🛠️ FIX: Firestore does not support 'undefined'. Strip undefined properties before sending.
+    const cleanData = Object.fromEntries(
+      Object.entries(newNotification).filter(([_, value]) => value !== undefined)
+    );
+
+    await setDoc(doc(db, NOTIFICATION_COLLECTION, newNotification.id), cleanData);
+  } catch (error) { console.error("Failed to send notification:", error); }
 };
 
 export const fetchSystemNotifications = async (): Promise<BozNotification[]> => {
@@ -277,14 +272,37 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     let allNotifications: BozNotification[] = [];
     snapshot.forEach(doc => { allNotifications.push(doc.data() as BozNotification); });
     
-    return allNotifications.filter(notif => {
+    const relevantNotifications = allNotifications.filter(notif => {
       if (notif.read) return false;
-      if (!notif.targetRoles.includes(userRole)) return false;
-      if (userRole === UserRole.EMPLOYEE && notif.employeeId !== sessionId) return false;
-      if (userRole === UserRole.CORPORATE && notif.corporateId && notif.corporateId !== sessionId) return false;
+      
+      const isTargetRole = notif.targetRoles.includes(userRole);
+      if (!isTargetRole) return false;
+
+      // STRICT EMPLOYEE FILTERING:
+      // Employees ONLY see notifications specifically addressed to their ID.
+      // General role notifications or franchise-wide ones are hidden unless targeted.
+      if (userRole === UserRole.EMPLOYEE) {
+          return notif.employeeId === sessionId;
+      }
+
+      // CORPORATE FILTERING:
+      // Sees notifications for their role and specifically for their franchise.
+      if (userRole === UserRole.CORPORATE) {
+          if (notif.corporateId && notif.corporateId !== sessionId) return false;
+          return true;
+      }
+
+      // ADMIN FILTERING:
+      // Sees everything targeted at ADMIN role.
+      if (userRole === UserRole.ADMIN) {
+        return true;
+      }
+      
       return true;
-    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  } catch (error) { return []; }
+    });
+
+    return relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch (error) { console.error("Failed to fetch notifications:", error); return []; }
 };
 
 export const markNotificationAsRead = async (notificationId: string) => {
@@ -294,7 +312,7 @@ export const markNotificationAsRead = async (notificationId: string) => {
     await ensureAuth(app);
     const db = getDb(app);
     await updateDoc(doc(db, NOTIFICATION_COLLECTION, notificationId), { read: true });
-  } catch (error) {}
+  } catch (error) { console.error("Failed to mark notification as read:", error); }
 };
 
 export const setupAutoSync = () => {};

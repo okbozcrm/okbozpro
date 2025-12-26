@@ -63,11 +63,13 @@ const App: React.FC = () => {
         if (HARDCODED_FIREBASE_CONFIG.apiKey || localStorage.getItem('firebase_config')) {
             await syncToCloud();
         }
-        timeoutId = setTimeout(runSync, 10000); 
+        timeoutId = setTimeout(runSync, 5000); 
     };
-    timeoutId = setTimeout(runSync, 10000);
+    timeoutId = setTimeout(runSync, 5000);
+
     const handleImmediateSync = () => { if (isAuthenticated) syncToCloud(); };
     window.addEventListener('cloud-sync-immediate', handleImmediateSync);
+
     return () => { clearTimeout(timeoutId); window.removeEventListener('cloud-sync-immediate', handleImmediateSync); };
   }, [isAuthenticated]);
 
@@ -108,7 +110,7 @@ const App: React.FC = () => {
                       <>
                         <Route path="/admin" element={<Dashboard />} />
                         <Route path="/admin/reports" element={<Reports />} />
-                        <Route path="/admin/marketing" element={<EmailMarketing />} />
+                        <Route path="/admin/marketing" element={userRole === UserRole.ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
                         <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
                         <Route path="/admin/auto-dialer" element={<AutoDialer />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
@@ -127,9 +129,14 @@ const App: React.FC = () => {
                         <Route path="/admin/finance-and-expenses" element={<Expenses />} />
                         <Route path="/admin/data-export" element={<DataExport />} />
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
-                        <Route path="/admin/corporate" element={<Corporate />} />
-                        <Route path="/admin/settings" element={<Settings />} />
-                        <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
+                        {userRole === UserRole.ADMIN && (
+                          <>
+                            <Route path="/admin/corporate" element={<Corporate />} />
+                            <Route path="/admin/settings" element={<Settings />} />
+                            <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
+                            <Route path="/admin/admin-finance" element={<Expenses />} />
+                          </>
+                        )}
                         <Route path="/admin/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>
                     )}
@@ -152,8 +159,8 @@ const App: React.FC = () => {
                         <Route path="/user/staff" element={<StaffList />} />
                         <Route path="/user/payroll" element={<Payroll />} />
                         <Route path="/user/expenses" element={<Expenses />} />
-                        <Route path="/user/leads" element={<Leads />} /> 
-                        <Route path="/user/settings" element={<Settings />} /> 
+                        <Route path="/user/auto-dialer" element={<AutoDialer />} />
+                        <Route path="/user/leads" element={<Leads />} />
                         <Route path="/user/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>
                     )}

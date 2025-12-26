@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, DollarSign, 
@@ -200,8 +199,6 @@ const Expenses: React.FC = () => {
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this transaction?")) {
       setExpenses(prev => prev.filter(exp => exp.id !== id));
-      // Trigger immediate cloud sync
-      window.dispatchEvent(new Event('cloud-sync-immediate'));
       resetForm();
     }
   };
@@ -260,11 +257,8 @@ const Expenses: React.FC = () => {
 
     setExpenses(prev => editingExpenseId ? prev.map(exp => exp.id === editingExpenseId ? transactionData : exp) : [transactionData, ...prev]);
     setIsUploading(false);
-
-    // Trigger immediate cloud sync
-    window.dispatchEvent(new Event('cloud-sync-immediate'));
-
     resetForm();
+    window.dispatchEvent(new Event('cloud-sync-immediate'));
   };
 
   const filteredExpenses = expenses.filter(exp => {

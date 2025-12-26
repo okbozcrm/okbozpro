@@ -1,27 +1,17 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings as SettingsIcon, Lock as LockIcon, 
-  Cloud, Database, Globe, Save,
-  UploadCloud, DownloadCloud, Loader2, RefreshCw, Eye,
-  PhoneForwarded, Headset, ClipboardList,
-  FileText, Activity, Map as MapIcon, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
-  Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
-  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane
+  LogOut, Cloud, Database, Globe, Palette, Save,
+  UploadCloud, DownloadCloud, Loader2, Map as MapIcon, Check,
+  Users, Target, Building2, Car, Wallet, MapPin, Truck, Layers, RefreshCw, Eye,
+  Phone, DollarSign, Plane, Briefcase as BriefcaseIcon, Clock, Calendar, X, EyeOff,
+  MessageSquare, HardDrive, Bike
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
   syncToCloud, restoreFromCloud 
 } from '../../services/cloudService';
 import { useBranding } from '../../context/BrandingContext';
-import { UserRole, Employee } from '../../types';
-
-// Add interface for collection items to fix type errors
-interface CollectionItem {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-}
 
 const Settings: React.FC = () => {
   const { companyName, primaryColor, updateBranding } = useBranding();
@@ -31,21 +21,26 @@ const Settings: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(false);
   const [collectionStats, setCollectionStats] = useState<any[]>([]);
 
+  // Local state for branding form
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
 
-  const role = localStorage.getItem('user_role') as UserRole;
-  const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = role === UserRole.ADMIN;
+  // Maps API Key State
+  const isMapsHardcoded = !!(HARDCODED_MAPS_API_KEY && HARDCODED_MAPS_API_KEY.length > 5);
+  const [mapsKey, setMapsKey] = useState(HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key') || '');
+  const [showMapsInput, setShowMapsInput] = useState(false);
 
+  // Collection Viewer Modal State
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<any[] | string | null>(null);
   const [collectionError, setCollectionError] = useState<string | null>(null);
 
+  // Password Management State
   const [adminPasswords, setAdminPasswords] = useState({ current: '', new: '', confirm: '' });
   const [showAdminPass, setShowAdminPass] = useState({ current: false, new: false });
   const [adminPassMsg, setAdminPassMsg] = useState({ type: '', text: '' });
+
 
   const isDbPermanent = !!(HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5);
 
@@ -57,103 +52,23 @@ const Settings: React.FC = () => {
     }
   }, []);
 
-  // Determine what modules are visible in the sidebar for the current user
-  const visibleModules = useMemo(() => {
-    if (isSuperAdmin) return null; // Admin sees everything
-
-    if (role === UserRole.CORPORATE) {
-        return [
-            'Dashboard', 'Reports', 'Boz Chat', 'Customer Care', 'Trip Booking', 'Live Tracking',
-            'Tasks', 'Attendance Dashboard', 'Branches', 'Staff Management',
-            'Documents', 'Vendor Attachment', 'Payroll', 'Finance & Expenses', 'Driver Payments', 'KM Claims (TA)',
-            'Auto Dialer', 'Franchisee Leads'
-        ];
-    }
-
-    if (role === UserRole.EMPLOYEE) {
-        // Core employee base modules
-        const base = [
-            'My Attendance', 'Auto Dialer', 'My Salary', 'KM Claims (TA)', 'My Documents', 
-            'Apply Leave', 'My Profile', 'Customer Care', 'Boz Chat', 'My Tasks', 'Vendor Attachment'
-        ];
-
-        // Add dynamic permissions
-        let profile: Employee | null = null;
-        try {
-            const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-            profile = adminStaff.find((e: Employee) => e.id === sessionId);
-            if (!profile) {
-                const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-                for (const corp of (corps as any[])) {
-                    const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
-                    profile = corpStaff.find((e: Employee) => e.id === sessionId);
-                    if (profile) break;
-                }
-            }
-        } catch (e) {}
-
-        const mapping: Record<string, string> = {
-            'reports': 'Reports',
-            'trips': 'Trip Booking',
-            'driver-payments': 'Driver Payments',
-            'attendance_admin': 'Attendance Dashboard',
-            'staff': 'Staff Management',
-            'payroll': 'Payroll',
-            'finance': 'Finance & Expenses',
-            'leads': 'Franchisee Leads'
-        };
-
-        const extra = (profile?.moduleAccess || []).map(p => mapping[p]).filter(Boolean);
-        return [...base, ...extra];
-    }
-
-    return null;
-  }, [role, isSuperAdmin, sessionId]);
-
   const generateCollectionStats = (cloudData: any) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-
-    // Define mapping of UI labels to specific Storage Keys based on role/session
-    const collections: CollectionItem[] = [
-        { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
-        { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
-        { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
-        { key: isSuperAdmin ? 'company_shifts' : `company_shifts_${sessionId}`, label: 'Employee Setting', icon: Clock },
-        { key: 'analytics_cache', label: 'Reports', icon: FileText },
-        { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
-        { key: isSuperAdmin ? 'auto_dialer_data' : `auto_dialer_data_${sessionId}`, label: 'Auto Dialer', icon: PhoneForwarded },
-        { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
-        { key: isSuperAdmin ? 'trips_data' : `trips_data_${sessionId}`, label: 'Trip Booking', icon: MapIcon },
-        { key: isSuperAdmin ? 'driver_payment_records' : `driver_payment_records_${sessionId}`, label: 'Driver Payments', icon: ReceiptIndianRupee },
-        { key: isSuperAdmin ? 'leads_data' : `leads_data_${sessionId}`, label: 'Franchisee Leads', icon: Target },
-        { key: role === UserRole.EMPLOYEE ? `attendance_data_${sessionId}_${year}_${month}` : 'attendance_data_admin', label: 'Attendance Dashboard', icon: Activity },
-        { key: role === UserRole.EMPLOYEE ? `attendance_data_${sessionId}_${year}_${month}` : 'attendance_data_admin', label: 'My Attendance', icon: Activity },
-        { key: isSuperAdmin ? 'tasks_data' : `tasks_data`, label: 'Tasks', icon: ClipboardList },
-        { key: isSuperAdmin ? 'tasks_data' : `tasks_data`, label: 'My Tasks', icon: ClipboardList },
-        { key: isSuperAdmin ? 'staff_data' : `staff_data_${sessionId}`, label: 'Staff Management', icon: Users },
-        { key: 'app_documents', label: 'Documents', icon: FileText },
-        { key: 'app_documents', label: 'My Documents', icon: FileText },
-        { key: isSuperAdmin ? 'branches_data' : `branches_data_${sessionId}`, label: 'Branches', icon: Building },
-        { key: isSuperAdmin ? 'vendor_data' : `vendor_data_${sessionId}`, label: 'Vendor Attachment', icon: Car },
-        { key: 'payroll_history', label: 'Payroll', icon: DollarSign },
-        { key: 'payroll_history', label: 'My Salary', icon: DollarSign },
-        { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
-        { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
+    const collections = [
+        { key: 'staff_data', label: 'Staff Records', icon: Users },
+        { key: 'corporate_accounts', label: 'Corporate Accounts', icon: Building2 },
+        { key: 'global_enquiries_data', label: 'Enquiries', icon: Phone },
+        { key: 'trips_data', label: 'Trip Logs', icon: Truck },
         { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
-        { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane }
+        { key: 'driver_payment_records', label: 'Driver Pay', icon: DollarSign },
+        { key: 'driver_wallet_data', label: 'Driver Wallets', icon: Wallet },
+        { key: 'internal_messages_data', label: 'Chat History', icon: MessageSquare },
+        { key: 'office_expenses', label: 'Expense Data', icon: HardDrive },
+        { key: 'branches_data', label: 'Branch Config', icon: MapPin },
+        { key: 'app_branding', label: 'Site Branding', icon: Palette },
+        { key: 'leads_data', label: 'Active Leads', icon: Target }
     ];
 
-    // 1. Filter the list to only show what is in the current sidebar
-    const filteredCollections = visibleModules 
-        ? collections.filter(c => visibleModules.includes(c.label)) 
-        : collections;
-
-    // 2. Remove duplicates (some labels map to same keys)
-    const uniqueCollections: CollectionItem[] = Array.from(new Map<string, CollectionItem>(filteredCollections.map(item => [item.label, item])).values());
-
-    return uniqueCollections.map(col => {
+    return collections.map(col => {
         let localCount: string | number = 0;
         let localContent: any = null;
         let localStr: string | null = null;
@@ -161,22 +76,10 @@ const Settings: React.FC = () => {
             localStr = localStorage.getItem(col.key);
             if (localStr) {
                 localContent = JSON.parse(localStr);
-                // Handle different data structures
-                if (Array.isArray(localContent)) {
-                    // For Franchisee, some global keys need manual filtering if not pre-namespaced
-                    if (role === UserRole.CORPORATE && (col.key === 'global_enquiries_data' || col.key === 'global_travel_requests')) {
-                        localCount = localContent.filter((item: any) => item.corporateId === sessionId || item.assignedCorporate === sessionId).length;
-                    } else {
-                        localCount = localContent.length;
-                    }
-                } else if (typeof localContent === 'object') {
-                    localCount = Object.keys(localContent).length;
-                } else {
-                    localCount = 1;
-                }
+                localCount = Array.isArray(localContent) ? localContent.length : 1;
             }
         } catch(e) {
-            localCount = localStr ? 'Raw' : 0;
+            localCount = 'Err';
             localContent = localStr;
         }
 
@@ -185,14 +88,12 @@ const Settings: React.FC = () => {
             cloudCount = cloudData[col.key].count || '0';
         }
 
-        const isSynced = localCount === 0 || (localCount !== 0 && cloudCount !== '-');
-
         return {
             ...col,
             local: localCount,
             localContent: localContent,
             cloud: cloudCount,
-            status: isSynced ? 'Live' : 'Syncing'
+            status: 'Synced' 
         };
     });
   };
@@ -218,6 +119,13 @@ const Settings: React.FC = () => {
   const handleSaveBranding = () => {
     updateBranding({ companyName: brandName, primaryColor: brandColor });
     alert("Site settings saved!");
+  };
+
+  const handleSaveMapsKey = () => {
+      localStorage.setItem('maps_api_key', mapsKey);
+      setShowMapsInput(false);
+      alert("Google Maps API Key saved. Please refresh the page to apply changes.");
+      window.location.reload();
   };
 
   const handleBackup = async () => {
@@ -296,327 +204,354 @@ const Settings: React.FC = () => {
       setTimeout(() => setAdminPassMsg({ type: '', text: '' }), 3000);
   };
 
-  if (!isSuperAdmin) {
-      return (
-          <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-              {/* Main Header Card */}
-              <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
-                          <Database className="w-7 h-7" />
-                      </div>
-                      <div>
-                          <h3 className="text-xl font-black text-slate-800 tracking-tighter uppercase">Live Cloud Repository</h3>
-                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1 flex items-center gap-1.5">
-                              Automatic Synchronization Active
-                          </p>
-                      </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                        onClick={handleBackup}
-                        disabled={isBackingUp || dbStatus !== 'Connected'}
-                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-emerald-100 disabled:opacity-50"
-                    >
-                        {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />} 
-                        Push Sync
-                    </button>
-                    <button 
-                        onClick={checkConnection}
-                        disabled={dbStatus === 'Error'}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-indigo-100"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
-                        Verify Integrity
-                    </button>
+  return (
+    <div className="max-w-6xl mx-auto space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <SettingsIcon className="w-6 h-6 text-gray-600" /> Site Settings
+        </h2>
+        <p className="text-gray-500">System configuration, branding, and data management</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Globe className="w-5 h-5 text-indigo-500" /> General Configuration
+         </h3>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+               <label className="block text-sm font-medium text-gray-700 mb-1">Company Name (App Title)</label>
+               <input 
+                  type="text" 
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. OK BOZ CRM"
+               />
+            </div>
+            <div>
+               <label className="block text-sm font-medium text-gray-700 mb-1">Theme Primary Color</label>
+               <div className="flex items-center gap-3">
+                  <input 
+                     type="color" 
+                     value={brandColor}
+                     onChange={(e) => setBrandColor(e.target.value)}
+                     className="h-10 w-20 p-1 border border-gray-300 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-sm font-mono text-gray-500">{brandColor}</span>
+               </div>
+            </div>
+         </div>
+         <div className="mt-4 flex justify-end">
+            <button 
+               onClick={handleSaveBranding}
+               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors shadow-sm"
+            >
+               <Save className="w-4 h-4" /> Save Changes
+            </button>
+         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <LockIcon className="w-5 h-5 text-emerald-500" /> Account Security (Admin)
+          </h3>
+          <form onSubmit={handleAdminPasswordChange} className="max-w-md space-y-4">
+              <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Current Password</label>
+                  <div className="relative">
+                      <input 
+                          type={showAdminPass.current ? "text" : "password"}
+                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                          value={adminPasswords.current}
+                          onChange={e => setAdminPasswords({...adminPasswords, current: e.target.value})}
+                      />
+                      <button type="button" onClick={() => setShowAdminPass(p => ({...p, current: !p.current}))} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                          {showAdminPass.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                   </div>
               </div>
-
-              {/* Module Grid - Strictly Filtered by current user's panel functionality */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {collectionStats.map((stat) => (
-                      <div key={stat.key} className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col hover:shadow-lg transition-all group border-b-4 border-b-transparent hover:border-b-indigo-500">
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
-                                  <stat.icon className="w-6 h-6" />
-                              </div>
-                              <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></div>
-                                  <span className="text-[10px] font-black uppercase text-emerald-700 tracking-tighter">Live</span>
-                              </div>
-                          </div>
-
-                          <h4 className="font-black text-slate-800 text-sm truncate uppercase tracking-widest mb-6">{stat.label}</h4>
-
-                          <div className="flex items-center justify-between text-center bg-gray-50/50 rounded-2xl p-6 border border-gray-100 mb-6">
-                              <div className="flex-1">
-                                  <span className="text-slate-400 block text-[9px] uppercase font-black mb-2 tracking-widest">Local</span>
-                                  <span className="text-2xl font-black text-slate-800">{stat.local}</span>
-                              </div>
-                              <div className="w-px h-10 bg-gray-200"></div>
-                              <div className="flex-1">
-                                  <span className="text-slate-400 block text-[9px] uppercase font-black mb-2 tracking-widest">Cloud</span>
-                                  <span className="text-2xl font-black text-indigo-600">{stat.cloud}</span>
-                              </div>
-                          </div>
-
-                          <button 
-                              onClick={() => handleViewCollection(stat.key, stat.localContent)}
-                              className="w-full py-4 bg-white border border-gray-200 text-slate-500 text-[11px] font-black uppercase rounded-2xl hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg"
-                          >
-                              <Eye className="w-4 h-4" /> Inspect Data
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">New Password</label>
+                      <div className="relative">
+                          <input 
+                              type={showAdminPass.new ? "text" : "password"}
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                              value={adminPasswords.new}
+                              onChange={e => setAdminPasswords({...adminPasswords, new: e.target.value})}
+                          />
+                          <button type="button" onClick={() => setShowAdminPass(p => ({...p, new: !p.new}))} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                              {showAdminPass.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                       </div>
-                  ))}
-              </div>
-
-              {/* Bottom Notice */}
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-3xl p-8 flex items-start gap-4">
-                  <div className="p-3 bg-indigo-500 text-white rounded-2xl shadow-lg shadow-indigo-500/20">
-                      <ShieldCheck className="w-6 h-6" />
                   </div>
                   <div>
-                      <p className="font-black uppercase tracking-widest text-xs text-indigo-900 mb-2">Cloud Protected Mode</p>
-                      <p className="text-sm text-indigo-700 leading-relaxed font-medium max-w-3xl">
-                          Your {role.toLowerCase()} panel is strictly scoped. You only see sync vitals for the employees and data that belong to your account. Everything here is automatically mirrored to the Super Admin's organization-wide database.
-                      </p>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirm New</label>
+                      <input 
+                          type="password"
+                          className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                          value={adminPasswords.confirm}
+                          onChange={e => setAdminPasswords({...adminPasswords, confirm: e.target.value})}
+                      />
                   </div>
               </div>
-          </div>
-      );
-  }
+              {adminPassMsg.text && (
+                  <p className={`text-xs ${adminPassMsg.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{adminPassMsg.text}</p>
+              )}
+              <button 
+                  type="submit"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-sm"
+              >
+                  Update Password
+              </button>
+          </form>
+      </div>
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <SettingsIcon className="w-6 h-6 text-gray-600" /> Site Settings
-          </h2>
-          <p className="text-gray-500">System configuration, branding, and cloud data manifest</p>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <Cloud className="w-5 h-5 text-blue-500" /> Cloud Database
+          </h3>
+          <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+            dbStatus === 'Connected' ? 'bg-green-100 text-green-700' : 
+            dbStatus === 'Error' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${dbStatus === 'Connected' ? 'bg-green-500' : dbStatus === 'Error' ? 'bg-red-500' : 'bg-gray-500'}`}></div>
+            {dbStatus}
+          </div>
         </div>
-        <div className={`px-4 py-2 rounded-xl text-sm font-black flex items-center gap-2 border ${
-          dbStatus === 'Connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-          dbStatus === 'Error' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-gray-50 text-gray-700 border-gray-100'
-        }`}>
-          <div className={`w-2.5 h-2.5 rounded-full ${dbStatus === 'Connected' ? 'bg-emerald-500 animate-pulse' : dbStatus === 'Error' ? 'bg-rose-500' : 'bg-gray-500'}`}></div>
-          CLOUD {dbStatus.toUpperCase()}
+        
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                   <Database className="w-4 h-4" /> Connection Info
+                </h4>
+                <div className="space-y-2 text-sm text-blue-800">
+                   <div className="flex justify-between">
+                      <span className="opacity-70">Project ID:</span>
+                      <span className="font-mono font-bold">{HARDCODED_FIREBASE_CONFIG.projectId || 'Not Configured'}</span>
+                   </div>
+                   <div className="flex justify-between">
+                      <span className="opacity-70">Status:</span>
+                      <span className="font-bold">{isDbPermanent ? 'Permanent Link' : 'Temporary'}</span>
+                   </div>
+                </div>
+             </div>
+
+             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <h4 className="font-bold text-gray-700 mb-2">Database Stats</h4>
+                {stats ? (
+                   <div className="space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-600">
+                         <span>Collections:</span>
+                         <span className="font-bold text-gray-900">{Object.keys(stats).length}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                         <span>Staff Records:</span>
+                         <span className="font-bold text-gray-900">{stats['staff_data']?.count || 0}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                         <span>Last Cloud Update:</span>
+                         <span className="font-bold text-gray-900">
+                            {stats['staff_data']?.lastUpdated ? new Date(stats['staff_data'].lastUpdated).toLocaleDateString() : '-'}
+                         </span>
+                      </div>
+                   </div>
+                ) : (
+                   <div className="h-full flex items-center justify-center text-gray-400 text-sm italic">
+                      {dbStatus === 'Connected' ? 'Loading stats...' : 'No connection'}
+                   </div>
+                )}
+             </div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-4 justify-between items-center mt-4">
+              <span className="text-xs text-gray-400">
+                  {isDbPermanent ? '🔒 Connected via Hardcoded Config' : 'ℹ️ Using Temporary Config'}
+              </span>
+              
+              <div className="flex gap-3">
+                  <button 
+                      onClick={handleRestore}
+                      disabled={isRestoring || dbStatus !== 'Connected'}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                  >
+                      {isRestoring ? <Loader2 className="w-4 h-4 animate-spin"/> : <DownloadCloud className="w-4 h-4" />}
+                      Restore
+                  </button>
+                  <button 
+                      onClick={handleBackup}
+                      disabled={isBackingUp || dbStatus !== 'Connected'}
+                      className="px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 disabled:opacity-50"
+                  >
+                      {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />}
+                      Backup
+                  </button>
+              </div>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4 animate-in fade-in duration-500">
-          <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                      <Database className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-gray-700 uppercase tracking-widest">
-                        Live Cloud Repository
-                    </h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Automatic Synchronization Active</p>
-                  </div>
-              </div>
+      <div className="space-y-4">
+          <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-gray-500" /> LIVE DATA COLLECTIONS
+              </h3>
               <button 
                   onClick={checkConnection}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-black text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all uppercase tracking-widest"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
               >
-                  <RefreshCw className={`w-3.5 h-3.5 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
-                  Verify Integrity
+                  <RefreshCw className={`w-4 h-4 ${dbStatus === 'Connected' && !stats ? 'animate-spin' : ''}`} /> 
+                  Refresh
               </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {collectionStats.map(stat => (
-                  <div key={stat.key} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all group">
+                  <div key={stat.key} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-4">
-                          <div className={`p-2.5 rounded-xl transition-colors ${stat.local !== 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
-                              <stat.icon className="w-5 h-5" />
+                          <div className="p-3 bg-gray-50 rounded-xl text-gray-600 border border-gray-100">
+                              <stat.icon className="w-6 h-6" />
                           </div>
-                          <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                             <div className={`w-1.5 h-1.5 rounded-full ${stat.status === 'Live' ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`}></div>
-                             <span className={`text-[9px] font-black uppercase tracking-tighter ${stat.status === 'Live' ? 'text-emerald-600' : 'text-amber-600'}`}>{stat.status}</span>
-                          </div>
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100">
+                              {stat.status}
+                          </span>
                       </div>
                       
-                      <div className="space-y-3">
-                          <h4 className="font-black text-gray-800 text-xs truncate uppercase tracking-wide">{stat.label}</h4>
-                          <div className="flex items-center text-xs bg-gray-50/80 rounded-xl p-3 border border-gray-100">
+                      <div>
+                          <h4 className="font-bold text-gray-800 text-lg mb-4">{stat.label}</h4>
+                          <div className="flex items-center text-sm bg-gray-50 rounded-lg p-3 border border-gray-100">
                               <div className="flex-1">
-                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Local</span>
-                                  <span className="text-base font-black text-gray-800">{stat.local}</span>
+                                  <span className="text-gray-500 block text-xs uppercase font-bold mb-1 tracking-wider">Local</span>
+                                  <span className="text-xl font-bold text-gray-800">{stat.local}</span>
                               </div>
-                              <div className="w-px h-6 bg-gray-200 mx-3"></div>
+                              <div className="w-px h-8 bg-gray-200 mx-4"></div>
                               <div className="flex-1 text-right">
-                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Cloud</span>
-                                  <span className="text-base font-black text-blue-600">{stat.cloud}</span>
+                                  <span className="text-gray-500 block text-xs uppercase font-bold mb-1 tracking-wider">Cloud</span>
+                                  <span className="text-xl font-bold text-blue-600">{stat.cloud}</span>
                               </div>
                           </div>
                       </div>
-                      <div className="mt-4 flex gap-2">
+                      <div className="mt-4">
                           <button 
                               onClick={() => handleViewCollection(stat.key, stat.localContent)}
-                              className="flex-1 px-3 py-2 bg-white border border-gray-200 text-gray-500 text-[10px] font-black uppercase rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
+                              className="w-full px-4 py-2 bg-blue-50 text-blue-600 text-sm font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                           >
-                              <Eye className="w-3.5 h-3.5" /> Inspect
+                              <Eye className="w-4 h-4" /> View Items
                           </button>
                       </div>
                   </div>
               ))}
           </div>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
-             <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
-                <Globe className="w-5 h-5 text-indigo-500" /> Branding Logic
-             </h3>
-             <div className="space-y-6">
-                <div>
-                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">App Title</label>
-                   <input 
-                      type="text" 
-                      value={brandName}
-                      onChange={(e) => setBrandName(e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800"
-                      placeholder="e.g. OK BOZ CRM"
-                   />
-                </div>
-                <div>
-                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">UI Accent Color</label>
-                   <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <input 
-                         type="color" 
-                         value={brandColor}
-                         onChange={(e) => setBrandColor(e.target.value)}
-                         className="h-10 w-20 p-1 border border-gray-300 rounded-lg cursor-pointer"
-                      />
-                      <span className="text-sm font-mono font-bold text-gray-600">{brandColor.toUpperCase()}</span>
-                   </div>
-                </div>
-                <div className="pt-4">
-                    <button 
-                       onClick={handleSaveBranding}
-                       className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-xl shadow-slate-900/20"
-                    >
-                       <Save className="w-4 h-4" /> Apply Site Changes
-                    </button>
-                </div>
-             </div>
-          </div>
-
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
-              <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
-                  <LockIcon className="w-5 h-5 text-emerald-500" /> Security Override
-              </h3>
-              <form onSubmit={handleAdminPasswordChange} className="space-y-6">
-                  <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Master Password</label>
-                      <div className="relative">
-                          <input 
-                              type={showAdminPass.current ? "text" : "password"}
-                              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
-                              value={adminPasswords.current}
-                              onChange={e => setAdminPasswords({...adminPasswords, current: e.target.value})}
-                          />
-                          <button type="button" onClick={() => setShowAdminPass(p => ({...p, current: !p.current}))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
-                              {showAdminPass.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                      </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                      <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">New PIN</label>
-                          <div className="relative">
-                              <input 
-                                  type={showAdminPass.new ? "text" : "password"}
-                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
-                                  value={adminPasswords.new}
-                                  onChange={e => setAdminPasswords({...adminPasswords, new: e.target.value})}
-                              />
-                              <button type="button" onClick={() => setShowAdminPass(p => ({...p, new: !p.new}))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                  {showAdminPass.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                          </div>
-                      </div>
-                      <div>
-                          <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 ml-1">Verify PIN</label>
-                          <input 
-                              type="password"
-                              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
-                              value={adminPasswords.confirm}
-                              onChange={e => setAdminPasswords({...adminPasswords, confirm: e.target.value})}
-                          />
-                      </div>
-                  </div>
-                  {adminPassMsg.text && (
-                      <p className={`text-[10px] font-black uppercase text-center ${adminPassMsg.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>{adminPassMsg.text}</p>
-                  )}
-                  <button 
-                      type="submit"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20 transition-all transform active:scale-95"
-                  >
-                      Update Access Creds
-                  </button>
-              </form>
-          </div>
-      </div>
-
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
-        <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 rounded-2xl text-blue-600">
-                  <Cloud className="w-6 h-6" />
-              </div>
-              <div>
-                  <h3 className="font-black text-gray-800 text-lg tracking-tighter uppercase">Cloud Integrity Controls</h3>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Global Synchronization Settings</p>
-              </div>
-          </div>
-          <div className="flex gap-4">
-              <button 
-                  onClick={handleRestore}
-                  disabled={isRestoring || dbStatus !== 'Connected'}
-                  className="px-6 py-3 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 transition-all shadow-sm"
-              >
-                  {isRestoring ? <Loader2 className="w-4 h-4 animate-spin"/> : <DownloadCloud className="w-4 h-4" />}
-                  Pull Cloud Copy
-              </button>
-              <button 
-                  onClick={handleBackup}
-                  disabled={isBackingUp || dbStatus !== 'Connected'}
-                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 transition-all shadow-xl shadow-emerald-900/20"
-              >
-                  {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin"/> : <UploadCloud className="w-4 h-4" />}
-                  Force Push Sync
-              </button>
-          </div>
-        </div>
-        
-        <div className="p-8">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                <ShieldCheck className="w-6 h-6 text-emerald-600" />
-                <div className="text-sm">
-                    <p className="font-black text-emerald-800 uppercase tracking-widest text-[10px]">Active Data Protection</p>
-                    <p className="text-emerald-700 font-medium text-xs mt-0.5">Your repository is locked with {isDbPermanent ? 'Production-grade' : 'Development'} Firebase credentials.</p>
-                </div>
-            </div>
-        </div>
-      </div>
       
-      {showCollectionViewer && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
-              <h3 className="font-bold text-gray-800">Inspecting Collection: {currentViewingCollection}</h3>
-              <button onClick={closeCollectionViewer} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+         <h3 className="font-bold text-gray-800 mb-4">Integrations</h3>
+         <div className="space-y-4">
+            <div className="p-4 border border-gray-200 rounded-lg">
+               <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-yellow-50 rounded text-yellow-600">
+                         <MapIcon className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <h4 className="font-bold text-gray-800">Google Maps API</h4>
+                         <p className="text-xs text-gray-500">For location tracking and address search</p>
+                      </div>
+                   </div>
+                   {!isMapsHardcoded && (
+                       <button 
+                          className="text-xs font-bold text-blue-600 hover:underline border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                          onClick={() => setShowMapsInput(!showMapsInput)}
+                       >
+                          {showMapsInput ? 'Cancel' : (mapsKey ? 'Edit Key' : 'Configure')}
+                       </button>
+                   )}
+                   {isMapsHardcoded && (
+                       <span className="text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">Permanent Link</span>
+                   )}
+               </div>
+               
+               {showMapsInput && !isMapsHardcoded && (
+                   <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
+                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">API Key</label>
+                       <div className="flex gap-2">
+                           <input 
+                               type="text" 
+                               value={mapsKey}
+                               onChange={(e) => setMapsKey(e.target.value)}
+                               placeholder="Paste your AIza... API Key here"
+                               className="flex-1 p-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                           />
+                           <button 
+                               onClick={handleSaveMapsKey}
+                               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-1 shadow-sm"
+                           >
+                               <Check className="w-4 h-4" /> Save
+                           </button>
+                       </div>
+                       <div className="mt-2 text-[10px] text-gray-500 space-y-1">
+                           <p>Get this key from Google Cloud Console (Maps JavaScript API & Places API)</p>
+                           <p className="text-red-500 font-medium">Important: You must enable BILLING on the Google Cloud Project for the map to work.</p>
+                       </div>
+                   </div>
+               )}
             </div>
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-900 text-emerald-400 font-mono text-xs custom-scrollbar">
+         </div>
+      </div>
+
+      {showCollectionViewer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+              <h3 className="font-bold text-gray-800">Viewing Collection: {currentViewingCollection}</h3>
+              <button onClick={closeCollectionViewer} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 text-sm bg-gray-50 text-gray-800 font-mono">
                 {collectionError ? (
-                    <p className="text-rose-500 font-bold">{collectionError}</p>
+                    <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100 text-center">
+                        {collectionError}
+                    </div>
                 ) : (
-                    <pre className="whitespace-pre-wrap">{JSON.stringify(collectionContent, null, 2)}</pre>
+                    <>
+                        {Array.isArray(collectionContent) ? (
+                            collectionContent.length > 0 ? (
+                                <ul className="space-y-3">
+                                    {collectionContent.map((item, index) => (
+                                        <li key={index} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                            <pre className="whitespace-pre-wrap break-all text-xs">
+                                                {JSON.stringify(item, null, 2)}
+                                            </pre>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-center text-gray-500">This collection is empty.</p>
+                            )
+                        ) : (
+                            typeof collectionContent === 'object' && collectionContent !== null ? (
+                                <pre className="whitespace-pre-wrap break-all text-xs">
+                                    {JSON.stringify(collectionContent, null, 2)}
+                                </pre>
+                            ) : (
+                                <p className="text-center text-gray-500">{collectionContent || "No content available."}</p>
+                            )
+                        )}
+                    </>
                 )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end rounded-b-2xl">
+              <button 
+                onClick={closeCollectionViewer} 
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
