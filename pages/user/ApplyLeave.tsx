@@ -1,17 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, Send, FileText, PieChart } from 'lucide-react';
-
-interface LeaveRequest {
-  id: number;
-  type: string;
-  from: string;
-  to: string;
-  days: number;
-  status: string;
-  reason: string;
-  appliedOn: string;
-}
+import { LeaveRequest, UserRole } from '../../types';
+import { sendSystemNotification } from '../../services/cloudService';
 
 const ApplyLeave: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -21,23 +12,25 @@ const ApplyLeave: React.FC = () => {
     reason: ''
   });
 
-  // Initialize history from localStorage
-  const [history, setHistory] = useState<LeaveRequest[]>(() => {
-    const saved = localStorage.getItem('leave_history');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse leave history", e);
-      }
-    }
-    return [];
-  });
+  const sessionId = localStorage.getItem('app_session_id') || '';
 
-  // Persist history to localStorage whenever it changes
+  // Initialize history from global storage filtered by current user
+  const [history, setHistory] = useState<LeaveRequest[]>([]);
+
   useEffect(() => {
-    localStorage.setItem('leave_history', JSON.stringify(history));
-  }, [history]);
+    const loadLeaveHistory = () => {
+        const saved = localStorage.getItem('global_leave_requests');
+        if (saved) {
+            try {
+                const all: LeaveRequest[] = JSON.parse(saved);
+                setHistory(all.filter(r => r.employeeId === sessionId).sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime()));
+            } catch (e) { console.error("Failed to parse leave history", e); }
+        }
+    };
+    loadLeaveHistory();
+    window.addEventListener('storage', loadLeaveHistory);
+    return () => window.removeEventListener('storage', loadLeaveHistory);
+  }, [sessionId]);
 
   const balances = [
     { type: 'Casual Leave', code: 'CL', available: 8, total: 12, color: 'text-blue-600', bg: 'bg-blue-50', bar: 'bg-blue-500' },
@@ -50,7 +43,7 @@ const ApplyLeave: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.startDate || !formData.endDate || !formData.reason) {
       alert("Please fill in all fields.");
@@ -62,49 +55,66 @@ const ApplyLeave: React.FC = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
     
-    // Validation: Start date cannot be in the past
     if (start < today) {
        alert("You cannot apply for leave in the past.");
        return;
     }
 
-    // Validation: End date cannot be before start date
     if (end < start) {
       alert("End date cannot be earlier than start date.");
       return;
     }
     
-    // Simple day calculation (inclusive)
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
+    const employeeName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'Employee';
+    const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+
     const newLeave: LeaveRequest = {
-      id: Date.now(),
+      id: `LV-${Date.now()}`,
+      employeeId: sessionId,
+      employeeName: employeeName,
+      corporateId: corporateId,
       type: formData.type,
       from: formData.startDate,
       to: formData.endDate,
       days: isNaN(days) ? 1 : days,
       status: 'Pending',
       reason: formData.reason,
-      appliedOn: new Date().toISOString().split('T')[0]
+      appliedOn: new Date().toISOString()
     };
+
+    const savedRaw = localStorage.getItem('global_leave_requests');
+    const allRequests = savedRaw ? JSON.parse(savedRaw) : [];
+    localStorage.setItem('global_leave_requests', JSON.stringify([newLeave, ...allRequests]));
+
+    // NOTIFY ADMIN
+    await sendSystemNotification({
+        type: 'leave_request',
+        title: 'New Leave Request',
+        message: `${employeeName} requested ${newLeave.days} day(s) leave from ${newLeave.from}. Reason: ${newLeave.reason}`,
+        targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+        corporateId: corporateId === 'admin' ? undefined : corporateId,
+        employeeId: sessionId,
+        link: '/admin'
+    });
 
     setHistory([newLeave, ...history]);
     setFormData({ type: 'Casual Leave (CL)', startDate: '', endDate: '', reason: '' });
-    alert("Leave request submitted successfully!");
+    window.dispatchEvent(new Event('storage'));
+    alert("Leave request submitted successfully! It is now pending Admin approval.");
   };
 
-  // Get today's date in YYYY-MM-DD format for the min attribute
   const todayDate = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div>
         <h2 className="text-2xl font-bold text-gray-800">Leave Management</h2>
         <p className="text-gray-500">Check your balances and apply for new leaves</p>
       </div>
 
-      {/* Leave Balances Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {balances.map((bal, idx) => (
           <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between h-32 relative overflow-hidden">
@@ -134,7 +144,6 @@ const ApplyLeave: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Application Form */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -209,7 +218,6 @@ const ApplyLeave: React.FC = () => {
           </div>
         </div>
 
-        {/* History List */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
@@ -217,7 +225,6 @@ const ApplyLeave: React.FC = () => {
                  <Clock className="w-5 h-5 text-emerald-500" />
                  Recent History
                </h3>
-               <button className="text-sm text-emerald-600 font-medium hover:underline">View All</button>
             </div>
             
             <div className="divide-y divide-gray-100">
@@ -251,7 +258,7 @@ const ApplyLeave: React.FC = () => {
                    
                    <div className="flex justify-between items-end">
                       <p className="text-sm text-gray-500 italic">"{item.reason}"</p>
-                      <span className="text-xs text-gray-400">Applied on {item.appliedOn}</span>
+                      <span className="text-xs text-gray-400">Applied on {new Date(item.appliedOn).toLocaleDateString()}</span>
                    </div>
                 </div>
               ))}

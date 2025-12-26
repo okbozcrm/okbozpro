@@ -1,12 +1,12 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike } from 'lucide-react';
-/* FIX: Corrected import name from AppNotification to BozNotification to match types.ts export. */
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2 } from 'lucide-react';
 import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
-import { sendSystemNotification } from '../services/cloudService';
+import { sendSystemNotification, restoreFromCloud } from '../services/cloudService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,6 +43,7 @@ const MASTER_ADMIN_LINKS = [
 const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isEditingSidebar, setIsEditingSidebar] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { companyName, logoUrl, primaryColor } = useBranding();
@@ -67,7 +68,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return MASTER_ADMIN_LINKS;
   });
 
-  // NEW: Logic to find the specific Franchise Name for Corporate Panel
   const franchiseName = useMemo(() => {
     if (role === UserRole.CORPORATE) {
         try {
@@ -124,9 +124,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
   }, [role]);
 
-  // Handle counts for badges
   const updateBadges = () => {
-      // 1. KM Claims Badge
       try {
           const sessionId = localStorage.getItem('app_session_id');
           const saved = localStorage.getItem('global_travel_requests');
@@ -135,12 +133,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           if (role === UserRole.CORPORATE) {
               filtered = filtered.filter(r => r.corporateId === sessionId);
           } else if (role === UserRole.EMPLOYEE) {
-              filtered = []; // Employees don't see count of others
+              filtered = [];
           }
           setPendingTaCount(filtered.length);
       } catch (e) {}
 
-      // 2. Chat Badge
       try {
           const msgs = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
           const sessionId = localStorage.getItem('app_session_id');
@@ -164,52 +161,21 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
   }, [role, playAlarmSound]);
 
-  useEffect(() => {
-    const checkTaskReminders = async () => {
-        try {
-            const tasksJson = localStorage.getItem('tasks_data');
-            if (!tasksJson) return;
-            
-            const tasks: any[] = JSON.parse(tasksJson);
-            const now = new Date();
-            const sessionId = localStorage.getItem('app_session_id');
-            let hasUpdate = false;
-
-            const updatedTasks = tasks.map(task => {
-                if (task.assignedTo === sessionId && 
-                    task.reminderTime && 
-                    !task.reminderTriggered && 
-                    new Date(task.reminderTime) <= now) {
-                    
-                    sendSystemNotification({
-                        type: 'task_assigned',
-                        title: `Task Reminder: ${task.title}`,
-                        message: `Scheduled reminder for task: ${task.title}. Details: ${task.description.slice(0, 100)}...`,
-                        targetRoles: [role],
-                        employeeId: sessionId || undefined,
-                        link: role === UserRole.EMPLOYEE ? '/user/tasks' : '/admin/tasks'
-                    });
-
-                    hasUpdate = true;
-                    return { ...task, reminderTriggered: true };
-                }
-                return task;
-            });
-
-            if (hasUpdate) {
-                localStorage.setItem('tasks_data', JSON.stringify(updatedTasks));
-                window.dispatchEvent(new Event('storage'));
-            }
-        } catch (e) {
-            console.error("Task reminder background check failed", e);
-        }
-    };
-
-    const interval = setInterval(checkTaskReminders, 30000);
-    checkTaskReminders();
-
-    return () => clearInterval(interval);
-  }, [role]);
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+        await restoreFromCloud();
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('attendance-updated'));
+        console.log("App data refreshed from cloud.");
+    } catch (e) {
+        console.error("Manual refresh failed", e);
+    } finally {
+        // Minimum spinner time for visual feedback
+        setTimeout(() => setIsRefreshing(false), 800);
+    }
+  };
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
@@ -383,7 +349,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           </div>
           {(role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
              <div className="mt-4 p-2 border-t border-gray-100 dark:border-gray-700">
-                <button onClick={() => setIsEditingSidebar(!isEditingSidebar)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"><Edit2 className="w-4 h-4 text-gray-500 dark:text-gray-400" /> {isEditingSidebar ? 'Done Editing' : 'Edit Sidebar'}</button>
+                <button onClick={() => setIsEditingSidebar(!isEditingSidebar)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Edit2 className="w-4 h-4 text-gray-500 dark:text-gray-400" /> {isEditingSidebar ? 'Done Editing' : 'Edit Sidebar'}</button>
              </div>
           )}
           {role === UserRole.EMPLOYEE && isInstallable && (
@@ -403,7 +369,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             </h1>
           </div>
 
-          {/* NEW: Centered Franchise Name for Corporate Users */}
           {role === UserRole.CORPORATE && franchiseName && (
               <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex flex-col items-center animate-in fade-in slide-in-from-top-2 duration-700">
                   <div className="flex items-center gap-2">
@@ -415,8 +380,18 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           )}
 
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 border-r border-gray-100 dark:border-gray-700 pr-3 mr-1">
+                <button 
+                  onClick={handleManualRefresh} 
+                  disabled={isRefreshing}
+                  className={`p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${isRefreshing ? 'opacity-50' : 'hover:scale-105'}`}
+                  title="Refresh Data"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`} />
+                </button>
+            </div>
+
             <div className="flex items-center gap-3 mr-1 pl-3 border-l border-gray-100 dark:border-gray-700 hidden sm:flex">
-                {/* Profile Text - Hidden for Franchise as requested */}
                 {role !== UserRole.CORPORATE && (
                     <div className="text-right">
                         <p className="text-sm font-semibold text-gray-800 dark:text-white leading-tight">{userName}</p>

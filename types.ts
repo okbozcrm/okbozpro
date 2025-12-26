@@ -72,6 +72,20 @@ export interface Employee {
   moduleAccess?: string[]; 
 }
 
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  corporateId: string;
+  type: string;
+  from: string;
+  to: string;
+  days: number;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  reason: string;
+  appliedOn: string;
+}
+
 export interface TravelAllowanceRequest {
   id: string;
   employeeId: string;
@@ -198,7 +212,7 @@ export interface SalaryAdvanceRequest {
 
 export interface BozNotification {
   id: string;
-  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry';
+  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry' | 'leave_approval';
   title: string;
   message: string;
   timestamp: string; 
