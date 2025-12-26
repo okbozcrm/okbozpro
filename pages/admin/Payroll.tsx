@@ -158,7 +158,7 @@ const Payroll: React.FC = () => {
           const unpaidAdvances = advances.filter(a => a.employeeId === emp.id && a.status === 'Approved').reduce((s, i) => s + (i.amountApproved || 0), 0);
           
           const travelIncentive = kmClaims
-              .filter(r => r.employeeId === emp.id && r.status === 'Approved' && r.date.startsWith(selectedMonth))
+              .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth))
               .reduce((sum, r) => sum + r.totalAmount, 0);
 
           newPayrollData[emp.id] = {
@@ -350,7 +350,7 @@ const Payroll: React.FC = () => {
                               return (
                                   <tr key={emp.id} className="hover:bg-gray-50/50">
                                       <td className="px-8 py-5 font-bold">{emp.name}</td>
-                                      <td className="px-4 py-5">{kmClaims.filter(r => r.employeeId === emp.id && r.status === 'Approved' && r.date.startsWith(selectedMonth)).length} Requests</td>
+                                      <td className="px-4 py-5">{kmClaims.filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth)).length} Requests</td>
                                       <td className="px-4 py-5 text-right font-black text-blue-600">₹{data.travelAllowance.toLocaleString()}</td>
                                       <td className="px-8 py-5 text-center"><span className="px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded">Added to Payroll</span></td>
                                   </tr>
