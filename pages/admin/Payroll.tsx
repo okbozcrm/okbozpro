@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   DollarSign, Save, Download, Filter, Search, Calculator, 
   RefreshCw, CheckCircle, Clock, X, Eye, CreditCard, 
@@ -73,7 +74,7 @@ const Payroll: React.FC = () => {
   const isSuperAdmin = sessionId === 'admin';
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
       let allHistory: any[] = [];
       const rootHistory = localStorage.getItem('payroll_history');
       if (rootHistory) allHistory = JSON.parse(rootHistory);
@@ -116,7 +117,7 @@ const Payroll: React.FC = () => {
           if (saved) allEmp = JSON.parse(saved).map((e: any) => ({...e, corporateId: sessionId, corporateName: 'My Franchise'}));
       }
       setEmployees(allEmp);
-  };
+  }, [isSuperAdmin, sessionId]);
 
   useEffect(() => {
     loadData();
@@ -127,59 +128,58 @@ const Payroll: React.FC = () => {
         window.removeEventListener('storage', triggerRefresh);
         window.removeEventListener('attendance-updated', triggerRefresh);
     };
-  }, [isSuperAdmin, sessionId]);
+  }, [loadData]);
 
   const departments = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))], [employees]);
 
   useEffect(() => {
+    const handleAutoCalculate = () => {
+      setIsCalculating(true);
+      const newPayrollData: Record<string, PayrollEntry> = {};
+      const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
+      const daysInMonth = new Date(year, monthStr, 0).getDate();
+
+      employees.forEach(emp => {
+          const monthlyCtc = parseFloat(emp.salary || '0');
+          const key = `attendance_data_${emp.id}_${year}_${monthStr-1}`;
+          const saved = localStorage.getItem(key);
+          const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
+          
+          let payableDays = 0;
+          attendance.forEach((day) => {
+              if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) {
+                  payableDays += 1;
+              } else if (day.status === AttendanceStatus.HALF_DAY) {
+                  payableDays += 0.5;
+              }
+          });
+
+          const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
+          const unpaidAdvances = advances.filter(a => a.employeeId === emp.id && a.status === 'Approved').reduce((s, i) => s + (i.amountApproved || 0), 0);
+          
+          const travelIncentive = kmClaims
+              .filter(r => r.employeeId === emp.id && r.status === 'Approved' && r.date.startsWith(selectedMonth))
+              .reduce((sum, r) => sum + r.totalAmount, 0);
+
+          newPayrollData[emp.id] = {
+              employeeId: emp.id,
+              basicSalary: Math.round(grossEarned * 0.5),
+              allowances: Math.round(grossEarned * 0.5),
+              travelAllowance: travelIncentive,
+              bonus: 0,
+              deductions: 0,
+              advanceDeduction: unpaidAdvances,
+              payableDays,
+              totalDays: daysInMonth,
+              status: 'Pending'
+          };
+      });
+      setPayrollData(newPayrollData);
+      setIsCalculating(false);
+    };
+
     handleAutoCalculate();
   }, [employees, advances, kmClaims, selectedMonth, refreshToggle]);
-
-  const handleAutoCalculate = () => {
-    setIsCalculating(true);
-    const newPayrollData: Record<string, PayrollEntry> = {};
-    const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
-    const daysInMonth = new Date(year, monthStr, 0).getDate();
-
-    employees.forEach(emp => {
-        const monthlyCtc = parseFloat(emp.salary || '0');
-        const key = `attendance_data_${emp.id}_${year}_${monthStr-1}`;
-        const saved = localStorage.getItem(key);
-        const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
-        
-        let payableDays = 0;
-        attendance.forEach((day) => {
-            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) {
-                payableDays += 1;
-            } else if (day.status === AttendanceStatus.HALF_DAY) {
-                payableDays += 0.5;
-            }
-        });
-
-        const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
-        const unpaidAdvances = advances.filter(a => a.employeeId === emp.id && a.status === 'Approved').reduce((s, i) => s + (i.amountApproved || 0), 0);
-        
-        // Sum Approved KM Claims for this month
-        const travelIncentive = kmClaims
-            .filter(r => r.employeeId === emp.id && r.status === 'Approved' && r.date.startsWith(selectedMonth))
-            .reduce((sum, r) => sum + r.totalAmount, 0);
-
-        newPayrollData[emp.id] = {
-            employeeId: emp.id,
-            basicSalary: Math.round(grossEarned * 0.5),
-            allowances: Math.round(grossEarned * 0.5),
-            travelAllowance: travelIncentive,
-            bonus: 0,
-            deductions: 0,
-            advanceDeduction: unpaidAdvances,
-            payableDays,
-            totalDays: daysInMonth,
-            status: 'Pending'
-        };
-    });
-    setPayrollData(newPayrollData);
-    setIsCalculating(false);
-  };
 
   const calculateNetPay = (entry: PayrollEntry): number => 
     (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.deductions + entry.advanceDeduction);
@@ -216,12 +216,10 @@ const Payroll: React.FC = () => {
     if (window.confirm(`Confirm total payout of ${formatCurrency(payrollSummary.totalNet)}?`)) {
         setIsProcessingPayout(true);
         setTimeout(() => {
-            // Fix: Explicitly cast Object.values(payrollData) and reduce callback parameter 'e' to avoid 'unknown' type errors
             const entries = Object.values(payrollData) as PayrollEntry[];
             const netTotal = entries.reduce((s: number, e: PayrollEntry) => s + calculateNetPay(e), 0);
             const record = { id: Date.now().toString(), name: `Payout Batch ${selectedMonth}`, date: new Date().toISOString(), totalAmount: netTotal, employeeCount: filteredEmployees.length, data: payrollData };
             
-            // Mark included KM Claims as 'Paid'
             const allClaimsStr = localStorage.getItem('global_travel_requests');
             const allClaims: TravelAllowanceRequest[] = allClaimsStr ? JSON.parse(allClaimsStr) : [];
             const updatedClaims = allClaims.map((r: TravelAllowanceRequest) => {
@@ -230,7 +228,6 @@ const Payroll: React.FC = () => {
             });
             localStorage.setItem('global_travel_requests', JSON.stringify(updatedClaims));
 
-            // Mark included Advances as 'Paid'
             const allAdvancesStr = localStorage.getItem('salary_advances');
             const allAdvances: SalaryAdvanceRequest[] = allAdvancesStr ? JSON.parse(allAdvancesStr) : [];
             const updatedAdvances = allAdvances.map((a: SalaryAdvanceRequest) => {
@@ -240,8 +237,6 @@ const Payroll: React.FC = () => {
             });
             localStorage.setItem('salary_advances', JSON.stringify(updatedAdvances));
 
-            // SEND SYSTEM NOTIFICATIONS TO EACH EMPLOYEE
-            // Fix: Use explicitly typed 'entries' and 'entry' to avoid access errors on 'unknown' type
             entries.forEach((entry: PayrollEntry) => {
                 const amount = calculateNetPay(entry);
                 if (amount > 0) {
@@ -296,7 +291,10 @@ const Payroll: React.FC = () => {
                     <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black" />
                     {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => setFilterCorporate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black"><option value="All">All Corporates</option>{corporatesList.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}</select>)}
                 </div>
-                <div className="flex gap-2"><button onClick={handleAutoCalculate} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button><button onClick={handleProcessPayout} disabled={isProcessingPayout} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50">{isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}Process Payouts</button></div>
+                <div className="flex gap-2">
+                    <button onClick={() => setRefreshToggle(v => v + 1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
+                    <button onClick={handleProcessPayout} disabled={isProcessingPayout} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50">{isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}Process Payouts</button>
+                </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">

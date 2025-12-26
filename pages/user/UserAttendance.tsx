@@ -9,14 +9,14 @@ import {
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
   History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield,
-  Coffee, RefreshCw
+  Coffee, RefreshCw, AlertCircle, Check
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   AreaChart, Area 
 } from 'recharts';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount, UserRole, PunchRecord } from '../../types';
+import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount, UserRole, PunchRecord, LeaveRequest } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
 
 interface UserAttendanceProps {
@@ -71,13 +71,14 @@ const formatDuration = (mins: number) => {
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status'>('Dashboard');
+  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Daily Status' | 'Leave Requests'>('Dashboard');
   
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [attendanceData, setAttendanceData] = useState<DailyAttendance[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   
   const [refreshToggle, setRefreshToggle] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -141,6 +142,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             const defaultEmp = isAdmin ? allStaff[0] : allStaff.find(e => e.id === currentSessionId);
             setSelectedEmployee(defaultEmp || allStaff[0]);
         }
+
+        // Load Leave Requests
+        const leaves = JSON.parse(localStorage.getItem('global_leave_requests') || '[]');
+        if (isSuperAdmin) setLeaveRequests(leaves);
+        else {
+            const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId;
+            setLeaveRequests(leaves.filter((l: any) => l.corporateId === ownerId));
+        }
     };
     loadData();
   }, [isAdmin, isSuperAdmin, currentSessionId, refreshToggle]);
@@ -178,7 +187,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const data = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, month);
         const record = data.find((d: any) => d.date === selectedDate) || { date: selectedDate, status: AttendanceStatus.NOT_MARKED, punches: [] };
         
-        // AUTO-ABSENT LOGIC: If date is today or past and no punch exists, treat as Absent in view
         let displayStatus = record.status;
         if (displayStatus === AttendanceStatus.NOT_MARKED && selectedDate <= todayDateStr) {
             displayStatus = AttendanceStatus.ABSENT;
@@ -189,7 +197,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   }, [filteredStaffList, selectedDate, isAdmin, todayDateStr, refreshToggle]);
 
   const dashboardStats = useMemo(() => {
-    // SCENARIO 1: Individual View (Employee or Admin looking at a specific staff's month)
     if (!isAdmin || (isAdmin && activeTab === 'Dashboard' && selectedEmployee)) {
         let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, holidays = 0, weekOff = 0, onField = 0;
         const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
@@ -214,16 +221,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         });
         return { 
             total: attendanceData.length, 
-            present, absent, late, halfDay, leave, holidays, weekOff, onField 
+            present, absent, late, halfDay, leave, holidays, weekOff, onField,
+            pendingLeaves: leaveRequests.filter(l => l.status === 'Pending').length
         };
     }
 
-    // SCENARIO 2: Admin Daily Status View (Aggregated for all staff for selected date)
     const presentLogs = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.PRESENT || l.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY);
     const present = presentLogs.length;
     const onField = presentLogs.filter(l => l.attendanceConfig?.locationRestriction === 'Anywhere').length;
-    
-    // Absent includes explicit ABSENT and auto-calculated ABSENT (previously NOT_MARKED)
     const absent = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.ABSENT).length;
     const late = staffDailyLogs.filter(l => l.dailyRecord.isLate).length;
     const halfDay = staffDailyLogs.filter(l => l.dailyRecord.status === AttendanceStatus.HALF_DAY).length;
@@ -233,9 +238,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     
     return { 
         total: filteredStaffList.length, 
-        present, absent, late, halfDay, leave, holidays, weekOff, onField 
+        present, absent, late, halfDay, leave, holidays, weekOff, onField,
+        pendingLeaves: leaveRequests.filter(l => l.status === 'Pending').length
     };
-  }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, activeTab, selectedEmployee, todayDateStr, refreshToggle]);
+  }, [filteredStaffList, staffDailyLogs, attendanceData, isAdmin, activeTab, selectedEmployee, todayDateStr, refreshToggle, leaveRequests]);
 
   const availableBranchesList = useMemo(() => {
     if (filterCorporate === 'All') return branches;
@@ -272,6 +278,31 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       window.dispatchEvent(new CustomEvent('attendance-updated'));
       window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
       setIsEditModalOpen(false);
+  };
+
+  const handleLeaveAction = async (id: string, status: 'Approved' | 'Rejected') => {
+      if (!window.confirm(`Are you sure you want to ${status.toLowerCase()} this leave request?`)) return;
+      
+      const key = 'global_leave_requests';
+      const all: LeaveRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = all.map(r => r.id === id ? { ...r, status } : r);
+      localStorage.setItem(key, JSON.stringify(updated));
+      
+      const req = all.find(r => r.id === id);
+      if (req) {
+          await sendSystemNotification({
+              type: 'leave_approval',
+              title: `Leave Request ${status}`,
+              message: `Your ${req.type} for ${req.from} has been ${status.toLowerCase()}.`,
+              targetRoles: [UserRole.EMPLOYEE],
+              employeeId: req.employeeId,
+              link: '/user/apply-leave'
+          });
+      }
+
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
+      setRefreshToggle(v => v + 1);
   };
 
   const handleMarkStatusRange = async (status: AttendanceStatus) => {
@@ -379,6 +410,85 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     setAttendanceData(updated);
     setIsPunchedIn(action === 'In');
     setIsPunching(false); 
+  };
+
+  const renderLeaveRequests = () => {
+    const pending = leaveRequests.filter(l => l.status === 'Pending').sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
+    const history = leaveRequests.filter(l => l.status !== 'Pending').sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
+                <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-gray-50/30">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-rose-50 rounded-xl text-rose-600"><Plane className="w-5 h-5" /></div>
+                        <h3 className="font-black text-gray-800 uppercase tracking-widest text-sm">Pending Leave Applications ({pending.length})</h3>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
+                            <tr>
+                                <th className="px-10 py-8">Staff Name</th>
+                                <th className="px-10 py-8">Leave Type</th>
+                                <th className="px-10 py-8">Duration</th>
+                                <th className="px-10 py-8">Reason</th>
+                                <th className="px-10 py-8 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {pending.map((req, i) => (
+                                <tr key={i} className="hover:bg-gray-50/50 transition-all group">
+                                    <td className="px-10 py-8"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-lg border border-indigo-100 shadow-sm">{req.employeeName.charAt(0)}</div><div><p className="font-black text-gray-800 tracking-tight">{req.employeeName}</p><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ID: {req.employeeId}</p></div></div></td>
+                                    <td className="px-10 py-8"><span className="px-3 py-1.5 bg-rose-50 text-rose-700 text-[10px] font-black uppercase rounded-lg border border-rose-100">{req.type}</span></td>
+                                    <td className="px-10 py-8">
+                                        <p className="font-bold text-gray-800 text-sm">{new Date(req.from).toLocaleDateString()} - {new Date(req.to).toLocaleDateString()}</p>
+                                        <p className="text-[10px] text-gray-400 font-black">{req.days} Day(s)</p>
+                                    </td>
+                                    <td className="px-10 py-8 max-w-xs"><p className="text-sm text-gray-600 truncate italic" title={req.reason}>"{req.reason}"</p></td>
+                                    <td className="px-10 py-8 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => handleLeaveAction(req.id, 'Approved')} className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all transform active:scale-90"><Check className="w-5 h-5"/></button>
+                                            <button onClick={() => handleLeaveAction(req.id, 'Rejected')} className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 hover:bg-rose-100 transition-all transform active:scale-90"><X className="w-5 h-5"/></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {pending.length === 0 && (
+                                <tr><td colSpan={5} className="py-24 text-center text-gray-300 italic"><div className="flex flex-col items-center gap-2"><CheckCircle className="w-12 h-12 opacity-20" /><p className="font-black uppercase tracking-widest text-xs">No pending leave requests</p></div></td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-xl overflow-hidden">
+                <div className="p-6 border-b border-gray-50 bg-gray-50/30 flex items-center gap-2">
+                    <History className="w-4 h-4 text-gray-400" />
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Leave Processing History</h4>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                        <thead className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
+                            <tr><th className="px-10 py-5">Staff Member</th><th className="px-10 py-5">Type</th><th className="px-10 py-5">Dates</th><th className="px-10 py-5 text-center">Result</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {history.slice(0, 10).map((req, i) => (
+                                <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-10 py-5 font-bold text-gray-800">{req.employeeName}</td>
+                                    <td className="px-10 py-5 text-gray-500 font-medium">{req.type}</td>
+                                    <td className="px-10 py-5 text-gray-400">{req.from} → {req.to}</td>
+                                    <td className="px-10 py-5 text-center">
+                                        <span className={`px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-widest ${req.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{req.status}</span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
   };
 
   const renderDailyStatus = () => (
@@ -576,13 +686,30 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 rounded-2xl"><Calendar className="w-8 h-8 text-emerald-600" /></div><div><h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2><p className="text-gray-400 text-sm font-bold uppercase tracking-widest">{isAdmin ? "Track monthly shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}</p></div></div>
-        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">{['Dashboard', 'Daily Status'].map((tab) => <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{tab === 'Daily Status' ? <div className="flex items-center gap-2"><Timer className="w-4 h-4" /> Daily Status</div> : tab}</button>)}</div>
+        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
+            {['Dashboard', 'Daily Status', 'Leave Requests'].map((tab) => {
+                if (!isAdmin && (tab === 'Daily Status' || tab === 'Leave Requests')) return null;
+                return (
+                    <button 
+                        key={tab} 
+                        onClick={() => setActiveTab(tab as any)} 
+                        className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        {tab === 'Daily Status' ? <Timer className="w-4 h-4" /> : tab === 'Leave Requests' ? <Plane className="w-4 h-4" /> : null}
+                        {tab}
+                        {tab === 'Leave Requests' && dashboardStats.pendingLeaves > 0 && (
+                            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{dashboardStats.pendingLeaves}</span>
+                        )}
+                    </button>
+                );
+            })}
+        </div>
       </div>
 
       <div className="space-y-8 animate-in zoom-in-95 duration-500">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
               {[
-                  { label: isAdmin && activeTab === 'Daily Status' ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
+                  { label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
                   { label: 'WEEK OFF', val: dashboardStats.weekOff, icon: Coffee, color: 'text-slate-700', bg: 'bg-slate-50' },
                   { label: 'PRESENT', val: dashboardStats.present, icon: UserCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
                   { label: 'ABSENT', val: dashboardStats.absent, icon: UserX, color: 'text-rose-700', bg: 'bg-rose-50' },
@@ -673,7 +800,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
               </>
           )}
 
-          {activeTab === 'Daily Status' && renderDailyStatus()}
+          {activeTab === 'Daily Status' && isAdmin && renderDailyStatus()}
+          {activeTab === 'Leave Requests' && isAdmin && renderLeaveRequests()}
       </div>
 
       {isEditModalOpen && editingRecord && isAdmin && (

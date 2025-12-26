@@ -55,17 +55,10 @@ const Dashboard = () => {
   const isSuperAdmin = sessionId === 'admin';
 
   // --- State ---
-  const [filterCorporate, setFilterCorporate] = useState<string>('All');
-  const [filterBranch, setFilterBranch] = useState<string>('All');
-  const [filterType, setFilterType] = useState<'Daily' | 'Monthly'>('Daily');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
-
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const [enquiries, setEnquiries] = useState<ExtendedEnquiry[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
   const [pendingActions, setPendingActions] = useState<DashboardAction[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -116,18 +109,7 @@ const Dashboard = () => {
     const scopedEnqs = isSuperAdmin ? enqsRaw : enqsRaw.filter(e => e.assignedCorporate === sessionId);
     setEnquiries(scopedEnqs);
 
-    // 6. Trips
-    let allTrips: Trip[] = [];
-    const adminTrips = JSON.parse(localStorage.getItem('trips_data') || '[]');
-    allTrips = [...adminTrips.map((t: any) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
-    corps.forEach((c: any) => {
-        const cTrips = JSON.parse(localStorage.getItem(`trips_data_${c.email}`) || '[]');
-        allTrips = [...allTrips, ...cTrips.map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
-    });
-    const scopedTrips = isSuperAdmin ? allTrips : allTrips.filter(t => t.ownerId === sessionId);
-    setTrips(scopedTrips);
-
-    // 7. Action Center Items
+    // 6. Action Center Items
     let actions: DashboardAction[] = [];
     
     // TA Claims
@@ -168,7 +150,7 @@ const Dashboard = () => {
         }
     });
 
-    // LEAVE REQUESTS (NEW)
+    // LEAVE REQUESTS
     const leaveRequests: LeaveRequest[] = JSON.parse(localStorage.getItem('global_leave_requests') || '[]');
     leaveRequests.filter(r => r.status === 'Pending').forEach(r => {
         if (isSuperAdmin || r.corporateId === sessionId) {
@@ -188,6 +170,17 @@ const Dashboard = () => {
 
     setPendingActions(actions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   }, [isSuperAdmin, sessionId]);
+
+  // Sync with storage changes from other tabs/components
+  useEffect(() => {
+    const handleStorage = () => setRefreshToggle(v => v + 1);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('attendance-updated', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('attendance-updated', handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     loadAllData();
@@ -256,16 +249,17 @@ const Dashboard = () => {
       }
 
       window.dispatchEvent(new Event('storage'));
-      setRefreshToggle(v => v + 1);
-      alert(`Successfully ${newStatus.toLowerCase()}!`);
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
+      setRefreshToggle(prev => prev + 1);
   };
 
   const statsSummary = useMemo(() => {
     const totalStaff = employees.length;
     const pendingCount = pendingActions.length;
     const pendingLeaves = pendingActions.filter(a => a.type === 'LEAVE_REQUEST').length;
-    const conversions = enquiries.filter(e => e.status === 'Booked' || e.status === 'Completed').length;
-    return { totalStaff, pendingCount, pendingLeaves, conversions };
+    const pendingKmClaims = pendingActions.filter(a => a.type === 'TA_CLAIM').length;
+    const conversions = enquiries.filter(e => e.status === 'Booked' || e.status === 'Completed' || e.status === 'Order Accepted' || e.status === 'Converted').length;
+    return { totalStaff, pendingCount, pendingLeaves, pendingKmClaims, conversions };
   }, [employees, pendingActions, enquiries]);
 
   return (
@@ -290,7 +284,7 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={`grid grid-cols-2 ${isSuperAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
                   {isSuperAdmin && (
                     <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Staff</p>
@@ -300,21 +294,28 @@ const Dashboard = () => {
                         </div>
                     </div>
                   )}
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/attendance')}>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pending Leaves</p>
                       <div className="flex justify-between items-end">
                         <h3 className="text-3xl font-black text-rose-600">{statsSummary.pendingLeaves}</h3>
                         <Plane className="w-6 h-6 text-rose-500 opacity-20" />
                       </div>
                   </div>
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/km-claims')}>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pending KM</p>
+                      <div className="flex justify-between items-end">
+                        <h3 className="text-3xl font-black text-emerald-600">{statsSummary.pendingKmClaims}</h3>
+                        <Bike className="w-6 h-6 text-emerald-500 opacity-20" />
+                      </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/customer-care')}>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Enquiry Convs.</p>
                       <div className="flex justify-between items-end">
                         <h3 className="text-3xl font-black text-blue-600">{statsSummary.conversions}</h3>
                         <TrendingUp className="w-6 h-6 text-blue-500 opacity-20" />
                       </div>
                   </div>
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36">
+                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/branches')}>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Branches</p>
                       <div className="flex justify-between items-end">
                         <h3 className="text-3xl font-black text-purple-600">{branches.length}</h3>
@@ -371,7 +372,7 @@ const Dashboard = () => {
                       </div>
                       <button 
                         onClick={() => setRefreshToggle(v => v + 1)}
-                        className="p-2.5 bg-white hover:bg-gray-100 rounded-xl transition-all border border-gray-200 text-gray-400 hover:text-emerald-600 shadow-sm"
+                        className="p-2.5 bg-white hover:bg-gray-100 rounded-xl border border-gray-200 text-gray-400 hover:text-emerald-600 shadow-sm transition-all"
                       >
                           <RefreshCcw className="w-4 h-4" />
                       </button>

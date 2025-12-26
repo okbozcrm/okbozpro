@@ -100,6 +100,38 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const [pendingTaCount, setPendingTaCount] = useState(0);
   const prevChatCountRef = useRef(0);
 
+  // FETCH EMPLOYEE PERMISSIONS
+  useEffect(() => {
+    if (role === UserRole.EMPLOYEE) {
+      const sessionId = localStorage.getItem('app_session_id');
+      if (!sessionId) return;
+
+      let foundEmp: Employee | null = null;
+      
+      // 1. Search Admin Staff
+      try {
+        const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+        foundEmp = adminStaff.find((e: Employee) => e.id === sessionId);
+      } catch(e) {}
+
+      // 2. Search Corporate Staff
+      if (!foundEmp) {
+        try {
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          for (const corp of corps) {
+            const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
+            foundEmp = corpStaff.find((e: Employee) => e.id === sessionId);
+            if (foundEmp) break;
+          }
+        } catch(e) {}
+      }
+
+      if (foundEmp && foundEmp.moduleAccess) {
+        setEmployeePermissions(foundEmp.moduleAccess);
+      }
+    }
+  }, [role]);
+
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
@@ -296,6 +328,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     });
     
     const finalLinks = [...baseLinks];
+    // Add custom links at index 5 (before Profile)
     finalLinks.splice(5, 0, ...addedLinks);
     return finalLinks;
   }, [employeePermissions]);
