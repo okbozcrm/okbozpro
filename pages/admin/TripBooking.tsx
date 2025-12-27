@@ -4,7 +4,7 @@ import {
   Plus, Search, X, Save,
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
-  TrendingUp, CheckCircle, XCircle, DollarSign, Activity
+  TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car
 } from 'lucide-react';
 import { UserRole, CorporateAccount } from '../../types';
 import AiAssistant from '../../components/AiAssistant';
@@ -643,7 +643,7 @@ export const TripBooking: React.FC = () => {
 
       {/* Boz Chat integration for specific trip queries */}
       <AiAssistant 
-        systemInstruction="You are Boz Chat, a specialist AI assistant for Trip Booking and Fleet Management. You help admins analyze trip manifest data, revenue patterns, and cancellation trends. Answer questions regarding pricing rules, revenue sharing, and operational efficiency based on the current trip manifest."
+        systemInstruction="You are an AI assistant specialized in Trip Booking and Fleet Management. You help admins analyze trip manifest data, revenue patterns, and cancellation trends. Answer questions regarding pricing rules, revenue sharing, and operational efficiency based on the current trip manifest."
         initialMessage="Hello! I'm your Trip Analytics assistant. Need help reviewing the manifest or calculating revenues?"
         triggerButtonLabel="Trip AI"
       />

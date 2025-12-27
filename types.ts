@@ -61,21 +61,23 @@ export interface Employee {
   department: string;
   avatar: string;
   joiningDate: string;
-  email?: string;
-  phone?: string;
+  email: string;
+  phone: string;
+  password: string;
   branch?: string;
   paymentCycle?: string;
   salary?: string;
-  status?: string;
+  status: string;
   workingHours?: string;
   weekOff?: string;
   aadhar?: string;
   pan?: string;
   accountNumber?: string;
   ifsc?: string;
-  password?: string;
+  upiId?: string;
   liveTracking?: boolean;
   profileEditCount?: number;
+  dob?: string;
   gender?: string;
   bloodGroup?: string;
   maritalStatus?: string;
@@ -83,16 +85,16 @@ export interface Employee {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
-  emergencyContactRelationOther?: string;
   shift?: string;
-  attendanceConfig?: {
+  attendanceConfig: {
     punchMethod: 'Manual' | 'QR' | 'Disabled';
     locationRestriction: 'Branch' | 'Anywhere';
     gpsGeofencing?: boolean;
     qrScan?: boolean;
     manualPunch?: boolean;
+    workMode?: 'Remote' | 'Office';
   };
-  moduleAccess?: string[]; 
+  moduleAccess: string[]; 
 }
 
 export interface LeaveRequest {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -275,7 +276,7 @@ const Reports: React.FC = () => {
 
     const vehicles: Record<string, number> = {};
     completed.forEach(t => { vehicles[t.transportType] = (vehicles[t.transportType] || 0) + 1; });
-    const vehicleData = Object.keys(vehicles).map(k => ({ name: k, value: vehicles[k] }));
+    const vehicleData = Object.keys(vehicles).map(k => ({ name: k, amount: vehicles[k] })).sort((a,b) => b.amount - a.amount);
 
     const branchRev: Record<string, number> = {};
     completed.forEach(t => { branchRev[t.branch] = (branchRev[t.branch] || 0) + (Number(t.totalPrice) || 0); });
@@ -516,7 +517,8 @@ const Reports: React.FC = () => {
                           <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Car className="w-5 h-5 text-emerald-500" /> Vehicle Preference</h3>
                           <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
-                                  <Pie data={transportStats.vehicleData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{transportStats.vehicleData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}</Pie>
+                                  {/* FIX: Changed dataKey from "value" to "amount" to match data structure */}
+                                  <Pie data={transportStats.vehicleData} dataKey="amount" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{transportStats.vehicleData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}</Pie>
                                   <Tooltip /><Legend verticalAlign="bottom" height={36} />
                               </PieChart>
                           </ResponsiveContainer>

@@ -12,7 +12,8 @@ import Settings from './pages/admin/Settings';
 import EmployeeSettings from './pages/admin/EmployeeSettings'; 
 import Expenses from './pages/admin/Expenses';
 import LiveTracking from './pages/admin/LiveTracking';
-import VendorAttachment from './pages/admin/VendorAttachment';
+// FIX: Changed import to a named import as VendorAttachment is not a default export
+import { VendorAttachment } from './pages/admin/VendorAttachment';
 import Corporate from './pages/admin/Corporate';
 import SubAdminManagement from './pages/admin/SubAdminManagement'; // Added
 import Documents from './pages/Documents';

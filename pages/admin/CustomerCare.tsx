@@ -1296,7 +1296,6 @@ Book now with OK BOZ Transport!`;
                   </div>
                   {isPhoneChecked && (
                       <div className={`text-xs px-2 py-1 rounded-md mb-4 flex items-center gap-1 font-bold ${phoneLookupResult === 'Existing' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {phoneLookupResult === 'Existing' ? <CheckCircleIcon className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                           {phoneLookupResult === 'Existing' ? 'Existing Customer/Vendor' : 'New Customer'}
                       </div>
                   )}
@@ -1352,7 +1351,7 @@ Book now with OK BOZ Transport!`;
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     {isSuperAdmin && (
                                         <select className="p-2.5 border border-gray-300 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
-                                            <option value="admin">Head Office</option>
+                                            <option value="admin">Head Office (Internal)</option>
                                             {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
                                         </select>
                                     )}
@@ -1541,13 +1540,13 @@ Book now with OK BOZ Transport!`;
 
                                   <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 shadow-inner">
                                       <label className="block text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                          <Building2 className="w-4 h-4 text-emerald-500" /> Assign & Route Enquiry
+                                          <Building2 className="w-4 h-4" /> Assign & Route Enquiry
                                       </label>
                                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                           {isSuperAdmin && (
                                               <div className="space-y-1.5">
                                                 <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Corporate Partner</label>
-                                                <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
+                                                <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500" value={assignment.corporateId} onChange={(e) => setAssignment({...assignment, corporateId: e.target.value, branchName: '', staffId: ''})}>
                                                     <option value="admin">Head Office (Internal)</option>
                                                     {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
                                                 </select>
@@ -1555,14 +1554,14 @@ Book now with OK BOZ Transport!`;
                                           )}
                                           <div className="space-y-1.5">
                                               <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Local Branch</label>
-                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
+                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500" value={assignment.branchName} onChange={(e) => setAssignment({...assignment, branchName: e.target.value, staffId: ''})}>
                                                   <option value="">All Branches</option>
                                                   {filteredBranches.map((b: any) => (<option key={b.id} value={b.name}>{b.name}</option>))}
                                               </select>
                                           </div>
                                           <div className="space-y-1.5">
                                               <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Assigned Agent</label>
-                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
+                                              <select className="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-black bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500" value={assignment.staffId} onChange={(e) => setAssignment({...assignment, staffId: e.target.value})}>
                                                   <option value="">Choose Agent</option>
                                                   {filteredStaff.map((s: any) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                                               </select>

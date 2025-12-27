@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, Car, Phone, Mail, Trash2, 
   Sparkles, MessageCircle, Send, User, MapPin, X, 
   MoreVertical, Filter, RefreshCcw, ChevronDown, Building2,
   Calendar, FileText, CheckSquare, Square, DollarSign, Save, Briefcase,
-  Users, CheckCircle, Clock, PhoneCall, List, Edit, Truck, Activity
+  Users, CheckCircle, Clock, PhoneCall, List, Edit, Truck, Activity, Info
 } from 'lucide-react';
 import AiAssistant from '../../components/AiAssistant';
 import ContactDisplay from '../../components/ContactDisplay';
@@ -62,7 +62,7 @@ const CITY_OPTIONS = ['Coimbatore', 'Trichy', 'Salem', 'Madurai', 'Chennai'];
 const VEHICLE_TYPE_OPTIONS = ['Cab', 'Load Xpress', 'Passenger Auto', 'Bike Taxi', 'Other'];
 const DOCUMENT_OPTIONS = ['Aadhaar Card', 'Driving License', 'RC Book', 'Insurance', 'Vehicle Permit', 'Full Document Received'];
 
-const VendorAttachment = () => {
+export const VendorAttachment = () => {
   // Determine Session Context
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
@@ -460,43 +460,24 @@ const VendorAttachment = () => {
                                           {vendor.status}
                                       </span>
                                   </td>
-                                  <td className="px-6 py-4 text-xs text-gray-500 max-w-xs truncate" title={vendor.existingDocuments}>
-                                      {vendor.existingDocuments || '-'}
+                                  <td className="px-6 py-4">
+                                      {(vendor.documentStatus || []).length > 0 ? (
+                                          <div className="flex flex-wrap gap-1">
+                                              {vendor.documentStatus.map((doc, idx) => (
+                                                  <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-medium">
+                                                      {doc.split(' ')[0]}
+                                                  </span>
+                                              ))}
+                                          </div>
+                                      ) : <span className="text-gray-400 text-xs">-</span>}
                                   </td>
                                   <td className="px-6 py-4 text-right">
-                                      <div className="flex justify-end gap-2">
-                                          <button 
-                                              onClick={() => { setSelectedVendor(vendor); }} 
-                                              className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded border border-blue-200 text-xs font-medium"
-                                          >
-                                              Details
-                                          </button>
-                                          <button 
-                                              onClick={() => {
-                                                  setFormData({
-                                                      ...initialFormState, // Reset then overwrite
-                                                      ...vendor,
-                                                      vehicleType: vendor.vehicleTypes[0] || '',
-                                                  });
-                                                  setEditingId(vendor.id); 
-                                                  setFormMode('Full');
-                                                  setIsModalOpen(true);
-                                              }}
-                                              className="text-gray-500 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
-                                              title="Edit Full Info"
-                                          >
-                                              <Edit className="w-4 h-4" />
-                                          </button>
-                                      </div>
+                                      <button onClick={() => { setSelectedVendor(vendor); setFormMode('Full'); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-800 text-xs font-bold">Manage</button>
                                   </td>
                               </tr>
                           ))}
                           {filteredVendors.length === 0 && (
-                              <tr>
-                                  <td colSpan={8} className="py-12 text-center text-gray-400">
-                                      No enquiries found.
-                                  </td>
-                              </tr>
+                            <tr><td colSpan={8} className="py-12 text-center text-gray-400 italic">No enquiries found. Add a new one!</td></tr>
                           )}
                       </tbody>
                   </table>
@@ -504,489 +485,309 @@ const VendorAttachment = () => {
           </div>
       )}
 
-      {/* 2. VENDOR LIST TAB (Existing Full View) */}
+      {/* 2. VENDOR LIST TAB */}
       {activeTab === 'List' && (
-          <div className="space-y-6 animate-in fade-in">
-              {/* Search & Filter Bar */}
-              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
-                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input 
-                      type="text" 
-                      placeholder="Search by owner name..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                 </div>
-                 <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 items-center">
-                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
-                    <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none cursor-pointer">
-                        <option value="All">All Cities</option>
-                        {CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none cursor-pointer">
-                        <option value="All">All Status</option>
-                        <option value="Active">Active</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Inactive">Inactive</option>
-                    </select>
-                    <button 
-                        onClick={() => { setFormData(initialFormState); setFormMode('Full'); setIsModalOpen(true); }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm"
-                    >
-                        <Plus className="w-4 h-4" /> Add Full Vendor
-                    </button>
-                 </div>
+          <div className="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in">
+              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50">
+                  <div className="relative flex-1 w-full md:max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input 
+                          type="text" 
+                          placeholder="Search vendors..." 
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                      <select 
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none"
+                      >
+                          <option value="All">All Status</option>
+                          <option value="Active">Active</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Inactive">Inactive</option>
+                      </select>
+                      <select 
+                          value={cityFilter}
+                          onChange={(e) => setCityFilter(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none"
+                      >
+                          <option value="All">All Cities</option>
+                          {CITY_OPTIONS.map(city => <option key={city} value={city}>{city}</option>)}
+                      </select>
+                      <select 
+                          value={vehicleFilter}
+                          onChange={(e) => setVehicleFilter(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none"
+                      >
+                          <option value="All">All Vehicles</option>
+                          {VEHICLE_TYPE_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                      {isSuperAdmin && (
+                          <select 
+                              value={ownerFilter}
+                              onChange={(e) => setOwnerFilter(e.target.value)}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none"
+                          >
+                              <option value="All">All Entities</option>
+                              <option value="admin">Head Office</option>
+                              {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                          </select>
+                      )}
+                      <button onClick={() => { setSearchTerm(''); setStatusFilter('All'); setCityFilter('All'); setVehicleFilter('All'); setCategoryFilter('All'); setOwnerFilter('All'); }} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200" title="Reset Filters"><RefreshCcw className="w-4 h-4" /></button>
+                  </div>
+                  <button 
+                    onClick={() => { setFormData(initialFormState); setFormMode('Full'); setIsModalOpen(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm"
+                  >
+                    <Plus className="w-4 h-4" /> New Vendor
+                  </button>
               </div>
-
-              {/* Vendors Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {filteredVendors.map(vendor => (
-                    <div 
-                        key={vendor.id} 
-                        onClick={() => setSelectedVendor(vendor)}
-                        className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group relative"
-                    >
-                        {isSuperAdmin && vendor.franchiseName && (
-                            <div className="absolute top-3 right-3 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1">
-                                <Building2 className="w-3 h-3" />
-                                {vendor.franchiseName}
-                            </div>
-                        )}
-
-                        <div className="p-6">
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                                 <Car className="w-6 h-6 text-blue-600" />
-                              </div>
-                              <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
-                                 vendor.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' :
-                                 vendor.status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                 'bg-red-50 text-red-600 border-red-200'
-                              }`}>
-                                 {vendor.status}
-                              </span>
-                           </div>
-                           
-                           <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">{vendor.ownerName}</h3>
-                           <p className="text-sm text-gray-500 mb-4 flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5" /> {vendor.city}
-                           </p>
-
-                           <div className="space-y-2 border-t border-gray-50 pt-3">
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                 <Phone className="w-4 h-4 text-gray-400" /> 
-                                 <span onClick={(e) => e.stopPropagation()}><ContactDisplay type="phone" value={vendor.phone} /></span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                 <Car className="w-4 h-4 text-gray-400" /> {vendor.vehicleTypes.join(', ')} • <strong>{vendor.fleetSize}</strong> Vehicle(s)
-                              </div>
-                           </div>
-                        </div>
-                        <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex justify-between items-center group-hover:bg-blue-50/30 transition-colors">
-                           <span className="text-sm font-medium text-emerald-600 group-hover:underline">View Details</span>
-                           <button onClick={(e) => handleDelete(vendor.id, vendor, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
-                              <Trash2 className="w-4 h-4" />
-                           </button>
-                        </div>
-                    </div>
-                 ))}
-
-                 {filteredVendors.length === 0 && (
-                     <div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-                         No vendors found. Add a new vendor to get started.
-                     </div>
-                 )}
+              <div className="flex-1 overflow-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200 sticky top-0 z-10">
+                          <tr>
+                              <th className="px-6 py-4">Vendor</th>
+                              <th className="px-6 py-4">Contact</th>
+                              <th className="px-6 py-4">Location</th>
+                              <th className="px-6 py-4">Vehicle Types</th>
+                              <th className="px-6 py-4">Fleet Size</th>
+                              <th className="px-6 py-4">Status</th>
+                              <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                          {filteredVendors.map(vendor => (
+                              <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4">
+                                      <div className="font-bold text-gray-900">{vendor.ownerName}</div>
+                                      {isSuperAdmin && vendor.franchiseName && (
+                                          <div className="text-xs text-indigo-600 font-bold flex items-center gap-1">
+                                              <Building2 className="w-3 h-3" /> {vendor.franchiseName}
+                                          </div>
+                                      )}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                      <ContactDisplay type="phone" value={vendor.phone} />
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{vendor.city}</td>
+                                  <td className="px-6 py-4">
+                                      <div className="flex flex-wrap gap-1">
+                                          {vendor.vehicleTypes.map((vType, idx) => (
+                                              <span key={idx} className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                                  {vType}
+                                              </span>
+                                          ))}
+                                      </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600 font-mono">{vendor.fleetSize}</td>
+                                  <td className="px-6 py-4">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                          vendor.status === 'Active' ? 'bg-green-100 text-green-700' :
+                                          vendor.status === 'Pending' ? 'bg-orange-100 text-orange-700' :
+                                          'bg-red-100 text-red-700'
+                                      }`}>
+                                          {vendor.status}
+                                      </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                      <div className="flex justify-end gap-2">
+                                          <button onClick={() => { setSelectedVendor(vendor); setFormMode('Full'); setIsModalOpen(true); }} className="text-blue-600 hover:text-blue-800 text-xs font-bold">Edit</button>
+                                          <button onClick={(e) => handleDelete(vendor.id, vendor, e)} className="text-red-600 hover:text-red-800 text-xs font-bold">Delete</button>
+                                      </div>
+                                  </td>
+                              </tr>
+                          ))}
+                          {filteredVendors.length === 0 && (
+                            <tr><td colSpan={7} className="py-12 text-center text-gray-400 italic">No vendors found matching your criteria.</td></tr>
+                          )}
+                      </tbody>
+                  </table>
               </div>
           </div>
       )}
 
-      {/* Add Vendor / Enquiry Form Modal */}
+      {/* --- ADD/EDIT MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    {formMode === 'Enquiry' ? <FileText className="w-5 h-5 text-emerald-600" /> : <Car className="w-5 h-5 text-emerald-600" />}
-                    {formMode === 'Enquiry' ? 'New Vendor Enquiry' : 'Full Vendor Attachment Form'}
-                 </h3>
-                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                 </button>
-              </div>
-              
-              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
-                 
-                 {/* Vendor and Vehicle Details Section (For Both Modes) */}
-                 <div className="bg-white border border-gray-200 rounded-xl p-4">
-                     <h4 className="font-bold text-gray-700 mb-4 border-b pb-2 text-sm flex items-center gap-2">
-                         <Car className="w-4 h-4 text-emerald-600" /> Vendor and Vehicle Details
-                     </h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name <span className="text-red-500">*</span></label>
-                            <input name="ownerName" value={formData.ownerName} onChange={handleInputChange} placeholder="Vendor Name" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone Number <span className="text-red-500">*</span></label>
-                            <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="10-digit number" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">City <span className="text-red-500">*</span></label>
-                            <select name="city" value={formData.city} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose City</option>
-                                {branches.length > 0 ? branches.map((b: any) => <option key={b.name} value={b.name}>{b.name}</option>) : CITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Vehicle Type <span className="text-red-500">*</span></label>
-                            <select name="vehicleType" value={formData.vehicleType} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                {VEHICLE_TYPE_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                            {formData.vehicleType === 'Other' && (
-                                <input name="vehicleTypeOther" value={formData.vehicleTypeOther} onChange={handleInputChange} placeholder="Specify Other" className="w-full mt-2 p-2 border border-gray-300 rounded-lg text-sm" />
-                            )}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Source <span className="text-red-500">*</span></label>
-                            <select name="source" value={formData.source} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Exist Driver</option>
-                                <option>Social Media</option>
-                                <option>Driver Reference</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Status</label>
-                            <select name="callStatus" value={formData.callStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Connected</option>
-                                <option>Not Picked</option>
-                                <option>Busy</option>
-                                <option>Switch Off</option>
-                                <option>Wrong Number</option>
-                            </select>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider Status <span className="text-red-500">*</span></label>
-                            <select name="riderStatus" value={formData.riderStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Owner</option>
-                                <option>Driver</option>
-                                <option>Owner cum Driver</option>
-                                <option>Acting Driver</option>
-                                <option>Load</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                            <select name="status" value={formData.status} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="Pending">Pending</option>
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fleet Size</label>
-                            <input type="number" name="fleetSize" value={formData.fleetSize} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" min="1" />
-                        </div>
-                        
-                        {/* Fields ONLY visible in Full Mode */}
-                        {formMode === 'Full' && (
-                            <>
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Existing Documents</label>
-                                    <input name="existingDocuments" value={formData.existingDocuments} onChange={handleInputChange} placeholder="e.g. RC, Insurance, License (comma separated)" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
-                                    <input name="email" value={formData.email} onChange={handleInputChange} placeholder="Email" className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
-                                </div>
-                            </>
-                        )}
-                     </div>
-                 </div>
-
-                 {/* Follow-up & Docs (Available for both modes as requested) */}
-                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Follow-up & Docs</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Followup Status</label>
-                            <select name="followUpStatus" value={formData.followUpStatus} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                <option value="">Choose</option>
-                                <option>Need to call back</option>
-                                <option>Ready to attach</option>
-                                <option>Already attached</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Follow Back Date</label>
-                            <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none" />
-                        </div>
-                        
-                        {/* Checkboxes ONLY visible in Full Mode */}
-                        {formMode === 'Full' && (
-                            <div className="col-span-2">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Documents Collected</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {DOCUMENT_OPTIONS.map(doc => (
-                                        <label key={doc} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                                            <div 
-                                                onClick={() => handleCheckboxChange(doc)}
-                                                className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${formData.documentStatus.includes(doc) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-400 bg-white'}`}
-                                            >
-                                                {formData.documentStatus.includes(doc) && <CheckSquare className="w-3 h-3" />}
-                                            </div>
-                                            {doc}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[95vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+              <h3 className="font-bold text-gray-800 text-lg">
+                {formMode === 'Enquiry' ? 'Log Vendor Enquiry' : (editingId ? 'Edit Vendor Details' : 'Add New Vendor')}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                {isSuperAdmin && (
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign to Entity</label>
+                        <select 
+                            name="ownerId" 
+                            value={formData.ownerId} 
+                            onChange={handleInputChange}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                        >
+                            <option value="admin">Head Office</option>
+                            {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                        </select>
                     </div>
-                 </div>
+                )}
+                
+                {formMode === 'Enquiry' && (
+                    <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg text-blue-700 text-sm flex items-start gap-2">
+                        <Info className="w-5 h-5 shrink-0" />
+                        <p>Logging a new vendor enquiry. This will be visible in the Vendor List upon submission.</p>
+                    </div>
+                )}
 
-                 {/* 2. Full Form Extras (Only if mode is Full) */}
-                 {formMode === 'Full' && (
-                     <>
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                            <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Administrative & Classification</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {isSuperAdmin && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign To (Franchise)</label>
-                                        <select 
-                                            name="ownerId" 
-                                            value={formData.ownerId} 
-                                            onChange={handleInputChange} 
-                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                        >
-                                            <option value="admin">Head Office</option>
-                                            {corporates.map((c: any) => (
-                                                <option key={c.email} value={c.email}>{c.companyName}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Employee Name <span className="text-red-500">*</span></label>
-                                    <select 
-                                        name="employeeId" 
-                                        value={formData.employeeId} 
-                                        onChange={handleInputChange} 
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                    >
-                                        <option value="">Choose Employee</option>
-                                        {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                                    <select 
-                                        name="category" 
-                                        value={formData.category} 
-                                        onChange={handleInputChange} 
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                    >
-                                        <option value="">Choose</option>
-                                        <option>Telecalling</option>
-                                        <option>Office Visit</option>
-                                        <option>Field Visit</option>
-                                    </select>
-                                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rider/Company Name *</label>
+                        <input 
+                            required
+                            name="ownerName"
+                            value={formData.ownerName}
+                            onChange={handleInputChange}
+                            placeholder="Name"
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contact Number *</label>
+                        <input 
+                            required
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleInputChange}
+                            placeholder="+91..."
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub Category</label>
-                                    <select 
-                                        name="subCategory" 
-                                        value={formData.subCategory} 
-                                        onChange={handleInputChange} 
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                    >
-                                        <option value="">Choose</option>
-                                        <option>Inbound</option>
-                                        <option>Outbound</option>
-                                        <option>Walk-in</option>
-                                        <option>Schedule</option>
-                                    </select>
-                                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">City</label>
+                        <select 
+                            name="city"
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                        >
+                            <option value="">Select City</option>
+                            {CITY_OPTIONS.map(city => <option key={city} value={city}>{city}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email (Optional)</label>
+                        <input 
+                            name="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={handleInputChange}
+                            placeholder="email@example.com"
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Call Category</label>
-                                    <select 
-                                        name="callCategory" 
-                                        value={formData.callCategory} 
-                                        onChange={handleInputChange} 
-                                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                    >
-                                        <option value="">Choose</option>
-                                        <option>New Call</option>
-                                        <option>Follow-up Call</option>
-                                        <option>Top-up Call</option>
-                                        <option>Document Call</option>
-                                        <option>Demo</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Primary Vehicle Type</label>
+                    <select 
+                        name="vehicleType"
+                        value={formData.vehicleType}
+                        onChange={handleInputChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                    >
+                        <option value="">Select Vehicle</option>
+                        {VEHICLE_TYPE_OPTIONS.map(vType => <option key={vType} value={vType}>{vType}</option>)}
+                    </select>
+                    {formData.vehicleType === 'Other' && (
+                        <input 
+                            name="vehicleTypeOther"
+                            value={formData.vehicleTypeOther}
+                            onChange={handleInputChange}
+                            placeholder="Specify other vehicle type"
+                            className="w-full p-2 mt-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    )}
+                </div>
 
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                            <h4 className="font-bold text-gray-700 mb-3 border-b pb-1 text-sm">Payments</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Recharge 99</label>
-                                    <select name="recharge99" value={formData.recharge99} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                        <option value="">Choose</option>
-                                        <option>Done</option>
-                                        <option>Pending</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Topup 100</label>
-                                    <select name="topup100" value={formData.topup100} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                                        <option value="">Choose</option>
-                                        <option>Done</option>
-                                        <option>Pending</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                     </>
-                 )}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fleet Size</label>
+                        <input 
+                            type="number"
+                            name="fleetSize"
+                            value={formData.fleetSize}
+                            onChange={handleInputChange}
+                            min="1"
+                            placeholder="1"
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                        <select 
+                            name="status"
+                            value={formData.status}
+                            onChange={handleInputChange}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
+                        >
+                            <option>Pending</option>
+                            <option>Active</option>
+                            <option>Inactive</option>
+                        </select>
+                    </div>
+                </div>
 
-                 {/* Remarks (Common) */}
-                 <div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Documents Received</label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                        {DOCUMENT_OPTIONS.map(doc => (
+                            <label key={doc} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input 
+                                    type="checkbox"
+                                    checked={formData.documentStatus.includes(doc)}
+                                    onChange={() => handleCheckboxChange(doc)}
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                {doc}
+                            </label>
+                        ))}
+                    </div>
+                    {formData.documentStatus.includes('Full Document Received') && (
+                        <p className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" /> All necessary documents marked as received.
+                        </p>
+                    )}
+                </div>
+
+                <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks</label>
                     <textarea 
                         name="remarks"
-                        rows={2}
                         value={formData.remarks}
                         onChange={handleInputChange}
-                        placeholder="Additional notes..."
-                        className="w-full p-3 border-b-2 border-gray-300 bg-gray-50 focus:border-emerald-500 focus:bg-white transition-colors outline-none resize-none text-sm"
+                        rows={3}
+                        placeholder="Additional notes about the vendor or enquiry..."
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     />
-                 </div>
+                </div>
 
-                 <div className="pt-4 flex justify-between items-center border-t border-gray-100">
-                    <button type="button" onClick={() => setFormData(initialFormState)} className="text-emerald-600 font-medium text-sm hover:underline">Clear form</button>
-                    <button type="submit" className="bg-emerald-600 text-white px-8 py-2.5 rounded-lg font-bold shadow-md hover:bg-emerald-700 transition-colors">Submit</button>
-                 </div>
-              </form>
-           </div>
+                <div className="pt-4 flex justify-end">
+                    <button type="submit" className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-colors">
+                        {formMode === 'Enquiry' ? 'Save Enquiry' : (editingId ? 'Update Vendor' : 'Add Vendor')}
+                    </button>
+                </div>
+            </form>
+          </div>
         </div>
       )}
-
-      {/* Detail Modal */}
-      {selectedVendor && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-               <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50 rounded-t-2xl">
-                  <div>
-                     <h3 className="text-xl font-bold text-gray-900">{selectedVendor.ownerName}</h3>
-                     <p className="text-sm text-gray-500">{selectedVendor.vehicleTypes.join(', ')} • {selectedVendor.city}</p>
-                  </div>
-                  <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                            setFormData({
-                                ...initialFormState, // Reset then overwrite
-                                ...selectedVendor,
-                                fleetSize: selectedVendor.fleetSize || 1,
-                                vehicleType: selectedVendor.vehicleTypes[0] || '',
-                                // Ensure nested arrays/objects are handled if any
-                            });
-                            setEditingId(selectedVendor.id); 
-                            setFormMode('Full');
-                            setIsModalOpen(true);
-                            setSelectedVendor(null);
-                        }}
-                        className="p-2 hover:bg-blue-100 text-blue-600 rounded-full transition-colors"
-                        title="Edit Full Details"
-                      >
-                          <Edit className="w-5 h-5" />
-                      </button>
-                      <button onClick={() => setSelectedVendor(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
-                         <X className="w-5 h-5" />
-                      </button>
-                  </div>
-               </div>
-               <div className="p-6 overflow-y-auto space-y-6">
-                   <div className="grid grid-cols-2 gap-4 text-sm">
-                       <div>
-                           <p className="text-gray-500 text-xs uppercase font-bold">Contact</p>
-                           <p className="font-medium text-gray-800"><ContactDisplay type="phone" value={selectedVendor.phone} /></p>
-                           {selectedVendor.email && <p className="text-xs text-gray-600"><ContactDisplay type="email" value={selectedVendor.email} /></p>}
-                       </div>
-                       <div>
-                           <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.status}</p>
-                       </div>
-                       <div>
-                           <p className="text-gray-500 text-xs uppercase font-bold">Fleet Size</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.fleetSize}</p>
-                       </div>
-                       <div>
-                           <p className="text-gray-500 text-xs uppercase font-bold">Attached By</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.employeeName || '-'}</p>
-                       </div>
-                       <div className="col-span-2">
-                           <p className="text-gray-500 text-xs uppercase font-bold">Existing Docs</p>
-                           <p className="font-medium text-gray-800">{selectedVendor.existingDocuments || '-'}</p>
-                       </div>
-                       {isSuperAdmin && selectedVendor.franchiseName && (
-                           <div className="col-span-2 mt-2 pt-2 border-t border-gray-100">
-                               <p className="text-indigo-600 text-xs uppercase font-bold flex items-center gap-1">
-                                   <Building2 className="w-3 h-3"/> {selectedVendor.franchiseName}
-                               </p>
-                           </div>
-                       )}
-                   </div>
-                   
-                   <div>
-                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Documents Collected</p>
-                       <div className="flex flex-wrap gap-2">
-                           {selectedVendor.documentStatus && selectedVendor.documentStatus.length > 0 ? (
-                               selectedVendor.documentStatus.map(doc => (
-                                   <span key={doc} className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded border border-green-200">{doc}</span>
-                               ))
-                           ) : <span className="text-gray-400 text-xs italic">No docs checked</span>}
-                       </div>
-                   </div>
-
-                   <div>
-                       <p className="text-gray-500 text-xs uppercase font-bold mb-2">Payments</p>
-                       <div className="flex gap-4 text-sm">
-                           <span className={selectedVendor.recharge99 === 'Done' ? 'text-green-600 font-bold' : 'text-gray-600'}>Recharge 99: {selectedVendor.recharge99 || '-'}</span>
-                           <span className={selectedVendor.topup100 === 'Done' ? 'text-green-600 font-bold' : 'text-gray-600'}>Topup 100: {selectedVendor.topup100 || '-'}</span>
-                       </div>
-                   </div>
-
-                   <div>
-                       <p className="text-gray-500 text-xs uppercase font-bold mb-1">Remarks</p>
-                       <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{selectedVendor.remarks || 'No remarks.'}</p>
-                   </div>
-
-                   <div className="flex gap-3 pt-4 border-t border-gray-100">
-                       <button onClick={() => handleCall(selectedVendor.phone)} className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors">Call</button>
-                       <button onClick={() => handleWhatsApp(selectedVendor.phone)} className="flex-1 bg-green-50 text-green-700 py-2 rounded-lg font-bold text-sm hover:bg-green-100 transition-colors">WhatsApp</button>
-                   </div>
-               </div>
-            </div>
-         </div>
-      )}
-
-      {/* Boz Chat (AI Assistant) */}
-      <AiAssistant 
-        systemInstruction="You are Boz Chat, an AI assistant for managing vehicle vendor attachments. Help users categorize vendors, suggest follow-up strategies, and summarize vendor details."
-        initialMessage="Hi, I'm Boz Chat! Need help categorizing a vendor or planning a follow-up?"
-        triggerButtonLabel="Boz Chat"
-      />
     </div>
   );
 };
-
-export default VendorAttachment;
