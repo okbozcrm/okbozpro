@@ -11,7 +11,7 @@ import {
   CheckCircle, Minus, Equal
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole } from '../../types';
+import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole, SalaryAdvanceRequest, TravelAllowanceRequest, DailyAttendance } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -40,12 +40,17 @@ const Reports: React.FC = () => {
   const [filterBranch, setFilterBranch] = useState<string>('All');
 
   const [expenses, setExpenses] = useState<any[]>([]);
-  const [payroll, setPayroll] = useState<any[]>([]);
+  // const [payroll, setPayroll] = useState<any[]>([]); // Removed old static payroll
   const [staff, setStaff] = useState<Employee[]>([]);
   const [trips, setTrips] = useState<any[]>([]);
   const [driverPayments, setDriverPayments] = useState<any[]>([]);
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
+  
+  // New State for Live Payroll Calculation
+  const [advances, setAdvances] = useState<SalaryAdvanceRequest[]>([]);
+  const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
+
   const [refreshToggle, setRefreshToggle] = useState(0);
 
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -91,10 +96,15 @@ const Reports: React.FC = () => {
 
   const fetchData = () => {
       setExpenses(loadAggregatedData('office_expenses'));
-      setPayroll(loadAggregatedData('payroll_history'));
       setTrips(loadAggregatedData('trips_data'));
       setDriverPayments(loadAggregatedData('driver_payment_records'));
       setCorporates(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
+      
+      // Load Advances and Claims for Live Payroll Calculation
+      const allAdvances = JSON.parse(localStorage.getItem('salary_advances') || '[]');
+      setAdvances(allAdvances);
+      const allClaims = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
+      setKmClaims(allClaims);
       
       let allStaff: any[] = [];
       if (isSuperAdmin) {
@@ -190,52 +200,122 @@ const Reports: React.FC = () => {
   const filteredTrips = useMemo(() => applyFilters(trips), [trips, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
   const filteredDriverPayments = useMemo(() => applyFilters(driverPayments), [driverPayments, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
 
-  const filteredPayroll = useMemo(() => {
-    let base = payroll;
-    if (isSuperAdmin && filterCorporate !== 'All') {
-        base = base.filter(p => p.corporateId === filterCorporate);
-    }
-    const filteredBatches = base.map(batch => {
-        // Recalculate totals from individual entries to ensure accuracy and match Payroll logic exactly
-        // This handles cases where stored total might be outdated or calculated differently
-        const filteredEntries: Record<string, any> = {};
-        let filteredAmount = 0;
-        let filteredCount = 0;
-        
-        if (batch.data) {
-            Object.entries(batch.data).forEach(([empId, entry]: [string, any]) => {
-                const employee = staff.find(s => s.id === empId);
-                const matchesBranch = filterBranch === 'All' || (employee && employee.branch === filterBranch);
+  // --- LIVE PAYROLL CALCULATION ENGINE ---
+  // Replicates logic from Payroll.tsx to ensure Reports match "Total Net Payout" exactly
+  const calculatedPayrollData = useMemo(() => {
+    let totalGross = 0;
+    let totalTravel = 0;
+    let totalAdvances = 0;
+    let totalNet = 0;
+    let employeeCount = 0;
+    const historyData: any[] = []; // For graph
 
-                if (matchesBranch) {
-                    filteredEntries[empId] = entry;
-                    filteredCount++;
-                    // Exact calculation: (Basic + Allowances + Travel + Bonus) - (Deductions + Advances)
-                    const basic = Number(entry.basicSalary) || 0;
-                    const allow = Number(entry.allowances) || 0;
-                    const travel = Number(entry.travelAllowance) || 0;
-                    const bonus = Number(entry.bonus) || 0;
-                    const ded = Number(entry.deductions) || 0;
-                    const adv = Number(entry.advanceDeduction) || 0;
-                    
-                    const net = (basic + allow + travel + bonus) - (ded + adv);
-                    filteredAmount += net;
+    // Filter staff based on scope
+    const scopedStaff = staff.filter(emp => {
+        const matchesCorp = isSuperAdmin ? (filterCorporate === 'All' || emp.corporateId === filterCorporate) : true;
+        const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
+        return matchesCorp && matchesBranch;
+    });
+
+    // Date setup
+    let targetYear = new Date().getFullYear();
+    let targetMonth = new Date().getMonth();
+    let daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    
+    if (filterType === 'Month') {
+        const [y, m] = selectedMonth.split('-').map(Number);
+        targetYear = y;
+        targetMonth = m - 1;
+        daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    } else if (filterType === 'Date') {
+        const d = new Date(selectedDate);
+        targetYear = d.getFullYear();
+        targetMonth = d.getMonth();
+        daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    }
+
+    scopedStaff.forEach(emp => {
+        const monthlyCtc = parseFloat(emp.salary || '0');
+        const key = `attendance_data_${emp.id}_${targetYear}_${targetMonth}`;
+        const saved = localStorage.getItem(key);
+        const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, targetYear, targetMonth);
+
+        // 1. Calculate Earnings based on Attendance
+        let payableDays = 0;
+
+        if (filterType === 'Date') {
+            // Daily Calculation
+            const dayRecord = attendance.find(d => d.date === selectedDate);
+            if (dayRecord) {
+                if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(dayRecord.status)) {
+                    payableDays = 1;
+                } else if (dayRecord.status === AttendanceStatus.HALF_DAY) {
+                    payableDays = 0.5;
+                }
+            }
+        } else {
+            // Monthly Calculation
+            attendance.forEach((day) => {
+                if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) {
+                    payableDays += 1;
+                } else if (day.status === AttendanceStatus.HALF_DAY) {
+                    payableDays += 0.5;
                 }
             });
         }
-        return { ...batch, employeeCount: filteredCount, totalAmount: filteredAmount, data: filteredEntries };
-    }).filter(batch => batch.employeeCount > 0);
 
-    if (filterType !== 'All') {
-        return filteredBatches.filter(item => {
-            const d = item.date || '';
-            if (filterType === 'Date') return d.startsWith(selectedDate);
-            if (filterType === 'Month') return d.startsWith(selectedMonth);
-            return true;
-        });
+        const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
+
+        // 2. Travel Claims
+        let travelIncentive = 0;
+        if (filterType === 'Date') {
+             travelIncentive = kmClaims
+                .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date === selectedDate)
+                .reduce((sum, r) => sum + r.totalAmount, 0);
+        } else {
+             // For Month or All, use selected month prefix
+             const filterPrefix = filterType === 'All' ? '' : selectedMonth;
+             travelIncentive = kmClaims
+                .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(filterPrefix))
+                .reduce((sum, r) => sum + r.totalAmount, 0);
+        }
+
+        // 3. Advances (Deductions)
+        // Note: Advances are usually deducted MONTHLY. In Daily view, we generally don't deduct huge advances unless specific.
+        // For consistency with Payroll module, we include active approved advances for the month.
+        let advanceDeduction = 0;
+        if (filterType !== 'Date') { 
+            // Only deduct advances in Monthly/All view to avoid showing negative daily salary
+            advanceDeduction = advances
+                .filter(a => a.employeeId === emp.id && a.status === 'Approved')
+                .reduce((s, i) => s + (i.amountApproved || 0), 0);
+        }
+
+        const netPay = (grossEarned + travelIncentive) - advanceDeduction;
+
+        if (payableDays > 0 || travelIncentive > 0) {
+            totalGross += grossEarned;
+            totalTravel += travelIncentive;
+            totalAdvances += advanceDeduction;
+            totalNet += netPay;
+            employeeCount++;
+        }
+    });
+
+    // Mock history data for graph if using filter
+    if (filterType === 'Month') {
+         // Generate daily breakdown for the month
+         for(let i=1; i<=daysInMonth; i++) {
+             const dStr = `${targetYear}-${String(targetMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+             historyData.push({ date: dStr, amount: totalNet / daysInMonth, count: employeeCount }); // Simplified distribution for graph
+         }
+    } else {
+         historyData.push({ date: selectedDate, amount: totalNet, count: employeeCount });
     }
-    return filteredBatches;
-  }, [payroll, staff, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
+
+    return { totalNet, totalGross, totalTravel, totalAdvances, employeeCount, historyData };
+  }, [staff, advances, kmClaims, selectedMonth, selectedDate, filterType, filterCorporate, filterBranch, isSuperAdmin]);
+
 
   const availableBranches = useMemo(() => {
     const uniqueBranches = Array.from(new Set(branches.map(b => b.name)));
@@ -253,8 +333,8 @@ const Reports: React.FC = () => {
       // 2. Expenses Aggregation
       const officeOnlyExpenses = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       
-      // This uses the RECALCULATED total from filteredPayroll, ensuring it matches the Payroll module perfectly
-      const payrollTotal = filteredPayroll.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+      // Use LIVE Calculated Payroll
+      const payrollTotal = calculatedPayrollData.totalNet;
       
       const driverTotalPaid = filteredDriverPayments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       
@@ -281,24 +361,23 @@ const Reports: React.FC = () => {
               total: totalExpenses 
           } 
       };
-  }, [filteredTrips, filteredExpenses, filteredPayroll, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
+  }, [filteredTrips, filteredExpenses, calculatedPayrollData, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
 
   const financialStats = useMemo(() => {
       const totalIncome = filteredExpenses.filter(e => e.type === 'Income').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-      const totalExpense = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      // Office expenses only here, Payroll added in render/effect
+      const officeExpense = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const totalExpense = officeExpense + calculatedPayrollData.totalNet;
+
       return { totalIncome, totalExpense, netProfit: totalIncome - totalExpense };
-  }, [filteredExpenses]);
+  }, [filteredExpenses, calculatedPayrollData]);
 
   const payrollStats = useMemo(() => {
-      const totalDisbursed = filteredPayroll.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
-      const totalEmployeesPaid = filteredPayroll.reduce((sum, p) => sum + (Number(p.employeeCount) || 0), 0);
-      const historyData = filteredPayroll.map(p => ({
-          date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2-digit' }),
-          amount: p.totalAmount,
-          count: p.employeeCount
-      })).reverse();
-      return { totalDisbursed, totalBatches: filteredPayroll.length, avgSalary: totalEmployeesPaid > 0 ? totalDisbursed / totalEmployeesPaid : 0, historyData };
-  }, [filteredPayroll]);
+      const totalDisbursed = calculatedPayrollData.totalNet;
+      const totalEmployeesPaid = calculatedPayrollData.employeeCount;
+      const historyData = calculatedPayrollData.historyData;
+      return { totalDisbursed, totalBatches: 1, avgSalary: totalEmployeesPaid > 0 ? totalDisbursed / totalEmployeesPaid : 0, historyData };
+  }, [calculatedPayrollData]);
 
   const driverPaymentStats = useMemo(() => {
       const totalPaid = filteredDriverPayments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
@@ -346,7 +425,7 @@ const Reports: React.FC = () => {
         profitSharing: profitSharingData,
         // we add branches explicitly here to debug
         branchesCount: branches.length,
-        financial: financialStats,
+        financial: { ...financialStats, totalExpense: financialStats.totalExpense + calculatedPayrollData.totalNet }, // Update financial stats with live payroll
         payroll: payrollStats,
         driverPayments: driverPaymentStats,
         transport: transportStats,
@@ -361,7 +440,7 @@ const Reports: React.FC = () => {
     const profitKey = isSuperAdmin ? 'corporate_profit_overview' : `corporate_profit_overview_${sessionId}`;
     localStorage.setItem(profitKey, JSON.stringify(profitSharingData));
 
-  }, [profitSharingData, financialStats, payrollStats, driverPaymentStats, transportStats, isSuperAdmin, sessionId, branches]);
+  }, [profitSharingData, calculatedPayrollData, driverPaymentStats, transportStats, isSuperAdmin, sessionId, branches, financialStats, payrollStats]);
 
   const resetFilters = () => {
       setFilterType('Month');
@@ -467,7 +546,7 @@ const Reports: React.FC = () => {
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-2 opacity-10"><Users className="w-12 h-12" /></div>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Staff Payroll</p>
-                                <p className="text-xs text-gray-500 mb-2 font-medium">Net Disbursed</p>
+                                <p className="text-xs text-gray-500 mb-2 font-medium">Net Disbursed (Live)</p>
                                 <p className="text-lg font-black text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.payroll)}</p>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden">
@@ -517,7 +596,7 @@ const Reports: React.FC = () => {
               <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Total Income</p><h3 className="text-2xl font-bold text-emerald-600">{formatCurrency(financialStats.totalIncome)}</h3></div>
-                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Total Expenses</p><h3 className="text-2xl font-bold text-red-600">{formatCurrency(financialStats.totalExpense)}</h3></div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Total Expenses (with Payroll)</p><h3 className="text-2xl font-bold text-red-600">{formatCurrency(financialStats.totalExpense)}</h3></div>
                       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Net Cash Flow</p><h3 className={`text-2xl font-bold ${financialStats.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(financialStats.netProfit)}</h3></div>
                   </div>
               </div>
@@ -531,7 +610,7 @@ const Reports: React.FC = () => {
                           <div className="grid grid-cols-3 gap-4 mb-8">
                               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100"><p className="text-indigo-600 text-xs font-bold uppercase tracking-wider">Total Net Payout</p><h4 className="text-2xl font-black text-indigo-700 mt-1">{formatCurrency(payrollStats.totalDisbursed)}</h4></div>
                               <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100"><p className="text-emerald-600 text-xs font-bold uppercase tracking-wider">Avg. / Staff</p><h4 className="text-2xl font-black text-emerald-700 mt-1">{formatCurrency(payrollStats.avgSalary)}</h4></div>
-                              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100"><p className="text-blue-600 text-xs font-bold uppercase tracking-wider">Batches</p><h4 className="text-2xl font-black text-blue-700 mt-1">{payrollStats.totalBatches}</h4></div>
+                              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100"><p className="text-blue-600 text-xs font-bold uppercase tracking-wider">Payable Batches</p><h4 className="text-2xl font-black text-blue-700 mt-1">{payrollStats.totalBatches}</h4></div>
                           </div>
                           <div className="h-64 mt-4">
                               <ResponsiveContainer width="100%" height="100%"><AreaChart data={payrollStats.historyData}><defs><linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><Tooltip formatter={(value: number) => formatCurrency(value)} /><Area type="monotone" dataKey="amount" name="Net Payout" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmount)" /></AreaChart></ResponsiveContainer>

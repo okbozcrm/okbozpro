@@ -59,7 +59,7 @@ const Payroll: React.FC = () => {
   const [filterBranch, setFilterBranch] = useState('All');
   const [payrollData, setPayrollData] = useState<Record<string, PayrollEntry>>({});
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isProcessingPayout, setIsProcessingPayout] = useState(false);
+  // const [isProcessingPayout, setIsProcessingPayout] = useState(false); // Removed as button is removed
   const [history, setHistory] = useState<PayrollHistoryRecord[]>([]);
   const [advances, setAdvances] = useState<SalaryAdvanceRequest[]>([]);
   const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
@@ -214,92 +214,10 @@ const Payroll: React.FC = () => {
     return { totalGross, totalAdvances, totalNet, totalTravel, count };
   }, [filteredEmployees, payrollData]);
 
-  const handleProcessPayout = () => {
-    // 1. Determine who is being paid (based on current filters)
-    const employeesToPay = filteredEmployees;
-    
-    if (employeesToPay.length === 0) { 
-        alert("No employee records to process in the current view."); 
-        return; 
-    }
-
-    // 2. Calculate totals for this batch
-    let batchNetTotal = 0;
-    const batchData: Record<string, PayrollEntry> = {};
-    const processedEmployeeIds = new Set<string>();
-    
-    employeesToPay.forEach(emp => {
-        const entry = payrollData[emp.id];
-        if (entry) {
-            batchData[emp.id] = entry;
-            batchNetTotal += calculateNetPay(entry);
-            processedEmployeeIds.add(emp.id);
-        }
-    });
-
-    if (window.confirm(`Confirm payout for ${employeesToPay.length} employees? Total: ${formatCurrency(batchNetTotal)}`)) {
-        setIsProcessingPayout(true);
-        setTimeout(() => {
-            const record: PayrollHistoryRecord = { 
-                id: Date.now().toString(), 
-                name: `Payout Batch ${selectedMonth} (${employeesToPay.length} Staff)`, 
-                date: new Date().toISOString(), 
-                totalAmount: batchNetTotal, 
-                employeeCount: employeesToPay.length, 
-                data: batchData 
-            };
-            
-            // 3. Update Claims & Advances Status (Only for processed employees)
-            const allClaimsStr = localStorage.getItem('global_travel_requests');
-            const allClaims: TravelAllowanceRequest[] = allClaimsStr ? JSON.parse(allClaimsStr) : [];
-            const updatedClaims = allClaims.map((r: TravelAllowanceRequest) => {
-                if (processedEmployeeIds.has(r.employeeId) && r.status === 'Approved' && r.date.startsWith(selectedMonth)) {
-                    return { ...r, status: 'Paid' };
-                }
-                return r;
-            });
-            localStorage.setItem('global_travel_requests', JSON.stringify(updatedClaims));
-
-            const allAdvancesStr = localStorage.getItem('salary_advances');
-            const allAdvances: SalaryAdvanceRequest[] = allAdvancesStr ? JSON.parse(allAdvancesStr) : [];
-            const updatedAdvances = allAdvances.map((a: SalaryAdvanceRequest) => {
-                // If user is in this batch and advance is approved, mark as paid (deducted)
-                if (processedEmployeeIds.has(a.employeeId) && a.status === 'Approved') {
-                    return { ...a, status: 'Paid' };
-                }
-                return a;
-            });
-            localStorage.setItem('salary_advances', JSON.stringify(updatedAdvances));
-
-            // 4. Send Notifications
-            employeesToPay.forEach((emp) => {
-                const entry = batchData[emp.id];
-                if (entry) {
-                    const amount = calculateNetPay(entry);
-                    if (amount > 0) {
-                        sendSystemNotification({
-                            type: 'system',
-                            title: 'Salary Update',
-                            message: `Your salary of ₹${amount.toLocaleString()} for ${new Date(selectedMonth).toLocaleDateString('en-US', {month:'long', year:'numeric'})} has been disbursed.`,
-                            targetRoles: [UserRole.EMPLOYEE],
-                            employeeId: emp.id,
-                            link: '/user/salary'
-                        });
-                    }
-                }
-            });
-
-            // 5. Save History to Correct Storage Key
-            const key = isSuperAdmin ? 'payroll_history' : `payroll_history_${sessionId}`;
-            const currentHistory = JSON.parse(localStorage.getItem(key) || '[]');
-            localStorage.setItem(key, JSON.stringify([record, ...currentHistory]));
-            
-            loadData();
-            setIsProcessingPayout(false);
-            alert(`Payout executed! Total: ${formatCurrency(batchNetTotal)}`);
-        }, 2000);
-    }
-  };
+  /* 
+    Process Payout Logic Removed as per requirement.
+    Automatic calculation is handled by useEffect above and summary stats are computed live.
+  */
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -341,7 +259,7 @@ const Payroll: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                     <button onClick={() => setRefreshToggle(v => v + 1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
-                    <button onClick={handleProcessPayout} disabled={isProcessingPayout} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50">{isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}Process Payouts ({filteredEmployees.length})</button>
+                    {/* Process Payouts button removed as per user request */}
                 </div>
             </div>
             <div className="overflow-x-auto">
