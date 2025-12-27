@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
 import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -18,6 +18,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
+  { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
   { id: 'auto-dialer', path: '/admin/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
   { id: 'customer-care', path: '/admin/customer-care', label: 'Customer Care', icon: Headset },
@@ -290,7 +291,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       if (role === UserRole.ADMIN) return true;
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
-        'tasks', 'attendance', 'branches', 'staff',
+        'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
         'auto-dialer'
       ];

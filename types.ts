@@ -3,6 +3,7 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
   CORPORATE = 'CORPORATE', 
+  SUB_ADMIN = 'SUB_ADMIN'
 }
 
 export enum AttendanceStatus {
@@ -30,6 +31,27 @@ export interface DailyAttendance {
   checkIn?: string; // Kept for legacy/quick reference (first punch)
   checkOut?: string; // Kept for legacy/quick reference (last punch)
   totalWorkMinutes?: number;
+}
+
+export interface ModulePermission {
+  view: boolean;
+  add: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export interface SubAdmin {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  role: string; // Designation e.g. "Manager"
+  context: string; // 'Head Office' or Corporate Email
+  branchAccess: 'All' | 'None' | string[];
+  status: 'Active' | 'Inactive';
+  permissions: Record<string, ModulePermission>;
+  createdAt: string;
 }
 
 export interface Employee {
@@ -61,6 +83,7 @@ export interface Employee {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
+  emergencyContactRelationOther?: string;
   shift?: string;
   attendanceConfig?: {
     punchMethod: 'Manual' | 'QR' | 'Disabled';

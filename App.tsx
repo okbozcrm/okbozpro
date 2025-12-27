@@ -14,6 +14,7 @@ import Expenses from './pages/admin/Expenses';
 import LiveTracking from './pages/admin/LiveTracking';
 import VendorAttachment from './pages/admin/VendorAttachment';
 import Corporate from './pages/admin/Corporate';
+import SubAdminManagement from './pages/admin/SubAdminManagement'; // Added
 import Documents from './pages/Documents';
 import Leads from './pages/admin/Leads';
 import Reports from './pages/admin/Reports'; 
@@ -122,6 +123,7 @@ const App: React.FC = () => {
                         <Route path="/admin/attendance" element={<UserAttendance isAdmin={true} />} />
                         <Route path="/admin/branches" element={<BranchForm />} />
                         <Route path="/admin/staff" element={<StaffList />} />
+                        <Route path="/admin/sub-admins" element={<SubAdminManagement />} /> 
                         <Route path="/admin/documents" element={<Documents role={userRole} />} />
                         <Route path="/admin/vendors" element={<VendorAttachment />} />
                         <Route path="/admin/payroll" element={<Payroll />} />
