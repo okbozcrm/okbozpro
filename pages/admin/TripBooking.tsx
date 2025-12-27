@@ -4,10 +4,10 @@ import {
   Plus, Search, X, Save,
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
-  TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car
+  TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car, RefreshCcw, Filter,
+  Building2, Percent
 } from 'lucide-react';
 import { UserRole, CorporateAccount } from '../../types';
-import AiAssistant from '../../components/AiAssistant';
 
 interface Trip {
   id: string;
@@ -58,8 +58,17 @@ export const TripBooking: React.FC = () => {
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // --- Filters State ---
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [originFilter, setOriginFilter] = useState('All');
+  const [fleetFilter, setFleetFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [corporateFilter, setCorporateFilter] = useState('All'); // NEW
+  const [branchFilter, setBranchFilter] = useState('All'); // NEW
+  const [minCommission, setMinCommission] = useState('');
+  const [minTax, setMinTax] = useState('');
   
   const initialFormState = {
     ownerId: corporateId,
@@ -135,6 +144,8 @@ export const TripBooking: React.FC = () => {
     const completed = trips.filter(t => t.bookingStatus === 'Completed');
     const cancelled = trips.filter(t => t.bookingStatus === 'Cancelled');
     const totalRevenue = completed.reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
+    const totalCommission = completed.reduce((sum, t) => sum + (Number(t.adminCommission) || 0), 0);
+    const totalTax = completed.reduce((sum, t) => sum + (Number(t.tax) || 0), 0);
     const totalCancelledCharges = cancelled.reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
     
     return {
@@ -142,6 +153,8 @@ export const TripBooking: React.FC = () => {
       completed: completed.length,
       cancelled: cancelled.length,
       revenue: totalRevenue,
+      commission: totalCommission,
+      tax: totalTax,
       cancelRevenue: totalCancelledCharges
     };
   }, [trips]);
@@ -270,10 +283,30 @@ export const TripBooking: React.FC = () => {
     }
   };
 
+  const resetFilters = () => {
+      setSearchTerm('');
+      setStatusFilter('All');
+      setOriginFilter('All');
+      setFleetFilter('All');
+      setCategoryFilter('All');
+      setCorporateFilter('All');
+      setBranchFilter('All');
+      setMinCommission('');
+      setMinTax('');
+  };
+
   const filteredTrips = trips.filter(t => {
       const matchesSearch = t.tripId.toLowerCase().includes(searchTerm.toLowerCase()) || t.userName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'All' || t.bookingStatus === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesOrigin = originFilter === 'All' || t.bookingType === originFilter;
+      const matchesFleet = fleetFilter === 'All' || t.transportType === fleetFilter;
+      const matchesCategory = categoryFilter === 'All' || t.tripCategory === categoryFilter;
+      const matchesCorporate = isSuperAdmin ? (corporateFilter === 'All' || t.ownerId === corporateFilter) : true;
+      const matchesBranch = branchFilter === 'All' || t.branch === branchFilter;
+      const matchesComm = !minCommission || t.adminCommission >= Number(minCommission);
+      const matchesTax = !minTax || t.tax >= Number(minTax);
+
+      return matchesSearch && matchesStatus && matchesOrigin && matchesFleet && matchesCategory && matchesCorporate && matchesBranch && matchesComm && matchesTax;
   });
 
   return (
@@ -292,31 +325,50 @@ export const TripBooking: React.FC = () => {
       </div>
 
       {/* DASHBOARD STATS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl shadow-indigo-900/5 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all">
-              <div className="flex justify-between items-start">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Trips</p>
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors"><Activity className="w-5 h-5"/></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-500/20 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all relative overflow-hidden">
+              <div className="flex justify-between items-start relative z-10">
+                <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest opacity-90">Total Trips</p>
+                <div className="p-3 bg-white/20 text-white rounded-2xl backdrop-blur-sm"><Activity className="w-5 h-5"/></div>
               </div>
-              <h3 className="text-4xl font-black text-gray-800 tracking-tighter">{stats.total}</h3>
+              <h3 className="text-3xl font-black text-white tracking-tighter relative z-10">{stats.total}</h3>
+              <Activity className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl shadow-emerald-900/5 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all">
-              <div className="flex justify-between items-start">
-                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Completed</p>
-                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors"><CheckCircle className="w-5 h-5"/></div>
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-500/20 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all relative overflow-hidden">
+              <div className="flex justify-between items-start relative z-10">
+                <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest opacity-90">Completed</p>
+                <div className="p-3 bg-white/20 text-white rounded-2xl backdrop-blur-sm"><CheckCircle className="w-5 h-5"/></div>
               </div>
-              <h3 className="text-4xl font-black text-emerald-700 tracking-tighter">{stats.completed}</h3>
+              <h3 className="text-3xl font-black text-white tracking-tighter relative z-10">{stats.completed}</h3>
+              <CheckCircle className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl shadow-rose-900/5 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all">
-              <div className="flex justify-between items-start">
-                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Cancelled</p>
-                <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors"><XCircle className="w-5 h-5"/></div>
+          <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-[2.5rem] shadow-xl shadow-rose-500/20 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all relative overflow-hidden">
+              <div className="flex justify-between items-start relative z-10">
+                <p className="text-[10px] font-black text-rose-100 uppercase tracking-widest opacity-90">Cancelled</p>
+                <div className="p-3 bg-white/20 text-white rounded-2xl backdrop-blur-sm"><XCircle className="w-5 h-5"/></div>
               </div>
-              <h3 className="text-4xl font-black text-rose-700 tracking-tighter">{stats.cancelled}</h3>
+              <h3 className="text-3xl font-black text-white tracking-tighter relative z-10">{stats.cancelled}</h3>
+              <XCircle className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
           </div>
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-indigo-900/20 flex flex-col justify-between h-40 hover:scale-[1.02] transition-all relative overflow-hidden">
+          <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-6 rounded-[2.5rem] shadow-xl shadow-orange-500/20 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all relative overflow-hidden">
+              <div className="flex justify-between items-start relative z-10">
+                <p className="text-[10px] font-black text-orange-100 uppercase tracking-widest opacity-90">Total GST</p>
+                <div className="p-3 bg-white/20 text-white rounded-2xl backdrop-blur-sm"><Building2 className="w-5 h-5"/></div>
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tighter relative z-10">{formatCurrency(stats.tax)}</h3>
+              <Building2 className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
+          </div>
+          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 rounded-[2.5rem] shadow-xl shadow-purple-500/20 flex flex-col justify-between h-40 group hover:scale-[1.02] transition-all relative overflow-hidden">
+              <div className="flex justify-between items-start relative z-10">
+                <p className="text-[10px] font-black text-purple-100 uppercase tracking-widest opacity-90">Comm. Earned</p>
+                <div className="p-3 bg-white/20 text-white rounded-2xl backdrop-blur-sm"><Percent className="w-5 h-5"/></div>
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tighter relative z-10">{formatCurrency(stats.commission)}</h3>
+              <Percent className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
+          </div>
+          <div className="bg-gradient-to-br from-slate-700 to-slate-900 p-6 rounded-[2.5rem] text-white shadow-2xl shadow-slate-900/20 flex flex-col justify-between h-40 hover:scale-[1.02] transition-all relative overflow-hidden">
               <div className="relative z-10 flex justify-between items-start">
-                <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest opacity-80">Net Revenue</p>
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest opacity-90">Net Revenue</p>
                 <DollarSign className="w-6 h-6 text-white/40" />
               </div>
               <h3 className="text-3xl font-black tracking-tighter relative z-10">{formatCurrency(stats.revenue)}</h3>
@@ -324,20 +376,95 @@ export const TripBooking: React.FC = () => {
           </div>
       </div>
 
-      <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-indigo-900/5 flex flex-col md:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input type="text" placeholder="Search manifest by Trip ID, Customer Name or Phone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-5 bg-gray-50 border-none rounded-[1.75rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-bold text-gray-700 transition-all shadow-inner" />
+      <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-indigo-900/5 flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+             <div className="relative flex-1 w-full">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input type="text" placeholder="Search manifest by Trip ID, Customer..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-4 bg-gray-50 border-none rounded-[1.75rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-bold text-gray-700 transition-all shadow-inner" />
+             </div>
+             <button onClick={resetFilters} className="p-4 bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-red-500 rounded-[1.5rem] transition-colors" title="Reset All Filters">
+                 <RefreshCcw className="w-5 h-5" />
+             </button>
           </div>
-          <div className="flex gap-3 shrink-0">
-            <div className="relative">
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="pl-6 pr-12 py-5 bg-gray-50 border-none rounded-[1.75rem] text-xs font-black uppercase text-gray-500 outline-none focus:ring-4 focus:ring-indigo-500/10 cursor-pointer appearance-none min-w-[180px] shadow-inner">
-                    <option value="All">All Manifest Status</option>
-                    <option>Completed</option>
-                    <option>Cancelled</option>
-                </select>
-                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {isSuperAdmin && (
+                  <div className="relative group">
+                      <select value={corporateFilter} onChange={(e) => { setCorporateFilter(e.target.value); setBranchFilter('All'); }} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                          <option value="All">All Corporates</option>
+                          <option value="admin">Head Office</option>
+                          {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                      </select>
+                      <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+              )}
+
+              <div className="relative group">
+                  <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                      <option value="All">All Branches</option>
+                      {allBranches.filter(b => corporateFilter === 'All' || b.owner === corporateFilter).map(b => (
+                          <option key={b.id} value={b.name}>{b.name}</option>
+                      ))}
+                  </select>
+                  <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                  <select value={originFilter} onChange={(e) => setOriginFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                      <option value="All">All Origins</option>
+                      <option value="Online">Online</option>
+                      <option value="Offline">Offline</option>
+                      <option value="Call">Call</option>
+                      <option value="Whatsapp">Whatsapp</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                  <select value={fleetFilter} onChange={(e) => setFleetFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                      <option value="All">All Fleets</option>
+                      <option value="Sedan">Sedan</option>
+                      <option value="SUV">SUV</option>
+                      <option value="Auto">Auto</option>
+                      <option value="Prime Luxury">Prime Luxury</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                  <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                      <option value="All">All Categories</option>
+                      <option value="Local Trip">Local Trip</option>
+                      <option value="Rental Package">Rental</option>
+                      <option value="Outstation Drive">Outstation</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative group">
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
+                      <option value="All">All Statuses</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              <input 
+                type="number" 
+                placeholder="Min Comm." 
+                value={minCommission}
+                onChange={(e) => setMinCommission(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50"
+              />
+
+              <input 
+                type="number" 
+                placeholder="Min GST" 
+                value={minTax}
+                onChange={(e) => setMinTax(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50"
+              />
           </div>
       </div>
 
@@ -350,6 +477,7 @@ export const TripBooking: React.FC = () => {
                           {isSuperAdmin && <th className="px-10 py-8 text-center">Assigned Entity</th>}
                           <th className="px-10 py-8">Customer Details</th>
                           <th className="px-10 py-8 text-right">Net Revenue</th>
+                          <th className="px-10 py-8 text-right text-indigo-600">Commission</th>
                           <th className="px-10 py-8 text-center">Status</th>
                           <th className="px-10 py-8 text-right">Operations</th>
                       </tr>
@@ -362,9 +490,12 @@ export const TripBooking: React.FC = () => {
                                       <div className="p-4 bg-indigo-50 text-indigo-600 rounded-[1.5rem] border border-indigo-100 shadow-sm"><MapIcon className="w-6 h-6"/></div>
                                       <div>
                                           <p className="font-black text-gray-900 text-lg leading-none mb-2">{trip.tripId}</p>
-                                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
-                                              <CalendarIcon className="w-3.5 h-3.5"/> {trip.date} • {trip.transportType}
-                                          </p>
+                                          <div className="flex flex-col gap-1">
+                                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                  <CalendarIcon className="w-3.5 h-3.5"/> {trip.date} • {trip.transportType}
+                                              </p>
+                                              <p className="text-[9px] text-gray-400 font-bold bg-gray-100 px-2 py-0.5 rounded w-fit">{trip.bookingType}</p>
+                                          </div>
                                       </div>
                                   </div>
                               </td>
@@ -379,9 +510,12 @@ export const TripBooking: React.FC = () => {
                               </td>
                               <td className="px-10 py-8 text-right">
                                   <p className="font-black text-gray-900 text-xl leading-none mb-1.5">{formatCurrency(trip.totalPrice)}</p>
-                                  <p className={`text-[9px] font-black uppercase tracking-widest ${trip.bookingStatus === 'Completed' ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                      {trip.bookingStatus === 'Completed' ? 'Revenue' : 'Loss/Charge'}
+                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                      GST: {formatCurrency(trip.tax)}
                                   </p>
+                              </td>
+                              <td className="px-10 py-8 text-right font-black text-indigo-600">
+                                  {formatCurrency(trip.adminCommission)}
                               </td>
                               <td className="px-10 py-8 text-center">
                                   <span className={`px-5 py-2.5 rounded-[1.25rem] text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm ${
@@ -400,7 +534,7 @@ export const TripBooking: React.FC = () => {
                           </tr>
                       ))}
                       {filteredTrips.length === 0 && (
-                          <tr><td colSpan={6} className="py-40 text-center"><div className="flex flex-col items-center gap-4 text-gray-200"><MapIcon className="w-20 h-20 opacity-10" /><p className="font-black uppercase tracking-[0.5em] text-sm">Empty Manifest</p></div></td></tr>
+                          <tr><td colSpan={7} className="py-40 text-center"><div className="flex flex-col items-center gap-4 text-gray-200"><MapIcon className="w-20 h-20 opacity-10" /><p className="font-black uppercase tracking-[0.5em] text-sm">Empty Manifest</p></div></td></tr>
                       )}
                   </tbody>
               </table>
@@ -640,13 +774,6 @@ export const TripBooking: React.FC = () => {
               </div>
           </div>
       )}
-
-      {/* Boz Chat integration for specific trip queries */}
-      <AiAssistant 
-        systemInstruction="You are an AI assistant specialized in Trip Booking and Fleet Management. You help admins analyze trip manifest data, revenue patterns, and cancellation trends. Answer questions regarding pricing rules, revenue sharing, and operational efficiency based on the current trip manifest."
-        initialMessage="Hello! I'm your Trip Analytics assistant. Need help reviewing the manifest or calculating revenues?"
-        triggerButtonLabel="Trip AI"
-      />
     </div>
   );
 };

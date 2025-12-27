@@ -4,7 +4,7 @@ import {
   Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, 
   DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset, 
   Bike, AlertCircle, Check, X, Wallet, Calculator, Zap, RefreshCcw,
-  FileText, Map, Plane
+  FileText, Map, Plane, Loader2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -63,6 +63,7 @@ const Dashboard = () => {
   const [refreshToggle, setRefreshToggle] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [franchiseName, setFranchiseName] = useState('Head Office');
+  const [processingActionId, setProcessingActionId] = useState<string | null>(null);
 
   // --- Data Loading Logic ---
   const loadAllData = useCallback(() => {
@@ -192,65 +193,90 @@ const Dashboard = () => {
   }, []);
 
   const handleQuickAction = async (actionId: string, type: DashboardAction['type'], newStatus: 'Approved' | 'Rejected') => {
+      if (processingActionId) return; // Prevent double clicks
       if (!window.confirm(`Are you sure you want to ${newStatus.toLowerCase()} this request?`)) return;
 
-      if (type === 'TA_CLAIM') {
-          const key = 'global_travel_requests';
-          const all: TravelAllowanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
-          const updated = all.map(r => r.id === actionId ? { ...r, status: newStatus } : r);
-          localStorage.setItem(key, JSON.stringify(updated));
-          const req = all.find(r => r.id === actionId);
-          if (req) {
-              await sendSystemNotification({
-                  type: 'system',
-                  title: `KM Claim ${newStatus}`,
-                  message: `Your travel allowance request for ${req.date} was ${newStatus.toLowerCase()}.`,
-                  targetRoles: [UserRole.EMPLOYEE],
-                  employeeId: req.employeeId,
-                  link: '/user/km-claims'
-              });
-          }
-      } else if (type === 'SALARY_ADVANCE') {
-          const key = 'salary_advances';
-          const all: SalaryAdvanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
-          const updated = all.map(r => r.id === actionId ? { 
-            ...r, 
-            status: newStatus, 
-            amountApproved: newStatus === 'Approved' ? r.amountRequested : 0 
-          } : r);
-          localStorage.setItem(key, JSON.stringify(updated));
-          const req = all.find(r => r.id === actionId);
-          if (req) {
-              await sendSystemNotification({
-                  type: 'system',
-                  title: `Salary Advance ${newStatus}`,
-                  message: `Your advance request for ₹${req.amountRequested} was ${newStatus.toLowerCase()}.`,
-                  targetRoles: [UserRole.EMPLOYEE],
-                  employeeId: req.employeeId,
-                  link: '/user/salary'
-              });
-          }
-      } else if (type === 'LEAVE_REQUEST') {
-          const key = 'global_leave_requests';
-          const all: LeaveRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
-          const updated = all.map(r => r.id === actionId ? { ...r, status: newStatus } : r);
-          localStorage.setItem(key, JSON.stringify(updated));
-          const req = all.find(r => r.id === actionId);
-          if (req) {
-              await sendSystemNotification({
-                  type: 'leave_approval',
-                  title: `Leave Request ${newStatus}`,
-                  message: `Your ${req.type} for ${req.from} has been ${newStatus.toLowerCase()}.`,
-                  targetRoles: [UserRole.EMPLOYEE],
-                  employeeId: req.employeeId,
-                  link: '/user/apply-leave'
-              });
-          }
-      }
+      setProcessingActionId(actionId);
 
-      window.dispatchEvent(new Event('storage'));
-      window.dispatchEvent(new CustomEvent('attendance-updated'));
-      setRefreshToggle(prev => prev + 1);
+      try {
+          let key = '';
+          let notificationType = '';
+          let notificationTitle = '';
+          let notificationMessage = '';
+          let notificationLink = '';
+          let updatedItems: any[] = [];
+          let targetItem: any = null;
+
+          if (type === 'TA_CLAIM') {
+              key = 'global_travel_requests';
+              notificationType = 'system';
+              notificationLink = '/user/km-claims';
+              const all = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map((r: any) => r.id === actionId ? { ...r, status: newStatus } : r);
+              targetItem = all.find((r: any) => r.id === actionId);
+              if (targetItem) {
+                  notificationTitle = `KM Claim ${newStatus}`;
+                  notificationMessage = `Your travel allowance request for ${targetItem.date} was ${newStatus.toLowerCase()}.`;
+              }
+          } else if (type === 'SALARY_ADVANCE') {
+              key = 'salary_advances';
+              notificationType = 'system';
+              notificationLink = '/user/salary';
+              const all = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map((r: any) => r.id === actionId ? { 
+                ...r, 
+                status: newStatus, 
+                amountApproved: newStatus === 'Approved' ? r.amountRequested : 0 
+              } : r);
+              targetItem = all.find((r: any) => r.id === actionId);
+              if (targetItem) {
+                  notificationTitle = `Salary Advance ${newStatus}`;
+                  notificationMessage = `Your advance request for ₹${targetItem.amountRequested} was ${newStatus.toLowerCase()}.`;
+              }
+          } else if (type === 'LEAVE_REQUEST') {
+              key = 'global_leave_requests';
+              notificationType = 'leave_approval';
+              notificationLink = '/user/apply-leave';
+              const all = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map((r: any) => r.id === actionId ? { ...r, status: newStatus } : r);
+              targetItem = all.find((r: any) => r.id === actionId);
+              if (targetItem) {
+                  notificationTitle = `Leave Request ${newStatus}`;
+                  notificationMessage = `Your ${targetItem.type} for ${targetItem.from} has been ${newStatus.toLowerCase()}.`;
+              }
+          }
+
+          if (key && updatedItems.length > 0) {
+              localStorage.setItem(key, JSON.stringify(updatedItems));
+              
+              // Optimistic UI Update: Remove from list immediately
+              setPendingActions(prev => prev.filter(a => a.id !== actionId));
+              
+              // Trigger Global Events
+              window.dispatchEvent(new Event('storage'));
+              window.dispatchEvent(new CustomEvent('attendance-updated'));
+              window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
+
+              // Send Notification
+              if (targetItem) {
+                  await sendSystemNotification({
+                      type: notificationType as any,
+                      title: notificationTitle,
+                      message: notificationMessage,
+                      targetRoles: [UserRole.EMPLOYEE],
+                      employeeId: targetItem.employeeId,
+                      link: notificationLink
+                  });
+              }
+          }
+      } catch (e) {
+          console.error("Action failed", e);
+          alert("Failed to process request. Please check logs.");
+          // If failed, reload data to restore state
+          setRefreshToggle(p => p + 1);
+      } finally {
+          setProcessingActionId(null);
+      }
   };
 
   const statsSummary = useMemo(() => {
@@ -419,20 +445,26 @@ const Dashboard = () => {
                                   </p>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3">
-                                  <button 
-                                      onClick={() => handleQuickAction(action.id, action.type, 'Approved')}
-                                      className="py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-900/10 transform active:scale-95 transition-all"
-                                  >
-                                      <Check className="w-4 h-4" /> Approve
-                                  </button>
-                                  <button 
-                                      onClick={() => handleQuickAction(action.id, action.type, 'Rejected')}
-                                      className="py-3 bg-white border border-rose-100 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rose-50 transform active:scale-95 transition-all shadow-sm"
-                                  >
-                                      <X className="w-4 h-4" /> Reject
-                                  </button>
-                              </div>
+                              {processingActionId === action.id ? (
+                                  <div className="flex justify-center py-3 bg-gray-50 rounded-2xl">
+                                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                                  </div>
+                              ) : (
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <button 
+                                          onClick={() => handleQuickAction(action.id, action.type, 'Approved')}
+                                          className="py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-900/10 transform active:scale-95 transition-all"
+                                      >
+                                          <Check className="w-4 h-4" /> Approve
+                                      </button>
+                                      <button 
+                                          onClick={() => handleQuickAction(action.id, action.type, 'Rejected')}
+                                          className="py-3 bg-white border border-rose-100 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rose-50 transform active:scale-95 transition-all shadow-sm"
+                                      >
+                                          <X className="w-4 h-4" /> Reject
+                                      </button>
+                                  </div>
+                              )}
                           </div>
                       )) : (
                           <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50">
