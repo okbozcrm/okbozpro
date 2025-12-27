@@ -24,11 +24,6 @@ const SHIFT_OPTIONS = ['Select Shift', 'General Shift (09:30 - 18:30)', 'Night S
 const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const MODULE_PERMISSIONS = [
-  { id: 'attendance', label: 'Self: Attendance', icon: Calendar },
-  { id: 'salary', label: 'Self: Salary & Payslips', icon: DollarSign },
-  { id: 'leave', label: 'Self: Leave Application', icon: Briefcase },
-  { id: 'tasks', label: 'Task Management', icon: FileCheck },
-  { id: 'customer_care', label: 'Customer Care', icon: PhoneCall },
   { id: 'trips', label: 'Trip Earning (Bookings)', icon: Car },
   { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
   { id: 'driver_payments', label: 'Driver Payments', icon: CreditCard },
@@ -124,7 +119,7 @@ const StaffList: React.FC = () => {
         manualPunch: true,
         workMode: 'Office'
     },
-    moduleAccess: ['attendance', 'salary', 'leave'],
+    moduleAccess: [],
     franchiseId: isSuperAdmin ? 'admin' : sessionId
   });
 
