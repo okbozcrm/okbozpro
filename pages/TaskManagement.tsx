@@ -443,14 +443,19 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                 </div>
 
                                 <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                                <div className="flex items-center gap-2">
-                                    <img src={assignee.avatar || `https://ui-avatars.com/api/?name=${assignee.name}`} alt="" className="w-6 h-6 rounded-full" title={assignee.name} />
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-gray-400">Due</span>
-                                        <span className="text-xs font-medium text-gray-600">{endDate.toLocaleDateString()}</span>
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <img 
+                                      src={assignee.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(assignee.name)}&background=10b981&color=fff`} 
+                                      alt={assignee.name} 
+                                      className="w-8 h-8 rounded-full border-2 border-white shadow-sm shrink-0" 
+                                      title={assignee.name} 
+                                    />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-xs font-bold text-gray-700 truncate">{assignee.name}</span>
+                                        <span className="text-[10px] text-gray-400 truncate">Due {endDate.toLocaleDateString()}</span>
                                     </div>
                                 </div>
-                                <div className="relative group/menu">
+                                <div className="relative group/menu shrink-0">
                                     <button className="p-1 hover:bg-gray-100 rounded text-gray-400">
                                         <MoreHorizontal className="w-4 h-4" />
                                     </button>
@@ -543,7 +548,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
                  <h3 className="font-bold text-gray-800 text-lg">{editingTask ? 'Edit Task' : 'Create New Task'}</h3>
-                 <button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                 <button onClick={resetForm} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleSaveTask} className="p-6 space-y-5">
                  <div>
