@@ -14,7 +14,7 @@ interface BrandingContextType extends BrandingConfig {
 
 const defaultBranding: BrandingConfig = {
   companyName: 'OK BOZ SUPER APP',
-  logoUrl: '', // Empty string implies default 'M' icon
+  logoUrl: '/logo.png', // Updated to use the local logo file
   primaryColor: '#10b981', // Default Emerald-500
 };
 
