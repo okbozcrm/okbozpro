@@ -270,22 +270,42 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     if (!app) return [];
     await ensureAuth(app);
     const db = getDb(app);
+    
+    // Get current user context
     const userRole = localStorage.getItem('user_role') as UserRole;
     const sessionId = localStorage.getItem('app_session_id') || 'admin';
+    
     const snapshot = await getDocs(collection(db, NOTIFICATION_COLLECTION));
     let allNotifications: BozNotification[] = [];
     snapshot.forEach(doc => { allNotifications.push(doc.data() as BozNotification); });
     
     const relevantNotifications = allNotifications.filter(notif => {
+      // 1. Basic Read/Validity Check
       if (notif.read) return false;
-      const isTargetRole = notif.targetRoles.includes(userRole);
+      
+      // 2. Role Check: Is this notification allowed for this role?
+      const isTargetRole = notif.targetRoles && notif.targetRoles.includes(userRole);
       if (!isTargetRole) return false;
-      if (userRole === UserRole.EMPLOYEE) return notif.employeeId === sessionId;
-      if (userRole === UserRole.CORPORATE) {
-          if (notif.corporateId && notif.corporateId !== sessionId) return false;
+
+      // 3. Super Admin: Sees ALL notifications targeted at ADMIN
+      if (userRole === UserRole.ADMIN) {
           return true;
       }
-      return true;
+
+      // 4. Employee (Staff): Strict Check
+      // Only show if the notification is explicitly assigned to their ID (e.g. Tasks, Leave Updates)
+      if (userRole === UserRole.EMPLOYEE) {
+          return notif.employeeId === sessionId;
+      }
+
+      // 5. Corporate (Franchisee): Strict Check
+      // Only show if the notification is explicitly assigned to their Corporate ID
+      // (e.g. Staff Logins under their franchise, Leads assigned to their franchise)
+      if (userRole === UserRole.CORPORATE) {
+          return notif.corporateId === sessionId;
+      }
+
+      return false;
     });
 
     return relevantNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
