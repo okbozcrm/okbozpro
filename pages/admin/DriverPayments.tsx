@@ -4,7 +4,7 @@ import {
   Settings, Plus, Search, Filter, Download, 
   Truck, DollarSign, Calendar, CheckCircle, 
   AlertCircle, X, Save, ChevronDown, PieChart, Info, Building2,
-  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCw
+  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCw, Check
 } from 'lucide-react';
 import { Employee, CorporateAccount } from '../../types';
 import AiAssistant from '../../components/AiAssistant';
@@ -71,9 +71,6 @@ export const DriverPayments: React.FC = () => {
   const isSuperAdmin = userRole === 'ADMIN';
 
   // Helper to determine the "Data Owner" ID
-  // If Admin: 'admin'
-  // If Corporate: their email (sessionId)
-  // If Employee: their assigned corporate's email
   const getContextOwnerId = () => {
       if (isSuperAdmin) return 'admin';
       if (userRole === 'EMPLOYEE') {
@@ -97,8 +94,8 @@ export const DriverPayments: React.FC = () => {
   const [allBranches, setAllBranches] = useState<any[]>([]);
 
   // Modals
-  const [isModalOpen, setIsModalOpen] = useState(false); // Compensation Modal
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false); // Wallet Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
 
   // General Search
@@ -116,7 +113,7 @@ export const DriverPayments: React.FC = () => {
   const [compStatus, setCompStatus] = useState('All');
   
   // Compensation Form State
-  const [paymentType, setPaymentType] = useState<'Empty Km' | 'Promo Code' | 'Sticker'>('Empty Km');
+  const [selectedPaymentTypes, setSelectedPaymentTypes] = useState<string[]>(['Empty Km']);
   const [compForm, setCompForm] = useState({
     branch: '',
     driverName: '',
@@ -230,12 +227,23 @@ export const DriverPayments: React.FC = () => {
       return Math.max(0, capped - rules.freeLimitKm);
   }, [compForm.pickupDistance, rules]);
 
+  // Calculate total payable based on ALL selected types
   const calculatedPayable = useMemo(() => {
-      if (paymentType === 'Empty Km') return eligiblePaidKm * rules.ratePerKm;
-      if (paymentType === 'Promo Code') return parseFloat(compForm.discountAmount) || 0;
-      if (paymentType === 'Sticker') return parseFloat(compForm.stickerAmount) || 0;
-      return 0;
-  }, [paymentType, compForm, eligiblePaidKm, rules]);
+      let total = 0;
+      if (selectedPaymentTypes.includes('Empty Km')) total += (eligiblePaidKm * rules.ratePerKm);
+      if (selectedPaymentTypes.includes('Promo Code')) total += (parseFloat(compForm.discountAmount) || 0);
+      if (selectedPaymentTypes.includes('Sticker')) total += (parseFloat(compForm.stickerAmount) || 0);
+      return total;
+  }, [selectedPaymentTypes, compForm, eligiblePaidKm, rules]);
+
+  const existingOrderPayments = useMemo(() => {
+      if (!compForm.orderId.trim()) return [];
+      return payments.filter(p => p.orderId === compForm.orderId.trim() && p.status !== 'Rejected');
+  }, [compForm.orderId, payments]);
+
+  const existingOrderTotal = useMemo(() => {
+      return existingOrderPayments.reduce((sum, p) => sum + p.amount, 0);
+  }, [existingOrderPayments]);
 
 
   // --- Handlers: Compensation ---
@@ -246,88 +254,104 @@ export const DriverPayments: React.FC = () => {
     setActiveView('Dashboard');
   };
 
+  const togglePaymentType = (type: string) => {
+    setSelectedPaymentTypes(prev => {
+        if (prev.includes(type)) {
+            // Prevent deselecting if it's the last one
+            if (prev.length === 1) return prev; 
+            return prev.filter(t => t !== type);
+        }
+        return [...prev, type];
+    });
+  };
+
   const handleSaveCompensation = () => {
     if (!compForm.driverName || !compForm.phone) {
         alert("Please enter driver details");
         return;
     }
 
+    if (selectedPaymentTypes.length === 0) {
+        alert("Please select at least one payment type.");
+        return;
+    }
+
     // --- ORDER ID VALIDATION ---
-    const orderIdRequired = paymentType === 'Empty Km' || paymentType === 'Promo Code';
+    const orderIdRequired = selectedPaymentTypes.includes('Empty Km') || selectedPaymentTypes.includes('Promo Code');
     if (orderIdRequired && !compForm.orderId.trim()) {
-        alert("Order ID is required for Empty Km and Promo Code payments.");
+        alert("Order ID is required when Empty Km or Promo Code is selected.");
         return;
     }
 
     const key = contextOwnerId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${contextOwnerId}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    let newPayments: DriverPayment[] = [];
+    const timestamp = Date.now();
 
+    // Check existing for duplicates logic
     if (compForm.orderId.trim()) {
         const relatedPayments = existing.filter((p: DriverPayment) => 
             p.orderId === compForm.orderId && p.status !== 'Rejected'
         );
 
-        if (relatedPayments.length > 0) {
-            // Rule 1: Check for exact duplicate type on same Order ID
-            if (relatedPayments.some((p: DriverPayment) => p.type === paymentType)) {
-                alert(`Order ID ${compForm.orderId} already has a payment for '${paymentType}'. Duplicates not allowed.`);
-                return;
-            }
+        // Check if any selected type is already paid for this order
+        const hasDuplicate = selectedPaymentTypes.some(type => 
+            relatedPayments.some((p: DriverPayment) => p.type === type)
+        );
 
-            // Rule 2: Compatibility Check (Only Empty Km + Promo Code can mix)
-            // If current is Sticker, it shouldn't reuse an Order ID used by others (assuming Sticker implies unique)
-            if (paymentType === 'Sticker') {
-                 alert(`Order ID ${compForm.orderId} is already in use.`);
-                 return;
-            }
-            
-            // Check if current payment allows the existing ones
-            const isCompatible = relatedPayments.every((p: DriverPayment) => {
-                if (paymentType === 'Empty Km') return p.type === 'Promo Code';
-                if (paymentType === 'Promo Code') return p.type === 'Empty Km';
-                return false;
-            });
-
-            if (!isCompatible) {
-                alert(`Order ID ${compForm.orderId} is already used by incompatible payment types.`);
-                return;
-            }
+        if (hasDuplicate) {
+            alert(`One or more selected payment types have already been logged for Order ID ${compForm.orderId}.`);
+            return;
         }
     }
 
-    let finalAmount = 0;
-    let details: any = {};
+    // Create a record for each selected type
+    selectedPaymentTypes.forEach((type, index) => {
+        let amount = 0;
+        let details: any = {};
 
-    if (paymentType === 'Empty Km') {
-        const dist = parseFloat(compForm.pickupDistance) || 0;
-        finalAmount = calculatedPayable;
-        details = { distance: dist, paidKm: eligiblePaidKm };
-    } else if (paymentType === 'Promo Code') {
-        finalAmount = parseFloat(compForm.discountAmount) || 0;
-        details = { promoName: compForm.promoName };
-    } else {
-        finalAmount = parseFloat(compForm.stickerAmount) || 0;
-        details = { stickerDuration: parseInt(compForm.stickerDuration) };
+        if (type === 'Empty Km') {
+            const dist = parseFloat(compForm.pickupDistance) || 0;
+            amount = eligiblePaidKm * rules.ratePerKm;
+            details = { distance: dist, paidKm: eligiblePaidKm };
+        } else if (type === 'Promo Code') {
+            amount = parseFloat(compForm.discountAmount) || 0;
+            details = { promoName: compForm.promoName };
+        } else if (type === 'Sticker') {
+            amount = parseFloat(compForm.stickerAmount) || 0;
+            details = { stickerDuration: parseInt(compForm.stickerDuration) };
+        }
+
+        if (amount <= 0 && type !== 'Sticker') {
+            // Optional warning or skip 0 amounts? For now, we save even 0 if they clicked it.
+            // Actually, let's enforce non-zero for promo/km
+             if (type === 'Empty Km' && eligiblePaidKm <= 0) return; // Skip if no payout
+        }
+
+        newPayments.push({
+            id: `DP-${timestamp}-${index}`, // Ensure unique ID
+            driverName: compForm.driverName,
+            phone: compForm.phone,
+            vehicleNo: compForm.vehicleNo,
+            orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
+            branch: compForm.branch || 'Main Branch',
+            corporateId: contextOwnerId,
+            type: type as any,
+            amount: amount,
+            status: compForm.status as any,
+            date: compForm.date,
+            paymentMode: compForm.paymentMode,
+            remarks: compForm.remarks,
+            details: details
+        });
+    });
+
+    if (newPayments.length === 0) {
+        alert("No valid payment amounts calculated to save.");
+        return;
     }
 
-    const newPayment: DriverPayment = {
-        id: `DP-${Date.now()}`,
-        driverName: compForm.driverName,
-        phone: compForm.phone,
-        vehicleNo: compForm.vehicleNo,
-        orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`, // Fallback only for Sticker
-        branch: compForm.branch || 'Main Branch',
-        corporateId: contextOwnerId,
-        type: paymentType,
-        amount: finalAmount,
-        status: compForm.status as any,
-        date: compForm.date,
-        paymentMode: compForm.paymentMode,
-        remarks: compForm.remarks,
-        details: details
-    };
-
-    localStorage.setItem(key, JSON.stringify([newPayment, ...existing]));
+    localStorage.setItem(key, JSON.stringify([...newPayments, ...existing]));
     
     loadAllData();
     setIsModalOpen(false);
@@ -336,10 +360,10 @@ export const DriverPayments: React.FC = () => {
         driverName: '', phone: '', vehicleNo: '', orderId: '', 
         pickupDistance: '', discountAmount: '', stickerAmount: '', promoName: '' 
     }));
-    alert("Payment Logged Successfully!");
+    alert("Payment(s) Logged Successfully!");
   };
 
-  // ... (Wallet handlers remain the same) ...
+  // ... (Wallet handlers unchanged)
   const handleOpenWalletModal = (existingTransaction?: WalletTransaction) => {
       if (existingTransaction) {
           setEditingWalletId(existingTransaction.id);
@@ -447,7 +471,7 @@ export const DriverPayments: React.FC = () => {
       loadAllData();
   };
 
-  // --- Stats & Filtering (Same as before) ---
+  // --- Stats & Filtering ---
   const walletStats = useMemo(() => {
       const approved = walletTransactions.filter(t => t.status === 'Approved');
       const topUp = approved.filter(t => t.type === 'Top-up').reduce((sum, t) => sum + t.amount, 0);
@@ -527,7 +551,7 @@ export const DriverPayments: React.FC = () => {
       {/* ---------------- WALLET TAB ---------------- */}
       {mainTab === 'Wallet' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-              {/* Wallet UI (Stats, Filter, Table) ... Same as before ... */}
+              {/* Wallet UI (Stats, Filter, Table) ... */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Balance Card */}
                   <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">
@@ -572,7 +596,7 @@ export const DriverPayments: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                       {/* ... Filter inputs ... */}
-                      <button onClick={() => { setSearchTerm(''); setWalletStatus('All'); setWalletType('All'); }} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"><RefreshCcw className="w-4 h-4" /></button>
+                      <button onClick={() => { setSearchTerm(''); setWalletStatus('All'); setWalletType('All'); }} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"><RefreshCw className="w-4 h-4" /></button>
                   </div>
               </div>
 
@@ -755,72 +779,67 @@ export const DriverPayments: React.FC = () => {
                  
                  <div>
                      <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
-                        Order ID {['Empty Km', 'Promo Code'].includes(paymentType) ? <span className="text-red-500 font-bold ml-1">(Required)</span> : '(Optional)'}
+                        Order ID {selectedPaymentTypes.some(t => ['Empty Km', 'Promo Code'].includes(t)) ? <span className="text-red-500 font-bold ml-1">(Required)</span> : '(Optional)'}
                      </label>
                      <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="Related Order ID" value={compForm.orderId} onChange={(e) => setCompForm({...compForm, orderId: e.target.value})} />
                  </div>
 
                  <div className="space-y-1">
-                     <label className="text-xs font-bold text-gray-500 uppercase">Payment Type</label>
-                     <div className="flex bg-gray-100 p-1 rounded-lg">
+                     <label className="text-xs font-bold text-gray-500 uppercase">Payment Components</label>
+                     <div className="flex flex-wrap gap-2">
                          {['Empty Km', 'Promo Code', 'Sticker'].map(type => (
                              <button 
                                 key={type} 
-                                onClick={() => setPaymentType(type as any)}
-                                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${paymentType === type ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
+                                onClick={() => togglePaymentType(type)}
+                                className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 ${selectedPaymentTypes.includes(type) ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                              >
+                                 {selectedPaymentTypes.includes(type) && <Check className="w-3 h-3" />}
                                  {type}
                              </button>
                          ))}
                      </div>
                  </div>
 
-                 {paymentType === 'Empty Km' && (
+                 {selectedPaymentTypes.includes('Empty Km') && (
                      <div className="space-y-4 animate-in slide-in-from-left-4">
                          <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
                              <div className="flex justify-between items-center mb-2">
-                                 <label className="text-xs font-bold text-orange-700">Pickup Distance (KM)</label>
+                                 <label className="text-xs font-bold text-orange-700">Empty Km Details</label>
                                  <span className="text-[10px] bg-white px-2 py-0.5 rounded text-orange-600 border border-orange-200">Free Limit: {rules.freeLimitKm} km</span>
                              </div>
-                             <input 
-                                type="number" 
-                                className="w-full p-2 text-lg font-bold border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" 
-                                placeholder="0.0"
-                                value={compForm.pickupDistance}
-                                onChange={(e) => setCompForm({...compForm, pickupDistance: e.target.value})}
-                             />
-                             <div className="mt-2 text-xs flex justify-between text-orange-800">
-                                 <span>Payable: {eligiblePaidKm.toFixed(1)} km</span>
-                                 <span className="font-bold">Total: ₹{calculatedPayable}</span>
+                             <div className="flex items-center gap-3">
+                                 <input 
+                                    type="number" 
+                                    className="flex-1 p-2 text-sm font-bold border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" 
+                                    placeholder="Pickup Dist (KM)"
+                                    value={compForm.pickupDistance}
+                                    onChange={(e) => setCompForm({...compForm, pickupDistance: e.target.value})}
+                                 />
+                                 <div className="text-right">
+                                    <span className="block text-[10px] text-orange-600 uppercase font-bold">Payable</span>
+                                    <span className="text-sm font-black text-orange-800">₹{(eligiblePaidKm * rules.ratePerKm).toFixed(0)}</span>
+                                 </div>
                              </div>
                          </div>
                      </div>
                  )}
 
-                 {paymentType === 'Promo Code' && (
-                     <div className="space-y-4 animate-in slide-in-from-left-4">
-                         <div>
-                             <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Promo Name</label>
-                             <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="e.g. DIWALI500" value={compForm.promoName} onChange={(e) => setCompForm({...compForm, promoName: e.target.value})} />
-                         </div>
-                         <div>
-                             <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
-                             <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="0.00" value={compForm.discountAmount} onChange={(e) => setCompForm({...compForm, discountAmount: e.target.value})} />
-                         </div>
-                     </div>
-                 )}
-
-                 {paymentType === 'Sticker' && (
-                     <div className="space-y-4 animate-in slide-in-from-left-4">
+                 {selectedPaymentTypes.includes('Promo Code') && (
+                     <div className="space-y-3 animate-in slide-in-from-left-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                         <label className="text-xs font-bold text-blue-700 uppercase">Promo Code Details</label>
                          <div className="grid grid-cols-2 gap-3">
-                             <div>
-                                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Duration (Months)</label>
-                                 <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="e.g. 3" value={compForm.stickerDuration} onChange={(e) => setCompForm({...compForm, stickerDuration: e.target.value})} />
-                             </div>
-                             <div>
-                                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
-                                 <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="0.00" value={compForm.stickerAmount} onChange={(e) => setCompForm({...compForm, stickerAmount: e.target.value})} />
-                             </div>
+                             <input className="w-full p-2 border border-blue-200 rounded-lg text-sm bg-white" placeholder="Promo Name" value={compForm.promoName} onChange={(e) => setCompForm({...compForm, promoName: e.target.value})} />
+                             <input type="number" className="w-full p-2 border border-blue-200 rounded-lg text-sm bg-white font-bold" placeholder="Amount (₹)" value={compForm.discountAmount} onChange={(e) => setCompForm({...compForm, discountAmount: e.target.value})} />
+                         </div>
+                     </div>
+                 )}
+
+                 {selectedPaymentTypes.includes('Sticker') && (
+                     <div className="space-y-3 animate-in slide-in-from-left-4 p-4 bg-purple-50 rounded-lg border border-purple-100">
+                         <label className="text-xs font-bold text-purple-700 uppercase">Sticker Details</label>
+                         <div className="grid grid-cols-2 gap-3">
+                             <input type="number" className="w-full p-2 border border-purple-200 rounded-lg text-sm bg-white" placeholder="Duration (Months)" value={compForm.stickerDuration} onChange={(e) => setCompForm({...compForm, stickerDuration: e.target.value})} />
+                             <input type="number" className="w-full p-2 border border-purple-200 rounded-lg text-sm bg-white font-bold" placeholder="Amount (₹)" value={compForm.stickerAmount} onChange={(e) => setCompForm({...compForm, stickerAmount: e.target.value})} />
                          </div>
                      </div>
                  )}
@@ -843,8 +862,28 @@ export const DriverPayments: React.FC = () => {
                      </div>
                  </div>
 
+                 {/* Total Amount Summary Block */}
+                 {(selectedPaymentTypes.length > 0) && (
+                     <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-500">New Payment Total:</span>
+                            <span className="font-bold text-gray-900">₹{calculatedPayable.toFixed(2)}</span>
+                        </div>
+                        {existingOrderTotal > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-blue-600">Previous Payments ({compForm.orderId}):</span>
+                                <span className="font-bold text-blue-700">₹{existingOrderTotal.toFixed(2)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 border-t border-emerald-200">
+                            <span className="text-sm font-black text-emerald-800 uppercase tracking-wider">Cumulative Total</span>
+                            <span className="text-xl font-black text-emerald-600">₹{(calculatedPayable + existingOrderTotal).toFixed(2)}</span>
+                        </div>
+                     </div>
+                 )}
+
                  <button onClick={handleSaveCompensation} className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold shadow-md hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                     <Save className="w-4 h-4" /> Save Record
+                     <Save className="w-4 h-4" /> Save Record(s)
                  </button>
               </div>
            </div>
