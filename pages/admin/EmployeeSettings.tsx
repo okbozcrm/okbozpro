@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, UserX, Clock, 
@@ -7,7 +8,7 @@ import {
   MapPin as MapPinIcon, Briefcase as BriefcaseIcon,
   ToggleLeft, ToggleRight, Save, UploadCloud, Search,
   AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen, X,
-  QrCode, Crosshair, MousePointer2, Globe
+  QrCode, Crosshair, MousePointer2, Globe, Bike
 } from 'lucide-react';
 
 type SettingCategory = 
@@ -18,7 +19,8 @@ type SettingCategory =
   | 'Calendar Month' | 'Attendance Cycle' | 'Payout Date' | 'Import Settings' | 'Incentive Types' | 'Salary Templates' | 'Round Off'
   | 'App Notifications'
   | 'CMS & Content'
-  | 'Request A Feature';
+  | 'Request A Feature'
+  | 'Travel Allowance';
 
 const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: any, desc?: string }) => (
   <div className="mb-6 border-b border-gray-100 pb-4">
@@ -514,6 +516,50 @@ const PayoutDateSettings = () => {
   );
 };
 
+const TravelAllowanceSettings = () => {
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const RATE_KEY = isSuperAdmin ? 'company_ta_rate' : `company_ta_rate_${sessionId}`;
+
+  const [rate, setRate] = useState<string>(() => {
+    return localStorage.getItem(RATE_KEY) || '10';
+  });
+
+  const handleSave = () => {
+    localStorage.setItem(RATE_KEY, rate);
+    // If super admin, maybe sync? Usually strict scoping handles it.
+    if (!isSuperAdmin) {
+       // Just local scope for franchise
+    } else {
+       // Global default
+       localStorage.setItem('company_ta_rate', rate);
+    }
+    alert("Travel Allowance rate saved!");
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <SectionHeader title="Travel Allowance" icon={Bike} desc="Configure mileage reimbursement rates." />
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 max-w-lg">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Default Rate per KM (₹)</label>
+            <input 
+                type="number" 
+                value={rate} 
+                onChange={(e) => setRate(e.target.value)} 
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
+                placeholder="e.g. 10"
+            />
+            <p className="text-xs text-gray-500 mt-2">This rate will be auto-filled when employees submit KM claims.</p>
+          </div>
+          <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors">
+              Save Rate
+          </button>
+      </div>
+    </div>
+  );
+};
+
 const CMSSettings = () => {
     const [pages, setPages] = useState({ privacy: '', terms: '', about: '', support: '' });
     useEffect(() => {
@@ -559,7 +605,7 @@ const EmployeeSettings: React.FC = () => {
     { heading: 'ATTENDANCE SETTINGS', items: [ { id: 'Shifts & Breaks', icon: Clock }, { id: 'Attendance Modes', icon: Smartphone } ] },
     { heading: 'LEAVES AND HOLIDAYS', items: [ { id: 'Custom Paid Leaves', icon: Plane }, { id: 'Holiday List', icon: Calendar } ] },
     { heading: 'AUTOMATION', items: [ { id: 'Auto Live Track', icon: Zap } ] },
-    { heading: 'SALARY SETTINGS', items: [ { id: 'Payout Date', icon: CalendarCheck } ] },
+    { heading: 'SALARY SETTINGS', items: [ { id: 'Payout Date', icon: CalendarCheck }, { id: 'Travel Allowance', icon: Bike } ] },
     { heading: 'ALERT & NOTIFICATION', items: [ { id: 'App Notifications', icon: Bell } ] },
     { heading: 'WEBSITE CONTENT', items: [ { id: 'CMS & Content', icon: BookOpen } ] },
     { heading: 'OTHER SETTINGS', items: [ { id: 'Request A Feature', icon: MessageSquare } ] }
@@ -581,6 +627,7 @@ const EmployeeSettings: React.FC = () => {
       case 'CMS & Content': return <CMSSettings />;
       case 'Request A Feature': return <FeatureRequest />;
       case 'Payout Date': return <PayoutDateSettings />;
+      case 'Travel Allowance': return <TravelAllowanceSettings />;
       default: return <div className="p-8 text-center text-gray-500">Select a configuration option from the left.</div>;
     }
   };

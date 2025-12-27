@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Bike, Plus, Search, Filter, Download, CheckCircle, 
@@ -35,13 +36,38 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
     date: new Date().toISOString().split('T')[0],
     startOdometer: '',
     endOdometer: '',
-    ratePerKm: '10',
+    ratePerKm: '10', // Default, will be updated by useEffect
     remarks: ''
   });
 
   // Reference Data
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [staff, setStaff] = useState<Employee[]>([]);
+
+  // --- Fetch Configured Rate ---
+  useEffect(() => {
+    const fetchRate = () => {
+        let corporateId = 'admin';
+        if (role === UserRole.EMPLOYEE) {
+            corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+        } else if (role === UserRole.CORPORATE) {
+            corporateId = sessionId;
+        }
+        
+        const key = corporateId === 'admin' ? 'company_ta_rate' : `company_ta_rate_${corporateId}`;
+        const savedRate = localStorage.getItem(key);
+        // Fallback to global if corporate-specific not found for employees under franchise (optional logic, sticking to direct check)
+        if (savedRate) {
+            setFormData(prev => ({ ...prev, ratePerKm: savedRate }));
+        } else if (corporateId !== 'admin') {
+             // If franchise doesn't have setting, try checking if they rely on global default?
+             // For now, keep it simple.
+             const globalRate = localStorage.getItem('company_ta_rate');
+             if (globalRate) setFormData(prev => ({ ...prev, ratePerKm: globalRate }));
+        }
+    };
+    fetchRate();
+  }, [role, sessionId]);
 
   // --- Load Data ---
   const loadData = () => {
@@ -155,7 +181,8 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
 
     setRequests([newRequest, ...requests]);
     setIsModalOpen(false);
-    setFormData({ ...formData, startOdometer: '', endOdometer: '', remarks: '' });
+    // Keep the rate, clear other fields
+    setFormData(prev => ({ ...prev, startOdometer: '', endOdometer: '', remarks: '' }));
     alert("Claim submitted successfully!");
   };
 
