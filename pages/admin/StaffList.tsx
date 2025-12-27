@@ -7,7 +7,6 @@ import {
   AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode, ChevronDown, 
   IndianRupee, Fingerprint, Shield, UserCheck, Layers, FileCheck, CheckSquare, Square,
   Circle, Dot, DollarSign, Plane, Building, UserPlus, Info, HeartPulse, Check, Car, BarChart3, Users, Landmark, CheckCircle,
-  // FIX: Added missing Save icon import
   Save
 } from 'lucide-react'; 
 import { Employee, UserRole } from '../../types';
@@ -29,7 +28,9 @@ const MODULE_PERMISSIONS = [
   { id: 'driver_payments', label: 'Driver Payments', icon: CreditCard },
   { id: 'staff_mgt', label: 'Staff Management', icon: Users },
   { id: 'finance', label: 'Finance & Expenses', icon: Landmark },
-  { id: 'live_tracking', label: 'Live Tracking', icon: Navigation }
+  { id: 'live_tracking', label: 'Live Tracking', icon: Navigation },
+  { id: 'leads', label: 'Franchisee Leads', icon: Layers },
+  { id: 'payroll', label: 'Payroll Access', icon: DollarSign }
 ];
 
 const StaffList: React.FC = () => {

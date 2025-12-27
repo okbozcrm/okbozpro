@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -23,7 +22,7 @@ import EmailMarketing from './pages/admin/EmailMarketing';
 import { TripBooking } from './pages/admin/TripBooking';
 import { CustomerCare } from './pages/admin/CustomerCare';
 import AutoDialer from './pages/admin/AutoDialer';
-import DriverPayments from './pages/admin/DriverPayments';
+import { DriverPayments } from './pages/admin/DriverPayments';
 import DataExport from './pages/admin/DataExport'; 
 import Messenger from './pages/admin/Messenger'; 
 import UserAttendance from './pages/user/UserAttendance';

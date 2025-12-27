@@ -5,13 +5,14 @@ import {
   RefreshCw, CheckCircle, Clock, X, Eye, CreditCard, 
   Banknote, History, Trash2, Printer, User, ArrowLeft, 
   Calendar, Building2, MapPin, Users, TrendingUp, TrendingDown, Wallet,
-  ArrowRight, ShieldCheck, Landmark, Loader2, FileText, Bike
+  ArrowRight, ShieldCheck, Landmark, Loader2, FileText, Bike, BarChart3
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { sendSystemNotification } from '../../services/cloudService';
+import { useNavigate } from 'react-router-dom';
 
 const formatCurrency = (amount: number) => {
   return amount.toLocaleString('en-IN', {
@@ -73,31 +74,33 @@ const Payroll: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
+  const navigate = useNavigate();
 
   const loadData = useCallback(() => {
-      let allHistory: any[] = [];
-      const rootHistory = localStorage.getItem('payroll_history');
-      if (rootHistory) allHistory = JSON.parse(rootHistory);
+      let allHistory: PayrollHistoryRecord[] = [];
+      
       if (isSuperAdmin) {
+          // Admin loads root history + all corporate histories
+          const rootHistory = localStorage.getItem('payroll_history');
+          if (rootHistory) allHistory = JSON.parse(rootHistory);
+          
           const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
           setCorporatesList(corps);
           corps.forEach((c: any) => {
               const cHistory = localStorage.getItem(`payroll_history_${c.email}`);
               if (cHistory) allHistory = [...allHistory, ...JSON.parse(cHistory)];
           });
+      } else {
+          // Franchise/Employee loads only their specific history
+          const myHistory = localStorage.getItem(`payroll_history_${sessionId}`);
+          if (myHistory) allHistory = JSON.parse(myHistory);
       }
       setHistory(allHistory.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
       let allAdvances: any[] = [];
       const rootAdv = localStorage.getItem('salary_advances');
       if (rootAdv) allAdvances = JSON.parse(rootAdv);
-      if (isSuperAdmin) {
-          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-          corps.forEach((c: any) => {
-              const cAdv = localStorage.getItem(`salary_advances_${c.email}`);
-              if (cAdv) allAdvances = [...allAdvances, ...JSON.parse(cAdv)];
-          });
-      }
+      // NOTE: Advances are global list in this system design for simplicity, filtering happens in UI
       setAdvances(allAdvances);
 
       const rootClaims = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
@@ -212,18 +215,47 @@ const Payroll: React.FC = () => {
   }, [filteredEmployees, payrollData]);
 
   const handleProcessPayout = () => {
-    if (payrollSummary.count === 0) { alert("No employee records to process."); return; }
-    if (window.confirm(`Confirm total payout of ${formatCurrency(payrollSummary.totalNet)}?`)) {
+    // 1. Determine who is being paid (based on current filters)
+    const employeesToPay = filteredEmployees;
+    
+    if (employeesToPay.length === 0) { 
+        alert("No employee records to process in the current view."); 
+        return; 
+    }
+
+    // 2. Calculate totals for this batch
+    let batchNetTotal = 0;
+    const batchData: Record<string, PayrollEntry> = {};
+    const processedEmployeeIds = new Set<string>();
+    
+    employeesToPay.forEach(emp => {
+        const entry = payrollData[emp.id];
+        if (entry) {
+            batchData[emp.id] = entry;
+            batchNetTotal += calculateNetPay(entry);
+            processedEmployeeIds.add(emp.id);
+        }
+    });
+
+    if (window.confirm(`Confirm payout for ${employeesToPay.length} employees? Total: ${formatCurrency(batchNetTotal)}`)) {
         setIsProcessingPayout(true);
         setTimeout(() => {
-            const entries = Object.values(payrollData) as PayrollEntry[];
-            const netTotal = entries.reduce((s: number, e: PayrollEntry) => s + calculateNetPay(e), 0);
-            const record = { id: Date.now().toString(), name: `Payout Batch ${selectedMonth}`, date: new Date().toISOString(), totalAmount: netTotal, employeeCount: filteredEmployees.length, data: payrollData };
+            const record: PayrollHistoryRecord = { 
+                id: Date.now().toString(), 
+                name: `Payout Batch ${selectedMonth} (${employeesToPay.length} Staff)`, 
+                date: new Date().toISOString(), 
+                totalAmount: batchNetTotal, 
+                employeeCount: employeesToPay.length, 
+                data: batchData 
+            };
             
+            // 3. Update Claims & Advances Status (Only for processed employees)
             const allClaimsStr = localStorage.getItem('global_travel_requests');
             const allClaims: TravelAllowanceRequest[] = allClaimsStr ? JSON.parse(allClaimsStr) : [];
             const updatedClaims = allClaims.map((r: TravelAllowanceRequest) => {
-                if (r.status === 'Approved' && r.date.startsWith(selectedMonth)) return { ...r, status: 'Paid' };
+                if (processedEmployeeIds.has(r.employeeId) && r.status === 'Approved' && r.date.startsWith(selectedMonth)) {
+                    return { ...r, status: 'Paid' };
+                }
                 return r;
             });
             localStorage.setItem('global_travel_requests', JSON.stringify(updatedClaims));
@@ -231,33 +263,40 @@ const Payroll: React.FC = () => {
             const allAdvancesStr = localStorage.getItem('salary_advances');
             const allAdvances: SalaryAdvanceRequest[] = allAdvancesStr ? JSON.parse(allAdvancesStr) : [];
             const updatedAdvances = allAdvances.map((a: SalaryAdvanceRequest) => {
-                const pData = payrollData[a.employeeId];
-                if (pData && a.status === 'Approved') return { ...a, status: 'Paid' };
+                // If user is in this batch and advance is approved, mark as paid (deducted)
+                if (processedEmployeeIds.has(a.employeeId) && a.status === 'Approved') {
+                    return { ...a, status: 'Paid' };
+                }
                 return a;
             });
             localStorage.setItem('salary_advances', JSON.stringify(updatedAdvances));
 
-            entries.forEach((entry: PayrollEntry) => {
-                const amount = calculateNetPay(entry);
-                if (amount > 0) {
-                    sendSystemNotification({
-                        type: 'system',
-                        title: 'Salary Update',
-                        message: `Your salary of ₹${amount.toLocaleString()} for ${new Date(selectedMonth).toLocaleDateString('en-US', {month:'long', year:'numeric'})} has been disbursed.`,
-                        targetRoles: [UserRole.EMPLOYEE],
-                        employeeId: entry.employeeId,
-                        link: '/user/salary'
-                    });
+            // 4. Send Notifications
+            employeesToPay.forEach((emp) => {
+                const entry = batchData[emp.id];
+                if (entry) {
+                    const amount = calculateNetPay(entry);
+                    if (amount > 0) {
+                        sendSystemNotification({
+                            type: 'system',
+                            title: 'Salary Update',
+                            message: `Your salary of ₹${amount.toLocaleString()} for ${new Date(selectedMonth).toLocaleDateString('en-US', {month:'long', year:'numeric'})} has been disbursed.`,
+                            targetRoles: [UserRole.EMPLOYEE],
+                            employeeId: emp.id,
+                            link: '/user/salary'
+                        });
+                    }
                 }
             });
 
+            // 5. Save History to Correct Storage Key
             const key = isSuperAdmin ? 'payroll_history' : `payroll_history_${sessionId}`;
             const currentHistory = JSON.parse(localStorage.getItem(key) || '[]');
             localStorage.setItem(key, JSON.stringify([record, ...currentHistory]));
             
             loadData();
             setIsProcessingPayout(false);
-            alert(`Payout executed! Total: ${formatCurrency(netTotal)}`);
+            alert(`Payout executed! Total: ${formatCurrency(batchNetTotal)}`);
         }, 2000);
     }
   };
@@ -269,10 +308,18 @@ const Payroll: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800">Payroll Management</h2>
           <p className="text-gray-500">Execution and history for monthly disbursements</p>
         </div>
-        <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">
-            {['Salary', 'Advances', 'KM Claims (TA)', 'History'].map(t => (
-                <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
-            ))}
+        <div className="flex items-center gap-3">
+            <button 
+                onClick={() => navigate('/admin/reports')}
+                className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all shadow-sm"
+            >
+                <BarChart3 className="w-4 h-4" /> View Analytics
+            </button>
+            <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">
+                {['Salary', 'Advances', 'KM Claims (TA)', 'History'].map(t => (
+                    <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
+                ))}
+            </div>
         </div>
       </div>
 
@@ -290,10 +337,11 @@ const Payroll: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                     <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black" />
                     {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => setFilterCorporate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black"><option value="All">All Corporates</option>{corporatesList.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}</select>)}
+                    <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black"><option value="All">All Branches</option>{Array.from(new Set(employees.map(e => e.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}</select>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={() => setRefreshToggle(v => v + 1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
-                    <button onClick={handleProcessPayout} disabled={isProcessingPayout} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50">{isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}Process Payouts</button>
+                    <button onClick={handleProcessPayout} disabled={isProcessingPayout} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2 transform active:scale-95 disabled:opacity-50">{isProcessingPayout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}Process Payouts ({filteredEmployees.length})</button>
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -318,6 +366,7 @@ const Payroll: React.FC = () => {
                                 </tr>
                             );
                         })}
+                        {filteredEmployees.length === 0 && <tr><td colSpan={7} className="py-20 text-center text-gray-400 italic">No staff found for the selected filters.</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -328,7 +377,24 @@ const Payroll: React.FC = () => {
       {activeTab === 'Advances' && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in">
               <div className="p-4 bg-gray-50 border-b border-gray-100 font-bold">Pending Salary Advances</div>
-              <div className="p-8 text-center text-gray-400 italic">This view lists all approved advance requests awaiting recovery in current payroll cycle.</div>
+              <div className="overflow-x-auto">
+                 <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-100">
+                        <tr><th className="px-8 py-5">Staff Name</th><th className="px-4 py-5">Amount</th><th className="px-4 py-5">Reason</th><th className="px-4 py-5">Status</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {advances.filter(a => a.status === 'Pending').map(adv => (
+                            <tr key={adv.id}>
+                                <td className="px-8 py-5 font-bold">{adv.employeeName}</td>
+                                <td className="px-4 py-5 font-mono">₹{adv.amountRequested}</td>
+                                <td className="px-4 py-5 text-gray-500 italic">{adv.reason}</td>
+                                <td className="px-4 py-5"><span className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded text-xs font-bold">Pending</span></td>
+                            </tr>
+                        ))}
+                         {advances.filter(a => a.status === 'Pending').length === 0 && <tr><td colSpan={4} className="py-10 text-center text-gray-400">No pending advances.</td></tr>}
+                    </tbody>
+                 </table>
+              </div>
           </div>
       )}
 
@@ -371,6 +437,7 @@ const Payroll: React.FC = () => {
                           <div className="text-right"><p className="font-black text-gray-900 text-xl">{formatCurrency(batch.totalAmount)}</p></div>
                       </div>
                   ))}
+                  {history.length === 0 && <div className="p-10 text-center text-gray-400">No payout history available.</div>}
               </div>
           </div>
       )}

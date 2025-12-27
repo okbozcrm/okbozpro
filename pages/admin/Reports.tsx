@@ -8,7 +8,7 @@ import {
   Download, TrendingUp, DollarSign, 
   Briefcase, ArrowUpRight, Car, MapPin, Activity, CheckSquare, Users, Percent, Calendar, Clock, Filter, PieChart as PieChartIcon,
   Share2, Mail, MessageCircle, FileText, Check, Loader2, Truck, Wallet, ReceiptIndianRupee, RefreshCw, TrendingDown, History, Landmark, X, Building2, ChevronDown, Database, ArrowRight, ShieldCheck, Map,
-  CheckCircle
+  CheckCircle, Minus, Equal
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole } from '../../types';
@@ -196,25 +196,41 @@ const Reports: React.FC = () => {
         base = base.filter(p => p.corporateId === filterCorporate);
     }
     const filteredBatches = base.map(batch => {
-        if (filterBranch === 'All') return batch;
+        // Recalculate totals from individual entries to ensure accuracy and match Payroll logic exactly
+        // This handles cases where stored total might be outdated or calculated differently
         const filteredEntries: Record<string, any> = {};
         let filteredAmount = 0;
         let filteredCount = 0;
-        Object.entries(batch.data).forEach(([empId, entry]: [string, any]) => {
-            const employee = staff.find(s => s.id === empId);
-            if (employee && employee.branch === filterBranch) {
-                filteredEntries[empId] = entry;
-                filteredCount++;
-                const net = (entry.basicSalary + entry.allowances + entry.bonus) - (entry.deductions + entry.advanceDeduction);
-                filteredAmount += net;
-            }
-        });
+        
+        if (batch.data) {
+            Object.entries(batch.data).forEach(([empId, entry]: [string, any]) => {
+                const employee = staff.find(s => s.id === empId);
+                const matchesBranch = filterBranch === 'All' || (employee && employee.branch === filterBranch);
+
+                if (matchesBranch) {
+                    filteredEntries[empId] = entry;
+                    filteredCount++;
+                    // Exact calculation: (Basic + Allowances + Travel + Bonus) - (Deductions + Advances)
+                    const basic = Number(entry.basicSalary) || 0;
+                    const allow = Number(entry.allowances) || 0;
+                    const travel = Number(entry.travelAllowance) || 0;
+                    const bonus = Number(entry.bonus) || 0;
+                    const ded = Number(entry.deductions) || 0;
+                    const adv = Number(entry.advanceDeduction) || 0;
+                    
+                    const net = (basic + allow + travel + bonus) - (ded + adv);
+                    filteredAmount += net;
+                }
+            });
+        }
         return { ...batch, employeeCount: filteredCount, totalAmount: filteredAmount, data: filteredEntries };
     }).filter(batch => batch.employeeCount > 0);
+
     if (filterType !== 'All') {
         return filteredBatches.filter(item => {
-            if (filterType === 'Date') return item.date.startsWith(selectedDate);
-            if (filterType === 'Month') return item.date.startsWith(selectedMonth);
+            const d = item.date || '';
+            if (filterType === 'Date') return d.startsWith(selectedDate);
+            if (filterType === 'Month') return d.startsWith(selectedMonth);
             return true;
         });
     }
@@ -226,19 +242,40 @@ const Reports: React.FC = () => {
   }, [branches]);
 
   const profitSharingData = useMemo(() => {
+      // 1. Revenue: Strictly Admin Commission from Trips
       const adminCommissionTotal = filteredTrips.reduce((sum, t) => sum + (Number(t.adminCommission) || 0), 0);
+      
+      // 2. Expenses Aggregation
       const officeOnlyExpenses = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      
+      // This uses the RECALCULATED total from filteredPayroll, ensuring it matches the Payroll module perfectly
       const payrollTotal = filteredPayroll.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+      
       const driverTotalPaid = filteredDriverPayments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      
       const totalExpenses = officeOnlyExpenses + payrollTotal + driverTotalPaid;
+      
+      // 3. Net Profit Calculation
       const netProfit = adminCommissionTotal - totalExpenses;
+      
       const shares = corporates.map(corp => {
           const sharePercent = corp.profitSharingPercentage || 0;
           const amount = (netProfit * sharePercent) / 100;
           return { id: corp.email, name: corp.companyName, percent: sharePercent, amount: amount > 0 ? amount : 0 };
       });
       const filteredShares = isSuperAdmin ? (filterCorporate === 'All' ? shares : shares.filter(s => s.id === filterCorporate)) : shares.filter(s => s.id === sessionId);
-      return { totalProfit: netProfit, shares: filteredShares, revenue: adminCommissionTotal, expensesBreakdown: { office: officeOnlyExpenses, payroll: payrollTotal, drivers: driverTotalPaid, total: totalExpenses } };
+      
+      return { 
+          totalProfit: netProfit, 
+          shares: filteredShares, 
+          revenue: adminCommissionTotal, 
+          expensesBreakdown: { 
+              office: officeOnlyExpenses, 
+              payroll: payrollTotal, 
+              drivers: driverTotalPaid, 
+              total: totalExpenses 
+          } 
+      };
   }, [filteredTrips, filteredExpenses, filteredPayroll, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
 
   const financialStats = useMemo(() => {
@@ -341,8 +378,11 @@ const Reports: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in">
                   <div className="lg:col-span-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden group">
                       <div className="relative z-10">
-                          <div className="flex justify-between items-start">
-                              <div><p className="text-emerald-100 font-medium mb-1 uppercase tracking-widest text-xs">Net Profit Allocation</p><h3 className="text-5xl font-bold">{formatCurrency(profitSharingData.totalProfit)}</h3></div>
+                          <div className="flex justify-between items-start mb-6">
+                              <div>
+                                  <p className="text-emerald-100 font-bold mb-1 uppercase tracking-[0.2em] text-xs">Corporate Profit & Expense Overview</p>
+                                  <h3 className="text-4xl font-black">{isSuperAdmin ? 'Global Financial Status' : 'My Franchise Financials'}</h3>
+                              </div>
                               <div className="flex gap-2">
                                   <button onClick={handleRecalculate} disabled={isRecalculating} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all transform active:scale-95 shadow-sm">
                                       {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -354,20 +394,27 @@ const Reports: React.FC = () => {
                               </div>
                           </div>
                           
-                          <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 bg-black/10 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                              <div>
-                                  <p className="text-[10px] font-bold text-emerald-200 uppercase mb-1">Revenue (Admin Comm)</p>
-                                  <p className="text-xl font-bold text-white">{formatCurrency(profitSharingData.revenue)}</p>
+                          <div className="mt-8 grid grid-cols-1 md:grid-cols-5 gap-0 bg-black/20 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden text-center divide-x divide-white/10">
+                              <div className="p-6">
+                                  <p className="text-[10px] font-black text-emerald-200 uppercase mb-2 tracking-widest">Total Revenue</p>
+                                  <p className="text-[9px] text-emerald-100/60 font-medium mb-1">(Admin Commission Only)</p>
+                                  <p className="text-2xl font-black text-white">{formatCurrency(profitSharingData.revenue)}</p>
                               </div>
-                              <div className="flex items-center justify-center text-white/50 text-2xl hidden md:flex">-</div>
-                              <div>
-                                  <p className="text-[10px] font-bold text-red-200 uppercase mb-1">Total System Expenses</p>
-                                  <p className="text-xl font-bold text-white">{formatCurrency(profitSharingData.expensesBreakdown.total)}</p>
+                              <div className="p-6 flex items-center justify-center bg-black/10">
+                                  <Minus className="w-8 h-8 text-white/40" />
                               </div>
-                              <div className="flex items-center justify-center text-white/50 text-2xl hidden md:flex">=</div>
-                              <div className="md:col-start-4">
-                                  <p className="text-[10px] font-bold text-emerald-100 uppercase mb-1">Final Net Profit</p>
-                                  <p className="text-xl font-bold text-white">{formatCurrency(profitSharingData.totalProfit)}</p>
+                              <div className="p-6">
+                                  <p className="text-[10px] font-black text-red-200 uppercase mb-2 tracking-widest">Total Expenses</p>
+                                  <p className="text-[9px] text-red-100/60 font-medium mb-1">(Office + Payroll + Driver)</p>
+                                  <p className="text-2xl font-black text-white">{formatCurrency(profitSharingData.expensesBreakdown.total)}</p>
+                              </div>
+                              <div className="p-6 flex items-center justify-center bg-black/10">
+                                  <Equal className="w-8 h-8 text-white/40" />
+                              </div>
+                              <div className="p-6 bg-emerald-500/20">
+                                  <p className="text-[10px] font-black text-emerald-100 uppercase mb-2 tracking-widest">Net Profit</p>
+                                  <p className="text-[9px] text-emerald-100/60 font-medium mb-1">(Revenue - Expenses)</p>
+                                  <p className="text-3xl font-black text-white">{formatCurrency(profitSharingData.totalProfit)}</p>
                               </div>
                           </div>
                       </div>
@@ -376,35 +423,47 @@ const Reports: React.FC = () => {
 
                   <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><TrendingDown className="w-5 h-5 text-red-500" /> Expense Breakdown</h3>
+                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><TrendingDown className="w-5 h-5 text-red-500" /> Detailed Expense Breakdown</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Office Expenses</p>
-                                <p className="text-lg font-bold text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.office)}</p>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-2 opacity-10"><Building2 className="w-12 h-12" /></div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Office Expenses</p>
+                                <p className="text-xs text-gray-500 mb-2 font-medium">Finance Module</p>
+                                <p className="text-lg font-black text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.office)}</p>
                             </div>
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Staff Payroll</p>
-                                <p className="text-lg font-bold text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.payroll)}</p>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-2 opacity-10"><Users className="w-12 h-12" /></div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Staff Payroll</p>
+                                <p className="text-xs text-gray-500 mb-2 font-medium">Net Disbursed</p>
+                                <p className="text-lg font-black text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.payroll)}</p>
                             </div>
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Driver Payments</p>
-                                <p className="text-lg font-bold text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.drivers)}</p>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-2 opacity-10"><Truck className="w-12 h-12" /></div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Driver Payouts</p>
+                                <p className="text-xs text-gray-500 mb-2 font-medium">Incentives & Comp.</p>
+                                <p className="text-lg font-black text-gray-800">{formatCurrency(profitSharingData.expensesBreakdown.drivers)}</p>
                             </div>
                         </div>
                     </div>
 
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChartIcon className="w-5 h-5 text-emerald-500" /> {isSuperAdmin ? "Franchise Distribution" : "Your Agreed Earnings"}</h3>
+                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChartIcon className="w-5 h-5 text-emerald-500" /> {isSuperAdmin ? "Franchise Profit Distribution" : "Your Agreed Earnings"}</h3>
                         <div className="space-y-4">
                             {profitSharingData.shares.map((corp, idx) => (
-                                <div key={idx} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                                    <div className="flex justify-between items-center">
-                                        <div><h4 className="font-bold text-gray-800">{corp.name}</h4><p className="text-xs text-gray-500">{corp.percent}% Agreed Share</p></div>
-                                        <div className="text-right"><p className="text-lg font-bold text-emerald-600">{formatCurrency(corp.amount)}</p></div>
+                                <div key={idx} className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex justify-between items-center group hover:border-emerald-200 transition-all">
+                                    <div>
+                                        <h4 className="font-black text-gray-800 text-sm">{corp.name}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold uppercase">{corp.percent}% Share</span>
+                                            <span className="text-[10px] text-gray-400">of Net Profit</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-lg font-black text-emerald-600">{formatCurrency(corp.amount)}</p>
                                     </div>
                                 </div>
                             ))}
-                            {profitSharingData.shares.length === 0 && (<div className="text-center py-10 text-gray-400 italic">No share data available for this selection.</div>)}
+                            {profitSharingData.shares.length === 0 && (<div className="text-center py-10 text-gray-400 italic font-medium text-sm">No profit share data available for this view.</div>)}
                         </div>
                     </div>
                   </div>
@@ -435,14 +494,14 @@ const Reports: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in">
                   <div className="lg:col-span-2 space-y-6">
                       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Landmark className="w-5 h-5 text-indigo-500" /> Salary Disbursement Analytics</h3>
+                          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Landmark className="w-5 h-5 text-indigo-500" /> Total Net Payout Analytics</h3>
                           <div className="grid grid-cols-3 gap-4 mb-8">
-                              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100"><p className="text-indigo-600 text-xs font-bold uppercase tracking-wider">Disbursed</p><h4 className="text-2xl font-black text-indigo-700 mt-1">{formatCurrency(payrollStats.totalDisbursed)}</h4></div>
+                              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100"><p className="text-indigo-600 text-xs font-bold uppercase tracking-wider">Total Net Payout</p><h4 className="text-2xl font-black text-indigo-700 mt-1">{formatCurrency(payrollStats.totalDisbursed)}</h4></div>
                               <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100"><p className="text-emerald-600 text-xs font-bold uppercase tracking-wider">Avg. / Staff</p><h4 className="text-2xl font-black text-emerald-700 mt-1">{formatCurrency(payrollStats.avgSalary)}</h4></div>
                               <div className="bg-blue-50 p-4 rounded-xl border border-blue-100"><p className="text-blue-600 text-xs font-bold uppercase tracking-wider">Batches</p><h4 className="text-2xl font-black text-blue-700 mt-1">{payrollStats.totalBatches}</h4></div>
                           </div>
                           <div className="h-64 mt-4">
-                              <ResponsiveContainer width="100%" height="100%"><AreaChart data={payrollStats.historyData}><defs><linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><Tooltip formatter={(value: number) => formatCurrency(value)} /><Area type="monotone" dataKey="amount" name="Payout" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmount)" /></AreaChart></ResponsiveContainer>
+                              <ResponsiveContainer width="100%" height="100%"><AreaChart data={payrollStats.historyData}><defs><linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} /><Tooltip formatter={(value: number) => formatCurrency(value)} /><Area type="monotone" dataKey="amount" name="Net Payout" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmount)" /></AreaChart></ResponsiveContainer>
                           </div>
                       </div>
                   </div>

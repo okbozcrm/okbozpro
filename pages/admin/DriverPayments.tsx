@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, Plus, Search, Filter, Download, 
@@ -65,7 +64,7 @@ const DEFAULT_RULES: PaymentRules = {
   maxStickerPay: 3000
 };
 
-const DriverPayments: React.FC = () => {
+export const DriverPayments: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const userRole = localStorage.getItem('user_role');
   const isSuperAdmin = userRole === 'ADMIN';
@@ -895,326 +894,242 @@ const DriverPayments: React.FC = () => {
                  
                  <div className="space-y-1">
                      <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Truck className="w-3 h-3"/> Driver Details</label>
-                     <div className="space-y-3">
-                         <div>
-                             <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                             <select 
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                                value={compForm.branch}
-                                onChange={(e) => setCompForm({...compForm, branch: e.target.value})}
-                             >
-                                <option value="">Select Branch</option>
-                                {allBranches.map((b: any) => (
-                                    <option key={b.id || b.name} value={b.name}>{b.name}</option>
-                                ))}
-                             </select>
-                         </div>
-                         <div className="grid grid-cols-2 gap-3">
-                             <input 
-                                 placeholder="Driver Name" 
-                                 className="p-2 border border-gray-300 rounded-lg text-sm outline-none w-full"
-                                 value={compForm.driverName}
-                                 onChange={(e) => setCompForm({...compForm,driverName: e.target.value})}
-                             />
-                             <input 
-                                 placeholder="Phone Number" 
-                                 className="p-2 border border-gray-300 rounded-lg text-sm outline-none w-full"
-                                 value={compForm.phone}
-                                 onChange={(e) => setCompForm({...compForm, phone: e.target.value})}
-                             />
-                         </div>
-                         <div className="grid grid-cols-2 gap-3">
-                             <input 
-                                 placeholder="Vehicle No (Optional)" 
-                                 className="p-2 border border-gray-300 rounded-lg text-sm outline-none w-full"
-                                 value={compForm.vehicleNo}
-                                 onChange={(e) => setCompForm({...compForm, vehicleNo: e.target.value})}
-                             />
-                             <input 
-                                 placeholder="Order ID (Auto if empty)" 
-                                 className="p-2 border border-gray-300 rounded-lg text-sm outline-none w-full"
-                                 value={compForm.orderId}
-                                 onChange={(e) => setCompForm({...compForm, orderId: e.target.value})}
-                             />
-                         </div>
+                     <div className="grid grid-cols-2 gap-3">
+                         <select 
+                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                            value={compForm.driverName}
+                            onChange={(e) => {
+                                const drv = staffList.find(s => s.name === e.target.value);
+                                setCompForm(prev => ({...prev, driverName: e.target.value, phone: drv?.phone || ''}));
+                            }}
+                         >
+                             <option value="">Select Driver</option>
+                             {staffList.filter(s => s.role.includes('Driver')).map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                         </select>
+                         <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50" placeholder="Phone" value={compForm.phone} readOnly />
                      </div>
                  </div>
 
-                 {/* Payment Type Tabs */}
-                 <div className="bg-gray-100 p-1 rounded-lg flex">
-                     {['Empty Km', 'Promo Code', 'Sticker'].map((t) => (
-                         <button 
-                             key={t}
-                             onClick={() => setPaymentType(t as any)}
-                             className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${paymentType === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
-                         >
-                             {t}
-                         </button>
-                     ))}
+                 <div className="space-y-1">
+                     <label className="text-xs font-bold text-gray-500 uppercase">Payment Type</label>
+                     <div className="flex bg-gray-100 p-1 rounded-lg">
+                         {['Empty Km', 'Promo Code', 'Sticker'].map(type => (
+                             <button 
+                                key={type} 
+                                onClick={() => setPaymentType(type as any)}
+                                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${paymentType === type ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
+                             >
+                                 {type}
+                             </button>
+                         ))}
+                     </div>
                  </div>
 
-                 {/* Dynamic Fields */}
-                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                     {paymentType === 'Empty Km' && (
-                         <div className="space-y-3">
-                             <label className="text-xs font-bold text-gray-500 uppercase">Pickup Distance (KM)</label>
+                 {paymentType === 'Empty Km' && (
+                     <div className="space-y-4 animate-in slide-in-from-left-4">
+                         <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
+                             <div className="flex justify-between items-center mb-2">
+                                 <label className="text-xs font-bold text-orange-700">Pickup Distance (KM)</label>
+                                 <span className="text-[10px] bg-white px-2 py-0.5 rounded text-orange-600 border border-orange-200">Free Limit: {rules.freeLimitKm} km</span>
+                             </div>
                              <input 
-                                type="number"
-                                placeholder="e.g. 8"
-                                className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none"
+                                type="number" 
+                                className="w-full p-2 text-lg font-bold border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" 
+                                placeholder="0.0"
                                 value={compForm.pickupDistance}
                                 onChange={(e) => setCompForm({...compForm, pickupDistance: e.target.value})}
                              />
-                             <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-1">
-                                <Info className="w-3 h-3" />
-                                Applied Rules: First <strong>{rules.freeLimitKm}km</strong> free. Paid up to <strong>{rules.maxPayableKm}km</strong>. Rate: <strong>₹{rules.ratePerKm}/km</strong>.
-                             </div>
-                             <div className="flex justify-between items-center text-xs font-medium text-gray-600 pt-1">
-                                 <span>Eligible Paid Km:</span>
-                                 <span className="font-bold text-emerald-600">{eligiblePaidKm} km</span>
+                             <div className="mt-2 text-xs flex justify-between text-orange-800">
+                                 <span>Payable: {eligiblePaidKm.toFixed(1)} km</span>
+                                 <span className="font-bold">Total: ₹{calculatedPayable}</span>
                              </div>
                          </div>
-                     )}
-                     {paymentType === 'Promo Code' && (
-                         <div className="space-y-3">
-                             <input placeholder="Promo Name" className="w-full p-2 border rounded-lg text-sm" value={compForm.promoName} onChange={(e) => setCompForm({...compForm, promoName: e.target.value})}/>
-                             <input type="number" placeholder="Amount" className="w-full p-2 border rounded-lg text-sm" value={compForm.discountAmount} onChange={(e) => setCompForm({...compForm, discountAmount: e.target.value})}/>
-                         </div>
-                     )}
-                     {paymentType === 'Sticker' && (
-                         <div className="space-y-3">
-                             <input type="number" placeholder="Amount" className="w-full p-2 border rounded-lg text-sm" value={compForm.stickerAmount} onChange={(e) => setCompForm({...compForm, stickerAmount: e.target.value})}/>
-                         </div>
-                     )}
-                     <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center">
-                         <span className="font-bold text-gray-700">Calculated Payable:</span>
-                         <span className="text-xl font-bold text-emerald-600">₹{calculatedPayable}</span>
                      </div>
-                 </div>
+                 )}
+
+                 {paymentType === 'Promo Code' && (
+                     <div className="space-y-4 animate-in slide-in-from-left-4">
+                         <div>
+                             <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Promo Name</label>
+                             <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="e.g. DIWALI500" value={compForm.promoName} onChange={(e) => setCompForm({...compForm, promoName: e.target.value})} />
+                         </div>
+                         <div>
+                             <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
+                             <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="0.00" value={compForm.discountAmount} onChange={(e) => setCompForm({...compForm, discountAmount: e.target.value})} />
+                         </div>
+                     </div>
+                 )}
+
+                 {paymentType === 'Sticker' && (
+                     <div className="space-y-4 animate-in slide-in-from-left-4">
+                         <div className="grid grid-cols-2 gap-3">
+                             <div>
+                                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Duration (Months)</label>
+                                 <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="e.g. 3" value={compForm.stickerDuration} onChange={(e) => setCompForm({...compForm, stickerDuration: e.target.value})} />
+                             </div>
+                             <div>
+                                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
+                                 <input type="number" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="0.00" value={compForm.stickerAmount} onChange={(e) => setCompForm({...compForm, stickerAmount: e.target.value})} />
+                             </div>
+                         </div>
+                     </div>
+                 )}
 
                  <div className="grid grid-cols-2 gap-3">
                      <div>
-                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                         <input type="date" value={compForm.date} onChange={(e) => setCompForm({...compForm, date: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
-                     </div>
-                     <div>
-                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                         <select value={compForm.status} onChange={(e) => setCompForm({...compForm, status: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white">
+                         <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Status</label>
+                         <select className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white" value={compForm.status} onChange={(e) => setCompForm({...compForm, status: e.target.value})}>
                              <option>Paid</option>
                              <option>Pending</option>
                          </select>
                      </div>
+                     <div>
+                         <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Mode</label>
+                         <select className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white" value={compForm.paymentMode} onChange={(e) => setCompForm({...compForm, paymentMode: e.target.value})}>
+                             <option>Cash</option>
+                             <option>Wallet</option>
+                             <option>Bank Transfer</option>
+                         </select>
+                     </div>
                  </div>
 
                  <div>
-                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Mode</label>
-                     <select value={compForm.paymentMode} onChange={(e) => setCompForm({...compForm, paymentMode: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white">
-                         <option>Cash</option>
-                         <option>UPI</option>
-                         <option>Bank Transfer</option>
-                     </select>
+                     <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Order ID (Optional)</label>
+                     <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="Related Order ID" value={compForm.orderId} onChange={(e) => setCompForm({...compForm, orderId: e.target.value})} />
                  </div>
 
-                 <div>
-                     <textarea 
-                        rows={2} 
-                        placeholder="Remarks (Optional)..." 
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none resize-none"
-                        value={compForm.remarks}
-                        onChange={(e) => setCompForm({...compForm, remarks: e.target.value})}
-                     />
-                 </div>
-
-              </div>
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end rounded-b-2xl">
-                  <button 
-                      onClick={handleSaveCompensation}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors"
-                  >
-                      Save Payment
-                  </button>
+                 <button onClick={handleSaveCompensation} className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold shadow-md hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
+                     <Save className="w-4 h-4" /> Save Record
+                 </button>
               </div>
            </div>
         </div>
       )}
 
-      {/* Wallet Transaction Modal */}
+      {/* Wallet Modal */}
       {isWalletModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[95vh] flex flex-col animate-in fade-in zoom-in duration-200">
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                 <h3 className="font-bold text-gray-800 text-lg">
-                     {editingWalletId ? 'Edit Transaction' : (isSuperAdmin ? 'Process Transaction' : 'Request Transaction')}
-                 </h3>
-                 <button onClick={() => setIsWalletModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                      <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                          <Wallet className="w-5 h-5 text-indigo-500" /> 
+                          {editingWalletId ? 'Update Transaction' : 'Wallet Transaction'}
+                      </h3>
+                      <button onClick={() => setIsWalletModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                  </div>
+                  <div className="p-6 overflow-y-auto space-y-5 flex-1">
+                      {isSuperAdmin && (
+                          <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Franchise (Optional)</label>
+                              <select 
+                                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                                  value={walletForm.corporateId}
+                                  onChange={(e) => setWalletForm(prev => ({...prev, corporateId: e.target.value}))}
+                              >
+                                  <option value="admin">Head Office</option>
+                                  {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                              </select>
+                          </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Driver Name *</label>
+                              <input 
+                                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" 
+                                  placeholder="Name" 
+                                  value={walletForm.driverName}
+                                  onChange={(e) => setWalletForm(prev => ({...prev, driverName: e.target.value}))}
+                              />
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Phone *</label>
+                              <input 
+                                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" 
+                                  placeholder="+91..." 
+                                  value={walletForm.phone}
+                                  onChange={(e) => setWalletForm(prev => ({...prev, phone: e.target.value}))}
+                              />
+                          </div>
+                      </div>
+
+                      <div className="flex bg-gray-100 p-1 rounded-lg">
+                          <button 
+                              onClick={() => handleWalletTypeChange('Top-up')}
+                              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${walletForm.type === 'Top-up' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}
+                          >
+                              Top-up (Credit)
+                          </button>
+                          <button 
+                              onClick={() => handleWalletTypeChange('Deduct')}
+                              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${walletForm.type === 'Deduct' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}
+                          >
+                              Deduct (Debit)
+                          </button>
+                      </div>
+
+                      <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount (₹) *</label>
+                          <input 
+                              type="number" 
+                              className="w-full p-3 border border-gray-300 rounded-lg text-lg font-bold text-gray-800" 
+                              placeholder="0.00" 
+                              value={walletForm.amount}
+                              onChange={(e) => setWalletForm(prev => ({...prev, amount: e.target.value}))}
+                          />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Payment Mode</label>
+                              <select 
+                                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                                  value={walletForm.paymentMode}
+                                  onChange={(e) => setWalletForm(prev => ({...prev, paymentMode: e.target.value}))}
+                              >
+                                  <option>Cash</option>
+                                  <option>UPI</option>
+                                  <option>Bank Transfer</option>
+                                  <option>OK BOZ Wallet</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Received By</label>
+                              <input 
+                                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" 
+                                  placeholder="Staff Name" 
+                                  value={walletForm.receivedBy}
+                                  onChange={(e) => setWalletForm(prev => ({...prev, receivedBy: e.target.value}))}
+                              />
+                          </div>
+                      </div>
+
+                      <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Remarks</label>
+                          <textarea 
+                              rows={2} 
+                              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm resize-none" 
+                              placeholder="Notes..." 
+                              value={walletForm.remarks}
+                              onChange={(e) => setWalletForm(prev => ({...prev, remarks: e.target.value}))}
+                          />
+                      </div>
+
+                      <button onClick={handleSaveWallet} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-md transition-all">
+                          {editingWalletId ? 'Update Transaction' : (isSuperAdmin ? 'Process Transaction' : 'Submit Request')}
+                      </button>
+                  </div>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                 {/* Type Switch */}
-                 <div className="flex bg-gray-100 p-1 rounded-lg">
-                     <button 
-                         onClick={() => handleWalletTypeChange('Top-up')}
-                         className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${walletForm.type === 'Top-up' ? 'bg-white shadow text-emerald-600' : 'text-gray-500'}`}
-                     >
-                         Top-up (Credit)
-                     </button>
-                     <button 
-                         onClick={() => handleWalletTypeChange('Deduct')}
-                         className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${walletForm.type === 'Deduct' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}
-                     >
-                         Deduct (Debit)
-                     </button>
-                 </div>
-
-                 {/* Branch Selection (Super Admin Only) */}
-                 {isSuperAdmin && (
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Corporate / Branch</label>
-                         <select 
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                             value={walletForm.corporateId}
-                             onChange={(e) => setWalletForm({...walletForm, corporateId: e.target.value})}
-                         >
-                             <option value="">Head Office</option>
-                             {corporates.map(c => (
-                                 <option key={c.email} value={c.email}>{c.companyName}</option>
-                             ))}
-                         </select>
-                     </div>
-                 )}
-
-                 <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">Order ID</label>
-                     <div className="relative">
-                         <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                         <input 
-                             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm outline-none font-mono"
-                             value={walletForm.orderId}
-                             onChange={(e) => setWalletForm({...walletForm, orderId: e.target.value})}
-                             placeholder="ORD-..."
-                         />
-                     </div>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-3">
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Driver Name</label>
-                         <input 
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none"
-                             value={walletForm.driverName}
-                             onChange={(e) => setWalletForm({...walletForm, driverName: e.target.value})}
-                             placeholder="Name"
-                         />
-                     </div>
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                         <input 
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none"
-                             value={walletForm.phone}
-                             onChange={(e) => setWalletForm({...walletForm, phone: e.target.value})}
-                             placeholder="Phone"
-                         />
-                     </div>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-3">
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                         <input 
-                             type="date"
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none"
-                             value={walletForm.date}
-                             onChange={(e) => setWalletForm({...walletForm, date: e.target.value})}
-                         />
-                     </div>
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
-                         <input 
-                             type="number"
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none font-bold"
-                             value={walletForm.amount}
-                             onChange={(e) => setWalletForm({...walletForm, amount: e.target.value})}
-                             placeholder="0.00"
-                         />
-                     </div>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-3">
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
-                         <select 
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none disabled:bg-gray-100"
-                             value={walletForm.paymentMode}
-                             onChange={(e) => setWalletForm({...walletForm, paymentMode: e.target.value})}
-                             disabled={walletForm.type === 'Deduct'}
-                         >
-                             {walletForm.type === 'Deduct' ? (
-                                 <option value="OK BOZ Wallet">OK BOZ Wallet</option>
-                             ) : (
-                                 <>
-                                     <option value="Cash">Cash</option>
-                                     <option value="UPI">UPI</option>
-                                     <option value="Razorpay">Razorpay</option>
-                                 </>
-                             )}
-                         </select>
-                     </div>
-                     <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Received By (Staff)</label>
-                         <select 
-                             className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none"
-                             value={walletForm.receivedBy}
-                             onChange={(e) => setWalletForm({...walletForm, receivedBy: e.target.value})}
-                         >
-                             <option value="">Select Staff</option>
-                             {staffList.map(s => (
-                                 <option key={s.id} value={s.name}>{s.name}</option>
-                             ))}
-                         </select>
-                     </div>
-                 </div>
-
-                 <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-                     <textarea 
-                         rows={2}
-                         className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none resize-none"
-                         value={walletForm.remarks}
-                         onChange={(e) => setWalletForm({...walletForm, remarks: e.target.value})}
-                         placeholder="Notes..."
-                     />
-                 </div>
-
-                 {/* Disclaimer for Deduction */}
-                 {walletForm.type === 'Deduct' && (
-                     <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs p-3 rounded-lg flex items-start gap-2">
-                         <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                         <span>Money will be deducted from the branch/driver OK BOZ Wallet balance. {isSuperAdmin ? '' : 'Admin approval required.'}</span>
-                     </div>
-                 )}
-              </div>
-
-              <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end rounded-b-2xl">
-                  <button 
-                      onClick={handleSaveWallet}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors"
-                  >
-                      {editingWalletId ? 'Update Transaction' : (isSuperAdmin ? 'Process Transaction' : 'Request Transaction')}
-                  </button>
-              </div>
-           </div>
-        </div>
+          </div>
       )}
 
-      {/* --- Boz Chat Assistant --- */}
-      <AiAssistant
-        systemInstruction="You are an AI assistant specialized in Driver Wallet & Finance management for OK BOZ. Help the admin analyze wallet trends, verify deduction logic, and summarize pending requests."
-        initialMessage="Hello! I can help you with wallet analysis or transaction queries."
-        triggerButtonLabel="Wallet AI"
-        chatPrompt="Summarize today's wallet activity." 
+      <AiAssistant 
+        systemInstruction="You are an AI assistant for Driver Payments & Wallet management. Help calculate commissions, explain wallet deduction rules, and clarify payment statuses."
+        initialMessage="Need help calculating a driver's payout or understanding wallet rules?"
+        triggerButtonLabel="Payment AI"
       />
     </div>
   );
 };
 
-export default DriverPayments;
+export const DriverPaymentsExport = DriverPayments; // Keep for named export consistency
