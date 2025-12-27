@@ -315,14 +315,15 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
     ];
     
+    // UPDATED: Correct key mapping to match StaffList.tsx permissions
     const restrictedLinksMap: Record<string, any> = {
         'reports': { id: 'reports', path: '/user/reports', label: 'Reports', icon: BarChart3 },
         'trips': { id: 'trips', path: '/user/trips', label: 'Trip Booking', icon: Map },
-        'driver-payments': { id: 'driver-payments', path: '/user/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee },
-        'attendance_admin': { id: 'attendance_admin', path: '/user/attendance-admin', label: 'Attendance (Admin)', icon: Activity },
-        'staff': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },
+        'driver_payments': { id: 'driver-payments', path: '/user/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee },
+        'staff_mgt': { id: 'staff', path: '/user/staff', label: 'Staff Management', icon: Users },
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
+        'live_tracking': { id: 'tracking', path: '/user/tracking', label: 'Live Tracking', icon: Navigation },
         'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers }
     };
     

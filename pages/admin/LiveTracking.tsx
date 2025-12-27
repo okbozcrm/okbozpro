@@ -23,6 +23,7 @@ const LiveTracking: React.FC = () => {
   // Determine Session Context
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
+  const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || sessionId;
 
   // Center of Coimbatore for default view
   const center = { lat: 11.0168, lng: 76.9558 };
@@ -39,7 +40,8 @@ const LiveTracking: React.FC = () => {
           // Filter based on admin scope
           const myStaff = allActive.filter((s: any) => {
               if (isSuperAdmin) return true; // Super Admin sees everyone
-              return s.corporateId === sessionId; // Corporate sees their own
+              // Corporate or Employee (with permission) sees staff from their corporate ID
+              return s.corporateId === corporateId; 
           });
 
           setStaffLocations(myStaff);
@@ -54,7 +56,7 @@ const LiveTracking: React.FC = () => {
       loadLiveLocations();
       const interval = setInterval(loadLiveLocations, 30000); // Auto-refresh every 30s
       return () => clearInterval(interval);
-  }, [sessionId, isSuperAdmin]);
+  }, [sessionId, isSuperAdmin, corporateId]);
 
   useEffect(() => {
     // 1. Check global failure flag
@@ -248,12 +250,14 @@ const LiveTracking: React.FC = () => {
                   <ExternalLink className="w-3 h-3" /> Enable Billing
                 </a>
 
-                <button 
-                  onClick={() => navigate('/admin/settings')} 
-                  className="mt-2 text-xs flex items-center gap-1 bg-white border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Settings className="w-3 h-3" /> Check Settings
-                </button>
+                {isSuperAdmin && (
+                    <button 
+                    onClick={() => navigate('/admin/settings')} 
+                    className="mt-2 text-xs flex items-center gap-1 bg-white border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                    <Settings className="w-3 h-3" /> Check Settings
+                    </button>
+                )}
               </div>
             </div>
          ) : (

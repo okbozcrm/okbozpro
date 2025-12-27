@@ -157,6 +157,7 @@ const App: React.FC = () => {
                         <Route path="/user/chat" element={<Messenger role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/reports" element={<Reports />} />
                         <Route path="/user/trips" element={<TripBooking />} />
+                        <Route path="/user/tracking" element={<LiveTracking />} />
                         <Route path="/user/driver-payments" element={<DriverPayments />} />
                         <Route path="/user/attendance-admin" element={<UserAttendance isAdmin={true} />} />
                         <Route path="/user/staff" element={<StaffList />} />
