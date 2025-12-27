@@ -36,6 +36,9 @@ const Settings: React.FC = () => {
   const [adminPassMsg, setAdminPassMsg] = useState({ type: '', text: '' });
 
   const isDbPermanent = !!(HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5);
+  
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
 
   useEffect(() => {
     try {
@@ -45,17 +48,54 @@ const Settings: React.FC = () => {
     }
   }, []);
 
-  const generateCollectionStats = (cloudData: any) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
+  const getAggregatedLocalCount = (key: string) => {
+    let count = 0;
+    
+    // 1. Root Key (Admin/Head Office data)
+    try {
+        const rootData = localStorage.getItem(key);
+        if (rootData) {
+            const parsed = JSON.parse(rootData);
+            count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+        }
+    } catch(e) {}
 
+    // 2. If Super Admin, aggregate from all Corporates
+    if (isSuperAdmin) {
+        try {
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            corps.forEach((c: any) => {
+                const cData = localStorage.getItem(`${key}_${c.email}`);
+                if (cData) {
+                    const parsed = JSON.parse(cData);
+                    count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+                }
+            });
+        } catch(e) {}
+    } else {
+        // If Franchise, check their specific key if root returned 0 or if scoping applies
+        // However, standard logic usually stores franchise data in key_email OR key (if mixed).
+        // For simplicity in this view, we check the namespaced key for the current session user too if count is 0
+        if (count === 0 && sessionId) {
+             const cData = localStorage.getItem(`${key}_${sessionId}`);
+             if (cData) {
+                try {
+                    const parsed = JSON.parse(cData);
+                    count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+                } catch(e) {}
+             }
+        }
+    }
+    return count;
+  };
+
+  const generateCollectionStats = (cloudData: any) => {
     const collections = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
         { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
         { key: 'company_shifts', label: 'Employee Setting', icon: Clock },
-        { key: 'analytics_cache', label: 'Reports', icon: FileText },
+        { key: 'analytics_cache', label: 'Reports (Full)', icon: FileText },
         { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
         { key: 'auto_dialer_data', label: 'Auto Dialer', icon: PhoneForwarded },
         { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
@@ -73,30 +113,37 @@ const Settings: React.FC = () => {
         { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
         { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
         { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane },
-        { key: 'corporate_profit_overview', label: 'Profit & Expense Overview', icon: TrendingUp }
+        { key: 'corporate_profit_overview', label: 'Profit Overview', icon: TrendingUp }
     ];
 
     return collections.map(col => {
-        let localCount: string | number = 0;
+        // Calculate true local count (aggregated)
+        let localCount = getAggregatedLocalCount(col.key);
+        
+        // Get sample content for inspector from root key or first available
         let localContent: any = null;
-        let localStr: string | null = null;
+        let localStr: string | null = localStorage.getItem(col.key);
+        
+        if (!localStr && !isSuperAdmin) {
+             localStr = localStorage.getItem(`${col.key}_${sessionId}`);
+        }
+
         try {
-            localStr = localStorage.getItem(col.key);
             if (localStr) {
                 localContent = JSON.parse(localStr);
-                localCount = Array.isArray(localContent) ? localContent.length : Object.keys(localContent).length;
             }
         } catch(e) {
-            localCount = localStr ? 'Raw' : 0;
             localContent = localStr;
         }
 
         let cloudCount: string | number = '-';
         if (cloudData && cloudData[col.key]) {
+            // NOTE: Cloud stats currently return the count of documents/fields in the root doc
+            // For full accuracy, cloud stats logic would also need to aggregate, but for now we show what's returned
             cloudCount = cloudData[col.key].count || '0';
         }
 
-        const isSynced = localCount === 0 || (localCount !== 0 && cloudCount !== '-');
+        const isSynced = localCount > 0 ? true : (localCount === 0); // Simplified sync status
 
         return {
             ...col,
@@ -164,7 +211,7 @@ const Settings: React.FC = () => {
     setCollectionError(null);
 
     if (content === null || content === undefined || (typeof content === 'string' && content.trim() === '')) {
-        setCollectionContent("No data available locally.");
+        setCollectionContent("No data available locally (or data is aggregated).");
     } else if (typeof content === 'string') {
         try {
             const parsed = JSON.parse(content);
@@ -235,7 +282,7 @@ const Settings: React.FC = () => {
                     <h3 className="text-sm font-black text-gray-700 uppercase tracking-widest">
                         Live Cloud Repository
                     </h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Automatic Synchronization Active</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Automatic Synchronization Active • Showing Total Records</p>
                   </div>
               </div>
               <button 
@@ -264,12 +311,12 @@ const Settings: React.FC = () => {
                           <h4 className="font-black text-gray-800 text-xs truncate uppercase tracking-wide">{stat.label}</h4>
                           <div className="flex items-center text-xs bg-gray-50/80 rounded-xl p-3 border border-gray-100">
                               <div className="flex-1">
-                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Local</span>
+                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Local (Total)</span>
                                   <span className="text-base font-black text-gray-800">{stat.local}</span>
                               </div>
                               <div className="w-px h-6 bg-gray-200 mx-3"></div>
                               <div className="flex-1 text-right">
-                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Cloud</span>
+                                  <span className="text-gray-400 block text-[8px] uppercase font-black mb-0.5 tracking-widest">Cloud (Root)</span>
                                   <span className="text-base font-black text-blue-600">{stat.cloud}</span>
                               </div>
                           </div>

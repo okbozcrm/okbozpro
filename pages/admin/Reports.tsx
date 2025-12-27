@@ -238,8 +238,13 @@ const Reports: React.FC = () => {
   }, [payroll, staff, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
 
   const availableBranches = useMemo(() => {
-    return Array.from(new Set(branches.map(b => b.name)));
-  }, [branches]);
+    const uniqueBranches = Array.from(new Set(branches.map(b => b.name)));
+    // If filtering by specific corporate, only show branches belonging to that corporate
+    if (isSuperAdmin && filterCorporate !== 'All') {
+        return Array.from(new Set(branches.filter(b => b.corporateId === filterCorporate).map(b => b.name)));
+    }
+    return uniqueBranches;
+  }, [branches, filterCorporate, isSuperAdmin]);
 
   const profitSharingData = useMemo(() => {
       // 1. Revenue: Strictly Admin Commission from Trips
@@ -277,14 +282,6 @@ const Reports: React.FC = () => {
           } 
       };
   }, [filteredTrips, filteredExpenses, filteredPayroll, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
-
-  // --- NEW: Sync Calculated Data to Cloud Storage for "Live Cloud Repository" ---
-  useEffect(() => {
-    if (profitSharingData) {
-        const key = isSuperAdmin ? 'corporate_profit_overview' : `corporate_profit_overview_${sessionId}`;
-        localStorage.setItem(key, JSON.stringify(profitSharingData));
-    }
-  }, [profitSharingData, isSuperAdmin, sessionId]);
 
   const financialStats = useMemo(() => {
       const totalIncome = filteredExpenses.filter(e => e.type === 'Income').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
@@ -325,7 +322,12 @@ const Reports: React.FC = () => {
 
     const branchRev: Record<string, number> = {};
     completed.forEach(t => { branchRev[t.branch] = (branchRev[t.branch] || 0) + (Number(t.totalPrice) || 0); });
-    const branchData = Object.keys(branchRev).map(k => ({ name: k, amount: branchRev[k] })).sort((a,b) => b.amount - a.amount);
+    
+    // Ensure all available branches are listed, even if revenue is 0
+    const branchData = availableBranches.map(bName => ({
+        name: bName,
+        amount: branchRev[bName] || 0
+    })).sort((a,b) => b.amount - a.amount);
 
     return { 
         totalTrips: filteredTrips.length, 
@@ -336,7 +338,30 @@ const Reports: React.FC = () => {
         vehicleData, 
         branchData 
     };
-  }, [filteredTrips]);
+  }, [filteredTrips, availableBranches]);
+
+  // --- Sync FULL Analytics Data to Cloud Storage ---
+  useEffect(() => {
+    const fullData = {
+        profitSharing: profitSharingData,
+        // we add branches explicitly here to debug
+        branchesCount: branches.length,
+        financial: financialStats,
+        payroll: payrollStats,
+        driverPayments: driverPaymentStats,
+        transport: transportStats,
+        generatedAt: new Date().toISOString()
+    };
+    
+    // Save to 'analytics_cache' for cloud sync
+    const analyticsKey = isSuperAdmin ? 'analytics_cache' : `analytics_cache_${sessionId}`;
+    localStorage.setItem(analyticsKey, JSON.stringify(fullData));
+    
+    // Keep the specific profit overview key for backward compatibility or specific widgets
+    const profitKey = isSuperAdmin ? 'corporate_profit_overview' : `corporate_profit_overview_${sessionId}`;
+    localStorage.setItem(profitKey, JSON.stringify(profitSharingData));
+
+  }, [profitSharingData, financialStats, payrollStats, driverPaymentStats, transportStats, isSuperAdmin, sessionId, branches]);
 
   const resetFilters = () => {
       setFilterType('Month');
@@ -584,7 +609,6 @@ const Reports: React.FC = () => {
                           <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Car className="w-5 h-5 text-emerald-500" /> Vehicle Preference</h3>
                           <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
-                                  {/* FIX: Changed dataKey from "value" to "amount" to match data structure */}
                                   <Pie data={transportStats.vehicleData} dataKey="amount" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{transportStats.vehicleData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}</Pie>
                                   <Tooltip /><Legend verticalAlign="bottom" height={36} />
                               </PieChart>
