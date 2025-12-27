@@ -278,6 +278,14 @@ const Reports: React.FC = () => {
       };
   }, [filteredTrips, filteredExpenses, filteredPayroll, filteredDriverPayments, corporates, isSuperAdmin, filterCorporate, sessionId]);
 
+  // --- NEW: Sync Calculated Data to Cloud Storage for "Live Cloud Repository" ---
+  useEffect(() => {
+    if (profitSharingData) {
+        const key = isSuperAdmin ? 'corporate_profit_overview' : `corporate_profit_overview_${sessionId}`;
+        localStorage.setItem(key, JSON.stringify(profitSharingData));
+    }
+  }, [profitSharingData, isSuperAdmin, sessionId]);
+
   const financialStats = useMemo(() => {
       const totalIncome = filteredExpenses.filter(e => e.type === 'Income').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       const totalExpense = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);

@@ -59,7 +59,8 @@ const NAMESPACED_KEYS = [
   'company_departments',
   'company_roles',
   'company_shifts',
-  'company_payout_dates'
+  'company_payout_dates',
+  'corporate_profit_overview' // Added for Profit & Expense Report Sync
 ];
 
 // ⚡ Real-time Dynamic Logs

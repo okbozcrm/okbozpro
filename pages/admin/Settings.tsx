@@ -7,7 +7,7 @@ import {
   PhoneForwarded, Headset, ClipboardList,
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
-  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane
+  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane, TrendingUp
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -72,7 +72,8 @@ const Settings: React.FC = () => {
         { key: 'office_expenses', label: 'Finance & Expenses', icon: HardDrive },
         { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
         { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
-        { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane }
+        { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane },
+        { key: 'corporate_profit_overview', label: 'Profit & Expense Overview', icon: TrendingUp }
     ];
 
     return collections.map(col => {
