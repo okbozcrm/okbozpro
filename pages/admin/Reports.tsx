@@ -6,10 +6,11 @@ import {
 import { 
   Download, TrendingUp, DollarSign, 
   Briefcase, ArrowUpRight, Car, MapPin, Activity, CheckSquare, Users, Percent, Calendar, Clock, Filter, PieChart as PieChartIcon,
-  Share2, Mail, MessageCircle, FileText, Check, Loader2, Truck, Wallet, ReceiptIndianRupee, RefreshCw, TrendingDown, History, Landmark, X, Building2, ChevronDown, Database, ArrowRight
+  Share2, Mail, MessageCircle, FileText, Check, Loader2, Truck, Wallet, ReceiptIndianRupee, RefreshCw, TrendingDown, History, Landmark, X, Building2, ChevronDown, Database, ArrowRight, ShieldCheck, Map,
+  CheckCircle
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, CorporateAccount, Branch, Employee } from '../../types';
+import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -19,15 +20,17 @@ const formatCurrency = (amount: number) => {
   return amount.toLocaleString('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
   });
 };
 
 const Reports: React.FC = () => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'Profit & Sharing' | 'Financial' | 'Payroll' | 'Driver Payments' | 'Transport'>('Profit & Sharing');
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const activeTabStates = ['Profit & Sharing', 'Financial', 'Payroll', 'Driver Payments', 'Transport'] as const;
+  const [activeTab, setActiveTab] = useState<typeof activeTabStates[number]>('Profit & Sharing');
   
   const [filterType, setFilterType] = useState<'All' | 'Date' | 'Month'>('Month');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -85,45 +88,45 @@ const Reports: React.FC = () => {
     setFilterBranch('All');
   };
 
+  const fetchData = () => {
+      setExpenses(loadAggregatedData('office_expenses'));
+      setPayroll(loadAggregatedData('payroll_history'));
+      setTrips(loadAggregatedData('trips_data'));
+      setDriverPayments(loadAggregatedData('driver_payment_records'));
+      setCorporates(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
+      
+      let allStaff: any[] = [];
+      if (isSuperAdmin) {
+          const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+          allStaff = [...adminStaff.map((s: any) => ({ ...s, corporateId: 'admin' }))];
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          corps.forEach((c: any) => {
+              const cs = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
+              allStaff = [...allStaff, ...cs.map((s: any) => ({ ...s, corporateId: c.email }))];
+          });
+      } else {
+          const myStaff = JSON.parse(localStorage.getItem(`staff_data_${sessionId}`) || '[]');
+          allStaff = myStaff.map((s: any) => ({ ...s, corporateId: sessionId }));
+      }
+      setStaff(allStaff);
+
+      let scopedBranches: any[] = [];
+      if (isSuperAdmin) {
+          const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
+          scopedBranches = [...adminB.map((b: any) => ({ ...b, corporateId: 'admin' }))];
+          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          corps.forEach((c: any) => {
+              const cb = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+              scopedBranches = [...scopedBranches, ...cb.map((b: any) => ({ ...b, corporateId: c.email }))];
+          });
+      } else {
+          const myB = JSON.parse(localStorage.getItem(`branches_data_${sessionId}`) || '[]');
+          scopedBranches = myB.map((b: any) => ({ ...b, corporateId: sessionId }));
+      }
+      setBranches(scopedBranches);
+  };
+
   useEffect(() => {
-    const fetchData = () => {
-        setExpenses(loadAggregatedData('office_expenses'));
-        setPayroll(loadAggregatedData('payroll_history'));
-        setTrips(loadAggregatedData('trips_data'));
-        setDriverPayments(loadAggregatedData('driver_payment_records'));
-        setCorporates(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
-        
-        let allStaff: any[] = [];
-        if (isSuperAdmin) {
-            const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-            allStaff = [...adminStaff.map((s: any) => ({ ...s, corporateId: 'admin' }))];
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            corps.forEach((c: any) => {
-                const cs = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
-                allStaff = [...allStaff, ...cs.map((s: any) => ({ ...s, corporateId: c.email }))];
-            });
-        } else {
-            const myStaff = JSON.parse(localStorage.getItem(`staff_data_${sessionId}`) || '[]');
-            allStaff = myStaff.map((s: any) => ({ ...s, corporateId: sessionId }));
-        }
-        setStaff(allStaff);
-
-        let scopedBranches: any[] = [];
-        if (isSuperAdmin) {
-            const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
-            scopedBranches = [...adminB.map((b: any) => ({ ...b, corporateId: 'admin' }))];
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            corps.forEach((c: any) => {
-                const cb = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-                scopedBranches = [...scopedBranches, ...cb.map((b: any) => ({ ...b, corporateId: c.email }))];
-            });
-        } else {
-            const myB = JSON.parse(localStorage.getItem(`branches_data_${sessionId}`) || '[]');
-            scopedBranches = myB.map((b: any) => ({ ...b, corporateId: sessionId }));
-        }
-        setBranches(scopedBranches);
-    };
-
     fetchData();
 
     const handleStorage = (e: StorageEvent) => {
@@ -134,7 +137,17 @@ const Reports: React.FC = () => {
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [isSuperAdmin, sessionId]);
+  }, [isSuperAdmin, sessionId, refreshToggle]);
+
+  const handleRecalculate = () => {
+    setIsRecalculating(true);
+    // Simulate complex calculation delay for UX
+    setTimeout(() => {
+        fetchData();
+        setRefreshToggle(v => v + 1);
+        setIsRecalculating(false);
+    }, 1000);
+  };
 
   const handleExportPDF = async () => {
     if (!reportRef.current) return;
@@ -172,9 +185,9 @@ const Reports: React.FC = () => {
       return filtered;
   };
 
-  const filteredExpenses = useMemo(() => applyFilters(expenses), [expenses, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin, sessionId]);
-  const filteredTrips = useMemo(() => applyFilters(trips), [trips, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin, sessionId]);
-  const filteredDriverPayments = useMemo(() => applyFilters(driverPayments), [driverPayments, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin, sessionId]);
+  const filteredExpenses = useMemo(() => applyFilters(expenses), [expenses, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
+  const filteredTrips = useMemo(() => applyFilters(trips), [trips, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
+  const filteredDriverPayments = useMemo(() => applyFilters(driverPayments), [driverPayments, filterType, selectedDate, selectedMonth, filterCorporate, filterBranch, isSuperAdmin]);
 
   const filteredPayroll = useMemo(() => {
     let base = payroll;
@@ -251,6 +264,34 @@ const Reports: React.FC = () => {
       return { totalPaid, pendingRequests: filteredDriverPayments.filter(p => p.status === 'Pending').length, typeChartData: Object.keys(typeDataObj).map(key => ({ name: key, value: typeDataObj[key] })) };
   }, [filteredDriverPayments]);
 
+  const transportStats = useMemo(() => {
+    const completed = filteredTrips.filter(t => t.bookingStatus === 'Completed');
+    const totalRevenue = completed.reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
+    const totalCommission = completed.reduce((sum, t) => sum + (Number(t.adminCommission) || 0), 0);
+
+    const categories: Record<string, number> = {};
+    completed.forEach(t => { categories[t.tripCategory] = (categories[t.tripCategory] || 0) + 1; });
+    const categoryData = Object.keys(categories).map(k => ({ name: k, value: categories[k] }));
+
+    const vehicles: Record<string, number> = {};
+    completed.forEach(t => { vehicles[t.transportType] = (vehicles[t.transportType] || 0) + 1; });
+    const vehicleData = Object.keys(vehicles).map(k => ({ name: k, value: vehicles[k] }));
+
+    const branchRev: Record<string, number> = {};
+    completed.forEach(t => { branchRev[t.branch] = (branchRev[t.branch] || 0) + (Number(t.totalPrice) || 0); });
+    const branchData = Object.keys(branchRev).map(k => ({ name: k, amount: branchRev[k] })).sort((a,b) => b.amount - a.amount);
+
+    return { 
+        totalTrips: filteredTrips.length, 
+        completed: completed.length, 
+        totalRevenue, 
+        totalCommission, 
+        categoryData, 
+        vehicleData, 
+        branchData 
+    };
+  }, [filteredTrips]);
+
   const resetFilters = () => {
       setFilterType('Month');
       setSelectedDate(new Date().toISOString().split('T')[0]);
@@ -276,7 +317,7 @@ const Reports: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div><h2 className="text-2xl font-bold text-gray-800">Reports & Analytics</h2><p className="text-gray-500">{isSuperAdmin ? "Consolidated Insights (Admin)" : "Insights (Franchise)"}</p></div>
-        <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">{['Profit & Sharing', 'Financial', 'Payroll', 'Driver Payments', 'Transport'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-emerald-600' : 'text-gray-600 hover:text-gray-900'}`}>{tab}</button>))}</div>
+        <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">{activeTabStates.map(tab => (<button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-emerald-600' : 'text-gray-600 hover:text-gray-900'}`}>{tab}</button>))}</div>
         <button onClick={handleExportPDF} disabled={isExporting} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 hover:bg-slate-900 transition-colors">{isExporting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />} Export PDF</button>
       </div>
 
@@ -294,14 +335,22 @@ const Reports: React.FC = () => {
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden xl:block border-l border-gray-100 pl-4">{filterType === 'All' ? 'Viewing Life-time' : filterType === 'Date' ? `${new Date(selectedDate).toLocaleDateString()}` : `${new Date(selectedMonth).toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}`}</div>
       </div>
 
-      <div ref={reportRef} className="space-y-6">
+      <div className="space-y-6">
           {activeTab === 'Profit & Sharing' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in">
                   <div className="lg:col-span-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden group">
                       <div className="relative z-10">
                           <div className="flex justify-between items-start">
                               <div><p className="text-emerald-100 font-medium mb-1 uppercase tracking-widest text-xs">Net Profit Allocation</p><h3 className="text-5xl font-bold">{formatCurrency(profitSharingData.totalProfit)}</h3></div>
-                              <button onClick={handleBackupProfitReport} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all transform active:scale-95 shadow-sm"><Database className="w-4 h-4" />Backup Report</button>
+                              <div className="flex gap-2">
+                                  <button onClick={handleRecalculate} disabled={isRecalculating} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all transform active:scale-95 shadow-sm">
+                                      {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                      Recalculate
+                                  </button>
+                                  <button onClick={handleBackupProfitReport} className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all transform active:scale-95 shadow-sm">
+                                      <Database className="w-4 h-4" />Backup Report
+                                  </button>
+                              </div>
                           </div>
                           
                           <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 bg-black/10 p-5 rounded-2xl border border-white/10 backdrop-blur-sm">
@@ -419,7 +468,132 @@ const Reports: React.FC = () => {
               </div>
           )}
 
-          {activeTab === 'Transport' && (<div className="bg-white p-20 rounded-xl border border-dashed border-gray-200 text-center text-gray-400"><Truck className="w-12 h-12 mx-auto mb-4 opacity-20" /><p className="text-lg font-bold">Transport Operational Analysis</p><p className="text-sm">Coming soon in next update. Generating fleet utilization heatmaps.</p></div>)}
+          {activeTab === 'Transport' && (
+              <div className="space-y-6 animate-in fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-32 group hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Bookings</p>
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Car className="w-5 h-5"/></div>
+                          </div>
+                          <h3 className="text-3xl font-black text-gray-800">{transportStats.totalTrips}</h3>
+                      </div>
+                      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-32 group hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start">
+                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Gross Revenue</p>
+                            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><DollarSign className="w-5 h-5"/></div>
+                          </div>
+                          <h3 className="text-3xl font-black text-gray-800">{formatCurrency(transportStats.totalRevenue)}</h3>
+                      </div>
+                      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-32 group hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start">
+                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Commission Earned</p>
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Percent className="w-5 h-5"/></div>
+                          </div>
+                          <h3 className="text-3xl font-black text-gray-800">{formatCurrency(transportStats.totalCommission)}</h3>
+                      </div>
+                      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-32 group hover:shadow-md transition-all">
+                          <div className="flex justify-between items-start">
+                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Success Rate</p>
+                            <div className="p-2 bg-rose-50 text-rose-600 rounded-xl"><CheckCircle className="w-5 h-5"/></div>
+                          </div>
+                          <h3 className="text-3xl font-black text-gray-800">{transportStats.totalTrips > 0 ? Math.round((transportStats.completed / transportStats.totalTrips) * 100) : 0}%</h3>
+                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col h-full min-h-[400px]">
+                          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChartIcon className="w-5 h-5 text-indigo-500" /> Category Breakdown</h3>
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie data={transportStats.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{transportStats.categoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie>
+                                  <Tooltip /><Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col h-full min-h-[400px]">
+                          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Car className="w-5 h-5 text-emerald-500" /> Vehicle Preference</h3>
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie data={transportStats.vehicleData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{transportStats.vehicleData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}</Pie>
+                                  <Tooltip /><Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col h-full min-h-[400px]">
+                          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Building2 className="w-5 h-5 text-blue-500" /> Revenue by Branch</h3>
+                          <div className="flex-1 overflow-y-auto custom-scrollbar">
+                              <div className="space-y-4">
+                                  {transportStats.branchData.map((branch, idx) => (
+                                      <div key={idx} className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex justify-between items-center group hover:border-indigo-300 transition-all">
+                                          <div className="min-w-0">
+                                              <p className="text-sm font-bold text-gray-800 truncate">{branch.name}</p>
+                                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Active Branch</p>
+                                          </div>
+                                          <div className="text-right">
+                                              <p className="text-base font-black text-indigo-600">{formatCurrency(branch.amount)}</p>
+                                          </div>
+                                      </div>
+                                  ))}
+                                  {transportStats.branchData.length === 0 && (
+                                      <div className="h-full flex flex-col items-center justify-center text-center py-20 text-gray-300 italic">
+                                          <Map className="w-12 h-12 opacity-10 mb-2" />
+                                          <p className="text-xs uppercase font-black tracking-widest">No branch data</p>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden">
+                      <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+                          <h3 className="font-black text-gray-800 uppercase tracking-widest text-xs flex items-center gap-2">
+                            <History className="w-4 h-4 text-emerald-500" /> Recent Booking Manifest (Analyzed)
+                          </h3>
+                          <button onClick={() => setRefreshToggle(v => v + 1)} className="p-2 text-gray-400 hover:text-emerald-600 transition-colors"><RefreshCw className="w-4 h-4" /></button>
+                      </div>
+                      <div className="overflow-x-auto">
+                          <table className="w-full text-left">
+                              <thead className="bg-white text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
+                                  <tr>
+                                      <th className="px-8 py-5">Trip ID</th>
+                                      <th className="px-8 py-5">Customer</th>
+                                      <th className="px-8 py-5">Vehicle</th>
+                                      <th className="px-8 py-5">Branch</th>
+                                      <th className="px-8 py-5 text-right">Revenue</th>
+                                      <th className="px-8 py-5 text-center">Status</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                  {filteredTrips.slice(0, 10).map((trip, idx) => (
+                                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                          <td className="px-8 py-4 font-black text-gray-900">{trip.tripId}</td>
+                                          <td className="px-8 py-4">
+                                              <p className="font-bold text-gray-800 text-sm">{trip.userName}</p>
+                                              <p className="text-[10px] text-gray-400 font-bold uppercase">{trip.tripCategory}</p>
+                                          </td>
+                                          <td className="px-8 py-4"><span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded border border-indigo-100">{trip.transportType}</span></td>
+                                          <td className="px-8 py-4 text-gray-500 text-sm font-medium">{trip.branch}</td>
+                                          <td className="px-8 py-4 text-right font-black text-gray-900">{formatCurrency(trip.totalPrice)}</td>
+                                          <td className="px-8 py-4 text-center">
+                                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${trip.bookingStatus === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                                                  {trip.bookingStatus}
+                                              </span>
+                                          </td>
+                                      </tr>
+                                  ))}
+                                  {filteredTrips.length === 0 && (
+                                      <tr><td colSpan={6} className="py-20 text-center text-gray-300 font-black uppercase tracking-widest text-xs italic">No transport manifest found</td></tr>
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              </div>
+          )}
       </div>
     </div>
   );
