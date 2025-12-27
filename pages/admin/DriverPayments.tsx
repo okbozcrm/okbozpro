@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, Plus, Search, Filter, Download, 
@@ -69,6 +70,20 @@ const DriverPayments: React.FC = () => {
   const userRole = localStorage.getItem('user_role');
   const isSuperAdmin = userRole === 'ADMIN';
 
+  // Helper to determine the "Data Owner" ID
+  // If Admin: 'admin'
+  // If Corporate: their email (sessionId)
+  // If Employee: their assigned corporate's email
+  const getContextOwnerId = () => {
+      if (isSuperAdmin) return 'admin';
+      if (userRole === 'EMPLOYEE') {
+          return localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+      }
+      return sessionId;
+  };
+
+  const contextOwnerId = getContextOwnerId();
+
   // --- State ---
   const [mainTab, setMainTab] = useState<'Payments' | 'Wallet'>('Payments'); 
   const [activeView, setActiveView] = useState<'Dashboard' | 'Rules'>('Dashboard');
@@ -97,7 +112,7 @@ const DriverPayments: React.FC = () => {
   const [walletCorpFilter, setWalletCorpFilter] = useState('All');
 
   // Compensation Specific Filters
-  const [compDate, setCompDate] = useState(new Date().toISOString().split('T')[0]);
+  const [compDate, setCompDate] = useState('');
   const [compStatus, setCompStatus] = useState('All');
   
   // Compensation Form State
@@ -121,7 +136,7 @@ const DriverPayments: React.FC = () => {
 
   // Wallet Form State
   const initialWalletForm = {
-    corporateId: isSuperAdmin ? '' : sessionId,
+    corporateId: isSuperAdmin ? '' : contextOwnerId,
     orderId: '',
     driverName: '',
     phone: '',
@@ -183,29 +198,22 @@ const DriverPayments: React.FC = () => {
         });
     } else {
         // --- Franchise / Employee View: Scoped Data ---
-        
-        // Determine the corporate owner ID
-        let ownerId = sessionId;
-        if (userRole === 'EMPLOYEE') {
-            ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
-        }
-
-        const payKey = `driver_payment_records_${sessionId}`;
-        const walletKey = `driver_wallet_data_${sessionId}`;
-        const staffKey = `staff_data_${sessionId}`;
-        
-        // Branches are stored under ownerId (Head Office 'admin' or Franchise 'email')
-        const branchKey = ownerId === 'admin' ? 'branches_data' : `branches_data_${ownerId}`;
+        // Use the contextOwnerId to fetch the Franchise's data
+        const payKey = contextOwnerId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${contextOwnerId}`;
+        const walletKey = contextOwnerId === 'admin' ? 'driver_wallet_data' : `driver_wallet_data_${contextOwnerId}`;
+        const staffKey = contextOwnerId === 'admin' ? 'staff_data' : `staff_data_${contextOwnerId}`;
+        const branchKey = contextOwnerId === 'admin' ? 'branches_data' : `branches_data_${contextOwnerId}`;
 
         loadedPayments = JSON.parse(localStorage.getItem(payKey) || '[]');
         const myWalletRaw = JSON.parse(localStorage.getItem(walletKey) || '[]');
-        loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: sessionId }));
+        // Ensure wallet items have corporateId for consistency
+        loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: contextOwnerId }));
         loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]');
         loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]');
     }
 
-    setPayments(loadedPayments);
-    setWalletTransactions(loadedWallet);
+    setPayments(loadedPayments.reverse()); // Show newest first
+    setWalletTransactions(loadedWallet.reverse());
     setStaffList(loadedStaff);
     setAllBranches(loadedBranches);
   };
@@ -268,7 +276,7 @@ const DriverPayments: React.FC = () => {
         vehicleNo: compForm.vehicleNo,
         orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
         branch: compForm.branch || 'Main Branch',
-        corporateId: isSuperAdmin ? 'admin' : sessionId,
+        corporateId: contextOwnerId, // Save to the correct context (Franchise)
         type: paymentType,
         amount: finalAmount,
         status: compForm.status as any,
@@ -278,7 +286,7 @@ const DriverPayments: React.FC = () => {
         details: details
     };
 
-    const key = isSuperAdmin ? 'driver_payment_records' : `driver_payment_records_${sessionId}`;
+    const key = contextOwnerId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${contextOwnerId}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     localStorage.setItem(key, JSON.stringify([newPayment, ...existing]));
     
@@ -313,6 +321,7 @@ const DriverPayments: React.FC = () => {
           setEditingWalletId(null);
           setWalletForm({
               ...initialWalletForm,
+              corporateId: isSuperAdmin ? 'admin' : contextOwnerId,
               orderId: `ORD-${Math.floor(100000 + Math.random() * 900000)}`
           });
       }
@@ -333,13 +342,18 @@ const DriverPayments: React.FC = () => {
           return;
       }
 
-      let targetCorpId = isSuperAdmin ? walletForm.corporateId : sessionId;
-      if (isSuperAdmin && !targetCorpId) targetCorpId = 'admin';
+      // Determine where to save this record
+      // If Super Admin, use the selected corporateId from form
+      // If Franchise/Employee, use the contextOwnerId
+      let targetCorpId = isSuperAdmin ? walletForm.corporateId : contextOwnerId;
+      if (!targetCorpId) targetCorpId = 'admin';
 
       let branchName = 'Head Office';
       if (targetCorpId !== 'admin') {
           const corp = corporates.find(c => c.email === targetCorpId);
           if (corp) branchName = corp.companyName;
+      } else {
+          branchName = isSuperAdmin ? 'Head Office' : 'My Branch';
       }
 
       let status: 'Pending' | 'Approved' | 'Rejected' = isSuperAdmin ? 'Approved' : 'Pending';
@@ -432,7 +446,8 @@ const DriverPayments: React.FC = () => {
       if (isSuperAdmin) {
           matchesCorp = walletCorpFilter === 'All' || t.corporateId === walletCorpFilter || (walletCorpFilter === 'admin' && t.corporateId === 'admin');
       } else {
-          matchesCorp = t.corporateId === sessionId;
+          // Allow employees to see records of their corporate
+          matchesCorp = t.corporateId === contextOwnerId;
       }
 
       let matchesDate = true;
@@ -446,7 +461,7 @@ const DriverPayments: React.FC = () => {
       const matchesSearch = p.driverName.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm);
       const matchesStatus = compStatus === 'All' || p.status === compStatus;
       const matchesDate = !compDate || p.date === compDate;
-      const matchesCorp = isSuperAdmin ? true : p.corporateId === sessionId;
+      const matchesCorp = isSuperAdmin ? true : p.corporateId === contextOwnerId;
       return matchesSearch && matchesStatus && matchesCorp && matchesDate;
   });
 
@@ -463,7 +478,7 @@ const DriverPayments: React.FC = () => {
         <div className="flex gap-2">
             {!isSuperAdmin && (
                 <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm font-medium text-blue-700 flex items-center gap-2">
-                    <Building2 className="w-4 h-4" /> My Branch
+                    <Building2 className="w-4 h-4" /> {contextOwnerId === 'admin' ? 'Head Office' : 'My Branch'}
                 </div>
             )}
             <div className="flex bg-gray-100 p-1 rounded-lg">
