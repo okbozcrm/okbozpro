@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc, query, where } from "firebase/firestore";
+import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import { BozNotification, UserRole } from '../types';
@@ -28,43 +28,44 @@ export const HARDCODED_FIREBASE_CONFIG: FirebaseConfig = {
 
 export const HARDCODED_MAPS_API_KEY = "AIzaSyCOMoIZNP1pjhJ8O9zhGf6KLWr6pngqDWs";
 
+// 🌐 Org-Wide Shared Data
 const GLOBAL_KEYS = [
   'corporate_accounts',
   'global_enquiries_data',
-  'call_enquiries_history',
-  'reception_recent_transfers',
-  'payroll_history',
-  'leave_history',
-  'app_settings',
-  'transport_pricing_rules_v2',
-  'transport_rental_packages_v2',
-  'company_departments',
-  'company_roles',
-  'company_shifts',
-  'company_payout_dates',
-  'company_global_payout_day',
-  'salary_advances',
+  'global_travel_requests', // KM Claims
+  'global_leave_requests',
+  'internal_messages_data', // Boz Chat
+  'office_expenses',
+  'campaign_history', // Email Marketing
   'app_branding',
   'app_theme',
-  'maps_api_key'
+  'maps_api_key',
+  'dashboard_stats'
 ];
 
+// 🏢 Franchise-Specific Data (Suffix applied automatically)
 const NAMESPACED_KEYS = [
   'staff_data',
   'branches_data',
   'leads_data',
   'vendor_data',
-  'office_expenses',
   'tasks_data',
-  'sub_admins',
-  'app_settings',
-  'trips_data'
+  'trips_data',
+  'driver_payment_records',
+  'driver_wallet_data',
+  'auto_dialer_data',
+  'payroll_history',
+  'company_departments',
+  'company_roles',
+  'company_shifts',
+  'company_payout_dates'
 ];
 
+// ⚡ Real-time Dynamic Logs
 const DYNAMIC_PREFIXES = [
   'attendance_data_',
   'driver_activity_log_',
-  'driver_wallet_data_'
+  'active_staff_locations'
 ];
 
 const NOTIFICATION_COLLECTION = 'global_notifications';
@@ -133,11 +134,13 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
         writeCount++;
     };
     
-    // 1. Sync Known Global and Namespaced Keys
-    const rootKeys = [...GLOBAL_KEYS, ...NAMESPACED_KEYS];
-    for (const key of rootKeys) await writeIfChanged(key);
+    // 1. Sync Global Shared State
+    for (const key of GLOBAL_KEYS) await writeIfChanged(key);
 
-    // 2. Sync Corporate Namespaced Keys
+    // 2. Sync Staff Data (Root)
+    await writeIfChanged('staff_data');
+
+    // 3. Sync Corporate Namespaced Keys
     if (Array.isArray(corporates)) {
       for (const corp of corporates) {
         const email = corp.email;
@@ -148,7 +151,7 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
       }
     }
 
-    // 3. NEW: Sync Dynamic Attendance and Driver Log Keys
+    // 4. Sync Dynamic/Employee Specific Data
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && DYNAMIC_PREFIXES.some(prefix => key.startsWith(prefix))) {
@@ -156,7 +159,7 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
         }
     }
 
-    if (writeCount > 0) console.log(`☁️ Synced ${writeCount} updated records to cloud.`);
+    if (writeCount > 0) console.log(`☁️ Cloud Sync: Updated ${writeCount} modules.`);
     return { success: true, message: `Sync complete! (${writeCount} updates)` };
   } catch (error: any) {
     console.error("Sync Error:", error);
@@ -183,8 +186,8 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
         }
     });
     
-    console.log("✅ Data Loaded from Cloud");
-    return { success: true, message: "Restore complete! Data loaded from Cloud." };
+    console.log("✅ All Data Mirrored from Cloud");
+    return { success: true, message: "Restore complete!" };
   } catch (error: any) {
     console.error("Restore Error:", error);
     return { success: false, message: `Restore failed: ${error.message}` };
@@ -230,7 +233,8 @@ export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
       try {
         const parsed = JSON.parse(data.content);
         if (Array.isArray(parsed)) count = parsed.length.toString();
-        else count = 'Config';
+        else if (typeof parsed === 'object') count = Object.keys(parsed).length.toString();
+        else count = '1';
       } catch (e) { count = 'Raw'; }
       stats[doc.id] = { count: count, lastUpdated: data.lastUpdated };
     });
@@ -251,7 +255,6 @@ export const sendSystemNotification = async (notification: Omit<BozNotification,
       read: false,
     };
 
-    // 🛠️ FIX: Firestore does not support 'undefined'. Strip undefined properties before sending.
     const cleanData = Object.fromEntries(
       Object.entries(newNotification).filter(([_, value]) => value !== undefined)
     );
@@ -274,30 +277,13 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     
     const relevantNotifications = allNotifications.filter(notif => {
       if (notif.read) return false;
-      
       const isTargetRole = notif.targetRoles.includes(userRole);
       if (!isTargetRole) return false;
-
-      // STRICT EMPLOYEE FILTERING:
-      // Employees ONLY see notifications specifically addressed to their ID.
-      // General role notifications or franchise-wide ones are hidden unless targeted.
-      if (userRole === UserRole.EMPLOYEE) {
-          return notif.employeeId === sessionId;
-      }
-
-      // CORPORATE FILTERING:
-      // Sees notifications for their role and specifically for their franchise.
+      if (userRole === UserRole.EMPLOYEE) return notif.employeeId === sessionId;
       if (userRole === UserRole.CORPORATE) {
           if (notif.corporateId && notif.corporateId !== sessionId) return false;
           return true;
       }
-
-      // ADMIN FILTERING:
-      // Sees everything targeted at ADMIN role.
-      if (userRole === UserRole.ADMIN) {
-        return true;
-      }
-      
       return true;
     });
 
