@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, List, CheckCircle, XCircle, 
@@ -646,23 +645,65 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     const durationStr = formatDuration(totalMins);
                     const punchCount = day.punches?.length || 0;
                     
+                    // Dynamic Color Logic
+                    let cellStyle = "bg-white border-gray-100";
+                    let badgeStyle = "bg-gray-100 text-gray-500 border-gray-200";
+                    let statusText = day.status.replace('_', ' ');
+
+                    switch (day.status) {
+                        case AttendanceStatus.PRESENT:
+                            cellStyle = "bg-gradient-to-br from-emerald-50/50 to-emerald-100/30 border-emerald-100 hover:shadow-emerald-100/50";
+                            badgeStyle = "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.ABSENT:
+                            cellStyle = "bg-gradient-to-br from-rose-50/50 to-rose-100/30 border-rose-100 hover:shadow-rose-100/50";
+                            badgeStyle = "bg-rose-100 text-rose-700 border-rose-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.HALF_DAY:
+                            cellStyle = "bg-gradient-to-br from-amber-50/50 to-amber-100/30 border-amber-100 hover:shadow-amber-100/50";
+                            badgeStyle = "bg-amber-100 text-amber-800 border-amber-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.PAID_LEAVE:
+                            cellStyle = "bg-gradient-to-br from-blue-50/50 to-blue-100/30 border-blue-100 hover:shadow-blue-100/50";
+                            badgeStyle = "bg-blue-100 text-blue-700 border-blue-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.HOLIDAY:
+                            cellStyle = "bg-gradient-to-br from-violet-50/50 to-violet-100/30 border-violet-100 hover:shadow-violet-100/50";
+                            badgeStyle = "bg-violet-100 text-violet-700 border-violet-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.WEEK_OFF:
+                            cellStyle = "bg-slate-50/50 border-slate-100";
+                            badgeStyle = "bg-slate-100 text-slate-500 border-slate-200";
+                            break;
+                        case AttendanceStatus.ALTERNATE_DAY:
+                            cellStyle = "bg-gradient-to-br from-teal-50/50 to-teal-100/30 border-teal-100 hover:shadow-teal-100/50";
+                            badgeStyle = "bg-teal-100 text-teal-700 border-teal-200 shadow-sm";
+                            break;
+                        default:
+                            // Not marked
+                             if (day.date <= todayDateStr && !isWeekend) {
+                                cellStyle = "bg-gradient-to-br from-rose-50/30 to-rose-100/20 border-rose-100";
+                                badgeStyle = "bg-rose-50 text-rose-600 border-rose-100";
+                                statusText = "ABSENT (N/A)";
+                             } else if (isWeekend) {
+                                cellStyle = "bg-slate-50/30 border-slate-100";
+                                badgeStyle = "bg-slate-100 text-slate-500 border-slate-200";
+                                statusText = "WEEK OFF";
+                             }
+                            break;
+                    }
+
                     return (
-                        <div key={idx} onClick={() => handleEditClick(day)} className={`bg-white p-6 min-h-[180px] flex flex-col gap-4 relative transition-all hover:bg-emerald-50/20 group ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10 bg-emerald-50/10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
+                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-6 min-h-[180px] flex flex-col gap-4 relative transition-all border group hover:scale-[1.02] hover:z-10 duration-200 ${cellStyle} ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
                             <div className="flex justify-between items-start z-10">
-                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'}`}>{new Date(day.date).getDate()}</span>
-                                {day.status !== AttendanceStatus.NOT_MARKED ? (
-                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border shadow-sm ${
-                                        day.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                                        day.status === AttendanceStatus.WEEK_OFF ? 'bg-gray-50 text-gray-400 border-gray-100' : 
-                                        day.status === AttendanceStatus.HOLIDAY ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                        day.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                        'bg-rose-50 text-rose-600 border-rose-100'
-                                    }`}>{day.status.replace('_', ' ')}</span>
-                                ) : isWeekend ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-gray-50 text-gray-400 border-gray-100">WEEK OFF</span> : (day.date <= todayDateStr ? <span className="text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border bg-rose-50 text-rose-600 border-rose-100">ABSENT</span> : null)}
+                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'} opacity-80 group-hover:opacity-100`}>{new Date(day.date).getDate()}</span>
+                                {statusText && (
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border ${badgeStyle}`}>{statusText}</span>
+                                )}
                             </div>
                             
                             {punchCount > 0 && (
-                                <div className="mt-auto space-y-2 p-3 bg-gray-50 rounded-[1.5rem] border border-gray-100 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
+                                <div className="mt-auto space-y-2 p-3 bg-white/60 backdrop-blur-sm rounded-[1.5rem] border border-gray-100/50 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
                                     <div className="flex items-center justify-between text-indigo-600">
                                         <div className="flex items-center gap-1.5"><ArrowRightLeft className="w-3 h-3" /><span>{punchCount} Punches</span></div>
                                         <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">History</span>
@@ -707,19 +748,85 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       </div>
 
       <div className="space-y-8 animate-in zoom-in-95 duration-500">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {[
-                  { label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', val: dashboardStats.total, icon: Users, color: 'text-gray-800', bg: 'bg-white' },
-                  { label: 'WEEK OFF', val: dashboardStats.weekOff, icon: Coffee, color: 'text-slate-700', bg: 'bg-slate-50' },
-                  { label: 'PRESENT', val: dashboardStats.present, icon: UserCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-                  { label: 'ABSENT', val: dashboardStats.absent, icon: UserX, color: 'text-rose-700', bg: 'bg-rose-50' },
-                  { label: 'LATE', val: dashboardStats.late, icon: Clock, color: 'text-orange-700', bg: 'bg-orange-50' },
-                  { label: 'ON FIELD', val: dashboardStats.onField, icon: Send, color: 'text-blue-700', bg: 'bg-blue-50' },
-                  { label: 'HALF DAY', val: dashboardStats.halfDay, icon: Activity, color: 'text-amber-700', bg: 'bg-amber-50' },
-                  { label: 'HOLIDAY', val: dashboardStats.holidays, icon: CalendarDays, color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                  { label: 'LEAVE', val: dashboardStats.leave, icon: UserMinus, color: 'text-slate-700', bg: 'bg-slate-50' },
+                  { 
+                      label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', 
+                      val: dashboardStats.total, 
+                      icon: Users, 
+                      gradient: 'from-slate-700 to-slate-900',
+                      shadow: 'shadow-slate-200' 
+                  },
+                  { 
+                      label: 'PRESENT', 
+                      val: dashboardStats.present, 
+                      icon: UserCheck, 
+                      gradient: 'from-emerald-400 to-teal-600',
+                      shadow: 'shadow-emerald-200' 
+                  },
+                  { 
+                      label: 'ABSENT', 
+                      val: dashboardStats.absent, 
+                      icon: UserX, 
+                      gradient: 'from-rose-500 to-red-600',
+                      shadow: 'shadow-rose-200' 
+                  },
+                  { 
+                      label: 'ON FIELD', 
+                      val: dashboardStats.onField, 
+                      icon: Send, 
+                      gradient: 'from-blue-500 to-indigo-600',
+                      shadow: 'shadow-indigo-200' 
+                  },
+                  { 
+                      label: 'LATE', 
+                      val: dashboardStats.late, 
+                      icon: Clock, 
+                      gradient: 'from-orange-400 to-amber-500',
+                      shadow: 'shadow-orange-200' 
+                  },
+                  { 
+                      label: 'HALF DAY', 
+                      val: dashboardStats.halfDay, 
+                      icon: Activity, 
+                      gradient: 'from-amber-300 to-yellow-500',
+                      shadow: 'shadow-amber-200',
+                      textColor: 'text-amber-900'
+                  },
+                  { 
+                      label: 'HOLIDAY', 
+                      val: dashboardStats.holidays, 
+                      icon: CalendarDays, 
+                      gradient: 'from-violet-500 to-fuchsia-600',
+                      shadow: 'shadow-violet-200' 
+                  },
+                  { 
+                      label: 'WEEK OFF', 
+                      val: dashboardStats.weekOff, 
+                      icon: Coffee, 
+                      gradient: 'from-cyan-400 to-blue-500',
+                      shadow: 'shadow-cyan-200' 
+                  },
+                  { 
+                      label: 'LEAVE', 
+                      val: dashboardStats.leave, 
+                      icon: UserMinus, 
+                      gradient: 'from-gray-400 to-gray-600',
+                      shadow: 'shadow-gray-200' 
+                  },
               ].map((kpi, i) => (
-                  <div key={i} className={`${kpi.bg} p-5 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col justify-between transition-all hover:shadow-md h-28`}><p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{kpi.label}</p><div className="flex justify-between items-end"><h4 className={`text-3xl font-black ${kpi.color}`}>{kpi.val}</h4><kpi.icon className={`w-6 h-6 opacity-20 ${kpi.color}`} /></div></div>
+                  <div key={i} className={`bg-gradient-to-br ${kpi.gradient} p-5 rounded-[1.5rem] shadow-xl ${kpi.shadow} flex flex-col justify-between transition-all hover:scale-105 h-32 relative overflow-hidden group`}>
+                      <div className="flex justify-between items-start z-10">
+                          <p className={`text-[10px] font-black uppercase tracking-[0.15em] ${kpi.textColor || 'text-white/80'}`}>{kpi.label}</p>
+                          <div className={`p-2 rounded-xl bg-white/20 backdrop-blur-sm ${kpi.textColor || 'text-white'}`}>
+                              <kpi.icon className="w-4 h-4" />
+                          </div>
+                      </div>
+                      <div className="relative z-10">
+                          <h4 className={`text-4xl font-black ${kpi.textColor || 'text-white'}`}>{kpi.val}</h4>
+                      </div>
+                      <kpi.icon className={`absolute -bottom-4 -right-4 w-24 h-24 ${kpi.textColor ? 'text-black/5' : 'text-white/10'} transform -rotate-12 group-hover:scale-110 transition-transform duration-500`} />
+                  </div>
               ))}
           </div>
           

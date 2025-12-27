@@ -25,23 +25,29 @@ const DayCell: React.FC<DayCellProps> = ({ dayData, onClick }) => {
   
   let bgClass = 'bg-white border-dashed border-gray-200 text-gray-300';
   
-  // MILD COLOR SCHEME - Pastel Backgrounds with matching borders
+  // VIBRANT COLOR SCHEME - Matching the main dashboard aesthetic
   switch (dayData.status) {
     case AttendanceStatus.PRESENT:
-      bgClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 border-solid';
+      bgClass = 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-800 border-emerald-300 border-solid shadow-sm';
       break;
     case AttendanceStatus.ABSENT:
-      bgClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 border-solid';
+      bgClass = 'bg-gradient-to-br from-rose-100 to-rose-200 text-rose-800 border-rose-300 border-solid shadow-sm';
       break;
     case AttendanceStatus.HALF_DAY:
-      bgClass = 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 border-solid';
+      bgClass = 'bg-gradient-to-br from-amber-100 to-amber-200 text-amber-800 border-amber-300 border-solid shadow-sm';
       break;
     case AttendanceStatus.PAID_LEAVE:
-      bgClass = 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 border-solid';
+      bgClass = 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-800 border-blue-300 border-solid shadow-sm';
       break;
     case AttendanceStatus.WEEK_OFF:
-      bgClass = 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 border-solid';
+      bgClass = 'bg-slate-100 text-slate-500 border-slate-200 border-solid';
       break;
+    case AttendanceStatus.HOLIDAY:
+        bgClass = 'bg-gradient-to-br from-violet-100 to-violet-200 text-violet-800 border-violet-300 border-solid shadow-sm';
+        break;
+    case AttendanceStatus.ALTERNATE_DAY:
+        bgClass = 'bg-gradient-to-br from-teal-100 to-teal-200 text-teal-800 border-teal-300 border-solid shadow-sm';
+        break;
     case AttendanceStatus.NOT_MARKED:
       bgClass = 'bg-white border-dashed border-gray-200 text-gray-300 hover:bg-gray-50';
       break;
@@ -50,12 +56,12 @@ const DayCell: React.FC<DayCellProps> = ({ dayData, onClick }) => {
   return (
     <div 
       onClick={() => onClick && onClick(dayData)}
-      className={`relative h-14 rounded-lg border flex flex-col items-center justify-center ${bgClass} transition-all cursor-pointer group`}
+      className={`relative h-14 rounded-lg border flex flex-col items-center justify-center ${bgClass} transition-all cursor-pointer group hover:scale-105 hover:z-10 duration-200`}
       title={dayData.status.replace('_', ' ')}
     >
       <span className="text-sm font-bold">{dayNumber}</span>
       {dayData.status === AttendanceStatus.PRESENT && dayData.isLate && (
-        <span className="absolute bottom-1 text-[7px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-1 rounded">LATE</span>
+        <span className="absolute bottom-1 text-[7px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-1 rounded border border-orange-200">LATE</span>
       )}
       {dayData.status === AttendanceStatus.HALF_DAY && (
         <span className="absolute bottom-1 text-[7px] font-bold uppercase tracking-wider opacity-80">HALF</span>
