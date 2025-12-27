@@ -1,14 +1,17 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, DollarSign, 
   PieChart, FileText, 
   CheckCircle, X, Download,
-  Smartphone, Zap, Wifi, Users, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown, Building2, Upload, Loader2, Paperclip, Eye, Edit2, Trash2, Printer, MapPin, Filter, RefreshCcw, Calendar
+  Smartphone, Zap, Wifi, Users, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown, Building2, Upload, Loader2, Paperclip, Eye, Edit2, Trash2, Printer, MapPin, Filter, RefreshCcw, Calendar,
+  Info
 } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend } from 'recharts';
 import { uploadFileToCloud } from '../../services/cloudService';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { UserRole } from '../../types'; // Import UserRole for type checking
 
 interface Expense {
   id: string;
@@ -24,7 +27,10 @@ interface Expense {
   franchiseName?: string; 
   corporateId?: string; 
   branch?: string; 
-  receiptUrl?: string; 
+  receiptUrl?: string;
+  // New tracking fields
+  editedBy?: string;
+  lastEditedAt?: string;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -41,8 +47,12 @@ const COLORS = ['#10b981', '#3b82f6', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'
 const Expenses: React.FC = () => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Session & User Info
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const userRole = localStorage.getItem('user_role') || 'ADMIN';
   const isSuperAdmin = sessionId === 'admin';
+  const loggedInUserName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || (isSuperAdmin ? 'Super Admin' : 'Admin');
 
   const [expenses, setExpenses] = useState<Expense[]>(() => {
     if (isSuperAdmin) {
@@ -196,12 +206,7 @@ const Expenses: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Delete this transaction?")) {
-      setExpenses(prev => prev.filter(exp => exp.id !== id));
-      resetForm();
-    }
-  };
+  // REMOVED handleDelete FUNCTION
 
   const handleExportPDF = async () => {
     if (!reportRef.current) return;
@@ -238,6 +243,20 @@ const Expenses: React.FC = () => {
         resolvedFranchiseName = corp ? corp.companyName : 'Franchise';
     }
 
+    // Determine Edit Metadata
+    let editMetadata = {};
+    if (editingExpenseId) {
+        // Construct the role label for display
+        let editorRoleLabel = 'Staff';
+        if (isSuperAdmin) editorRoleLabel = 'Super Admin';
+        else if (userRole === UserRole.CORPORATE) editorRoleLabel = 'Franchise Admin';
+        
+        editMetadata = {
+            editedBy: `${loggedInUserName} (${editorRoleLabel})`,
+            lastEditedAt: new Date().toLocaleString()
+        };
+    }
+
     const transactionData: Expense = {
       id: editingExpenseId || Date.now().toString(),
       transactionNumber: formData.transactionNumber!,
@@ -252,10 +271,11 @@ const Expenses: React.FC = () => {
       branch: formData.branch,
       franchiseName: resolvedFranchiseName,
       corporateId: targetCorpId,
-      receiptUrl: receiptUrl
+      receiptUrl: receiptUrl,
+      ...editMetadata
     };
 
-    setExpenses(prev => editingExpenseId ? prev.map(exp => exp.id === editingExpenseId ? transactionData : exp) : [transactionData, ...prev]);
+    setExpenses(prev => editingExpenseId ? prev.map(exp => exp.id === editingExpenseId ? { ...transactionData } : exp) : [transactionData, ...prev]);
     setIsUploading(false);
     resetForm();
     window.dispatchEvent(new Event('cloud-sync-immediate'));
@@ -327,8 +347,17 @@ const Expenses: React.FC = () => {
                      </thead>
                      <tbody className="divide-y divide-gray-100">
                        {filteredExpenses.map((exp) => (
-                         <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
-                           <td className="px-6 py-4 text-xs font-mono text-gray-500">{exp.transactionNumber || '-'}</td>
+                         <tr key={exp.id} className="hover:bg-gray-50 transition-colors group">
+                           <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                              {exp.transactionNumber || '-'}
+                              {exp.editedBy && (
+                                <div className="mt-1" title={`Last edited by ${exp.editedBy} on ${exp.lastEditedAt}`}>
+                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-100 cursor-help">
+                                        <Info className="w-2.5 h-2.5" /> EDITED
+                                    </span>
+                                </div>
+                              )}
+                           </td>
                            <td className="px-6 py-4"><div className="flex items-start gap-3"><div className={`mt-1 p-1.5 rounded-full ${exp.type === 'Income' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{exp.type === 'Income' ? <ArrowUpCircle className="w-4 h-4" /> : <ArrowDownCircle className="w-4 h-4" />}</div><div><div className="font-bold text-gray-900">{exp.title}</div><div className="text-xs text-gray-500">{exp.category}</div></div></div></td>
                            {isSuperAdmin && (<td className="px-6 py-4">{exp.franchiseName && (<div className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-semibold border border-indigo-100"><Building2 className="w-3 h-3" />{exp.franchiseName}</div>)}</td>)}
                            <td className="px-6 py-4 text-gray-600">{exp.branch || '-'}</td>
@@ -338,7 +367,6 @@ const Expenses: React.FC = () => {
                            <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2">
                                <button type="button" onClick={() => handleViewInvoice(exp)} className="text-gray-400 hover:text-blue-500 p-1.5 rounded-full hover:bg-blue-50 transition-colors cursor-pointer"><Eye className="w-4 h-4" /></button>
                                <button type="button" onClick={() => handleEdit(exp)} className="text-gray-400 hover:text-emerald-600 p-1.5 rounded-full hover:bg-emerald-50 transition-colors cursor-pointer"><Edit2 className="w-4 h-4" /></button>
-                               <button type="button" onClick={() => handleDelete(exp.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                            </div></td>
                          </tr>
                        ))}
@@ -368,6 +396,12 @@ const Expenses: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0"><h3 className="font-bold text-gray-800">{editingExpenseId ? 'Edit Transaction' : 'Add Transaction'}</h3><button type="button" onClick={resetForm} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+              {editingExpenseId && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs flex items-start gap-2">
+                      <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                      <span>Note: Editing this transaction will be logged with your username ({loggedInUserName}).</span>
+                  </div>
+              )}
               <div className="flex bg-gray-100 p-1 rounded-lg"><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Income', category: INCOME_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}><ArrowUpCircle className="w-4 h-4" /> Income</button><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Expense', category: EXPENSE_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}><ArrowDownCircle className="w-4 h-4" /> Expense</button></div>
               {isSuperAdmin && (
                   <div>
