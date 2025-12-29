@@ -11,7 +11,7 @@ import {
   CheckCircle, Minus, Equal
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole, SalaryAdvanceRequest, TravelAllowanceRequest, DailyAttendance } from '../../types';
+import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole, SalaryAdvanceRequest, TravelAllowanceRequest, DailyAttendance, Partner } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -343,16 +343,46 @@ const Reports: React.FC = () => {
       // 3. Net Profit Calculation
       const netProfit = adminCommissionTotal - totalExpenses;
       
-      const shares = corporates.map(corp => {
+      // Determine relevant corporate entities for sharing
+      let relevantCorporates: CorporateAccount[] = [];
+      if (isSuperAdmin) {
+          if (filterCorporate === 'All') relevantCorporates = corporates;
+          else relevantCorporates = corporates.filter(c => c.email === filterCorporate);
+      } else {
+          relevantCorporates = corporates.filter(c => c.email === sessionId);
+      }
+
+      // Calculate Franchise shares if Super Admin is viewing "All" or a specific franchise
+      const franchiseShares = relevantCorporates.map(corp => {
           const sharePercent = corp.profitSharingPercentage || 0;
           const amount = (netProfit * sharePercent) / 100;
           return { id: corp.email, name: corp.companyName, percent: sharePercent, amount: amount > 0 ? amount : 0 };
       });
-      const filteredShares = isSuperAdmin ? (filterCorporate === 'All' ? shares : shares.filter(s => s.id === filterCorporate)) : shares.filter(s => s.id === sessionId);
       
+      // 4. Calculate Partnership Breakdown (Inside the Franchise/Corporate)
+      // If a specific corporate is selected (or logged in as franchise), retrieve their partnership config
+      let activePartners: Partner[] = [];
+      
+      if (isSuperAdmin) {
+           if (filterCorporate !== 'All' && filterCorporate !== 'admin') {
+               const targetCorp = corporates.find(c => c.email === filterCorporate);
+               if (targetCorp && targetCorp.partners) activePartners = targetCorp.partners;
+           }
+      } else {
+           const myCorp = corporates.find(c => c.email === sessionId);
+           if (myCorp && myCorp.partners) activePartners = myCorp.partners;
+      }
+
+      const partnershipBreakdown = activePartners.map(p => ({
+          name: p.name,
+          sharePercent: p.share,
+          amount: (netProfit * p.share) / 100
+      }));
+
       return { 
           totalProfit: netProfit, 
-          shares: filteredShares, 
+          franchiseShares: franchiseShares,
+          partnershipBreakdown: partnershipBreakdown,
           revenue: adminCommissionTotal, 
           expensesBreakdown: { 
               office: officeOnlyExpenses, 
@@ -453,7 +483,7 @@ const Reports: React.FC = () => {
   const handleBackupProfitReport = () => {
       const headers = ["Entity Name", "Share %", "Allocated Amount", "Date/Period"];
       const period = filterType === 'All' ? 'Life-time' : filterType === 'Date' ? selectedDate : selectedMonth;
-      const rows = profitSharingData.shares.map(s => [s.name, `${s.percent}%`, s.amount.toFixed(2), period]);
+      const rows = profitSharingData.franchiseShares.map(s => [s.name, `${s.percent}%`, s.amount.toFixed(2), period]);
       const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
       const link = document.createElement("a");
       link.setAttribute("href", encodeURI(csvContent));
@@ -529,6 +559,27 @@ const Reports: React.FC = () => {
                                   <p className="text-3xl font-black text-white">{formatCurrency(profitSharingData.totalProfit)}</p>
                               </div>
                           </div>
+
+                          {/* Partnership Distribution Section - Shows ONLY if partners are configured */}
+                          {profitSharingData.partnershipBreakdown.length > 0 && (
+                            <div className="mt-6 border-t border-white/10 pt-6 animate-in slide-in-from-bottom-2">
+                                <h4 className="text-emerald-100 font-bold mb-4 uppercase tracking-[0.2em] text-xs flex items-center gap-2">
+                                    <Users className="w-4 h-4" /> Partnership Split (Net Profit)
+                                </h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {profitSharingData.partnershipBreakdown.map((partner, idx) => (
+                                        <div key={idx} className="bg-black/20 rounded-xl p-3 border border-white/5 backdrop-blur-sm">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-sm font-bold truncate max-w-[70%]">{partner.name}</span>
+                                                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono">{partner.sharePercent}%</span>
+                                            </div>
+                                            <p className="text-xl font-black text-emerald-300">{formatCurrency(partner.amount)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                          )}
+
                       </div>
                       <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform duration-700"><DollarSign className="w-64 h-64" /></div>
                   </div>
@@ -561,7 +612,7 @@ const Reports: React.FC = () => {
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><PieChartIcon className="w-5 h-5 text-emerald-500" /> {isSuperAdmin ? "Franchise Profit Distribution" : "Your Agreed Earnings"}</h3>
                         <div className="space-y-4">
-                            {profitSharingData.shares.map((corp, idx) => (
+                            {profitSharingData.franchiseShares.map((corp, idx) => (
                                 <div key={idx} className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex justify-between items-center group hover:border-emerald-200 transition-all">
                                     <div>
                                         <h4 className="font-black text-gray-800 text-sm">{corp.name}</h4>
@@ -575,7 +626,7 @@ const Reports: React.FC = () => {
                                     </div>
                                 </div>
                             ))}
-                            {profitSharingData.shares.length === 0 && (<div className="text-center py-10 text-gray-400 italic font-medium text-sm">No profit share data available for this view.</div>)}
+                            {profitSharingData.franchiseShares.length === 0 && (<div className="text-center py-10 text-gray-400 italic font-medium text-sm">No profit share data available for this view.</div>)}
                         </div>
                     </div>
                   </div>
@@ -584,7 +635,7 @@ const Reports: React.FC = () => {
                       <h3 className="font-bold text-gray-800 mb-6">Distribution Visual</h3>
                       <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                              <Pie data={profitSharingData.shares} dataKey="amount" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{profitSharingData.shares.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie>
+                              <Pie data={profitSharingData.franchiseShares} dataKey="amount" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>{profitSharingData.franchiseShares.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie>
                               <Tooltip formatter={(value: number) => formatCurrency(value)} /><Legend verticalAlign="bottom" height={36} />
                           </PieChart>
                       </ResponsiveContainer>
