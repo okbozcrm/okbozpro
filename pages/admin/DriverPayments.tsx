@@ -112,7 +112,7 @@ export const DriverPayments: React.FC = () => {
   const [compDate, setCompDate] = useState('');
   const [compStatus, setCompStatus] = useState('All');
   
-  // Compensation Form State
+  // Compensation Form State - Multi-select supported
   const [selectedPaymentTypes, setSelectedPaymentTypes] = useState<string[]>(['Empty Km']);
   const [compForm, setCompForm] = useState({
     branch: '',
@@ -227,7 +227,7 @@ export const DriverPayments: React.FC = () => {
       return Math.max(0, capped - rules.freeLimitKm);
   }, [compForm.pickupDistance, rules]);
 
-  // Calculate total payable based on ALL selected types
+  // Combined Calculation for all selected types
   const calculatedPayable = useMemo(() => {
       let total = 0;
       if (selectedPaymentTypes.includes('Empty Km')) total += (eligiblePaidKm * rules.ratePerKm);
@@ -257,8 +257,8 @@ export const DriverPayments: React.FC = () => {
   const togglePaymentType = (type: string) => {
     setSelectedPaymentTypes(prev => {
         if (prev.includes(type)) {
-            // Prevent deselecting if it's the last one
-            if (prev.length === 1) return prev; 
+            // Don't allow deselecting everything, keep at least one if clicked
+            if (prev.length === 1 && prev[0] === type) return prev;
             return prev.filter(t => t !== type);
         }
         return [...prev, type];
@@ -277,36 +277,32 @@ export const DriverPayments: React.FC = () => {
     }
 
     // --- ORDER ID VALIDATION ---
-    const orderIdRequired = selectedPaymentTypes.includes('Empty Km') || selectedPaymentTypes.includes('Promo Code');
+    const orderIdRequired = selectedPaymentTypes.some(t => ['Empty Km', 'Promo Code'].includes(t));
     if (orderIdRequired && !compForm.orderId.trim()) {
-        alert("Order ID is required when Empty Km or Promo Code is selected.");
+        alert("Order ID is required for Empty Km and Promo Code payments.");
         return;
     }
 
     const key = contextOwnerId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${contextOwnerId}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    let newPayments: DriverPayment[] = [];
+    const newRecords: DriverPayment[] = [];
     const timestamp = Date.now();
 
-    // Check existing for duplicates logic
+    // Check existing Order ID validity
     if (compForm.orderId.trim()) {
         const relatedPayments = existing.filter((p: DriverPayment) => 
             p.orderId === compForm.orderId && p.status !== 'Rejected'
         );
-
-        // Check if any selected type is already paid for this order
-        const hasDuplicate = selectedPaymentTypes.some(type => 
-            relatedPayments.some((p: DriverPayment) => p.type === type)
-        );
-
-        if (hasDuplicate) {
-            alert(`One or more selected payment types have already been logged for Order ID ${compForm.orderId}.`);
+        // Check if any selected type is already paid
+        const duplicates = selectedPaymentTypes.filter(type => relatedPayments.some((p: DriverPayment) => p.type === type));
+        if (duplicates.length > 0) {
+            alert(`Payment type(s) '${duplicates.join(', ')}' already recorded for Order ID ${compForm.orderId}.`);
             return;
         }
     }
 
-    // Create a record for each selected type
-    selectedPaymentTypes.forEach((type, index) => {
+    // Generate records for each selected type
+    selectedPaymentTypes.forEach((type, idx) => {
         let amount = 0;
         let details: any = {};
 
@@ -322,36 +318,34 @@ export const DriverPayments: React.FC = () => {
             details = { stickerDuration: parseInt(compForm.stickerDuration) };
         }
 
-        if (amount <= 0 && type !== 'Sticker') {
-            // Optional warning or skip 0 amounts? For now, we save even 0 if they clicked it.
-            // Actually, let's enforce non-zero for promo/km
-             if (type === 'Empty Km' && eligiblePaidKm <= 0) return; // Skip if no payout
+        // Only save if amount is valid or it's a specific type record
+        if (amount > 0 || type === 'Sticker') {
+             const newPayment: DriverPayment = {
+                id: `DP-${timestamp}-${idx}`,
+                driverName: compForm.driverName,
+                phone: compForm.phone,
+                vehicleNo: compForm.vehicleNo,
+                orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
+                branch: compForm.branch || 'Main Branch',
+                corporateId: contextOwnerId,
+                type: type as any,
+                amount: amount,
+                status: compForm.status as any,
+                date: compForm.date,
+                paymentMode: compForm.paymentMode,
+                remarks: compForm.remarks,
+                details: details
+            };
+            newRecords.push(newPayment);
         }
-
-        newPayments.push({
-            id: `DP-${timestamp}-${index}`, // Ensure unique ID
-            driverName: compForm.driverName,
-            phone: compForm.phone,
-            vehicleNo: compForm.vehicleNo,
-            orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
-            branch: compForm.branch || 'Main Branch',
-            corporateId: contextOwnerId,
-            type: type as any,
-            amount: amount,
-            status: compForm.status as any,
-            date: compForm.date,
-            paymentMode: compForm.paymentMode,
-            remarks: compForm.remarks,
-            details: details
-        });
     });
 
-    if (newPayments.length === 0) {
-        alert("No valid payment amounts calculated to save.");
+    if (newRecords.length === 0) {
+        alert("No valid amounts entered for selected types.");
         return;
     }
 
-    localStorage.setItem(key, JSON.stringify([...newPayments, ...existing]));
+    localStorage.setItem(key, JSON.stringify([...newRecords, ...existing]));
     
     loadAllData();
     setIsModalOpen(false);
@@ -363,7 +357,7 @@ export const DriverPayments: React.FC = () => {
     alert("Payment(s) Logged Successfully!");
   };
 
-  // ... (Wallet handlers unchanged)
+  // ... (Wallet handlers remain the same) ...
   const handleOpenWalletModal = (existingTransaction?: WalletTransaction) => {
       if (existingTransaction) {
           setEditingWalletId(existingTransaction.id);
@@ -471,7 +465,7 @@ export const DriverPayments: React.FC = () => {
       loadAllData();
   };
 
-  // --- Stats & Filtering ---
+  // --- Stats & Filtering (Same as before) ---
   const walletStats = useMemo(() => {
       const approved = walletTransactions.filter(t => t.status === 'Approved');
       const topUp = approved.filter(t => t.type === 'Top-up').reduce((sum, t) => sum + t.amount, 0);
@@ -551,7 +545,7 @@ export const DriverPayments: React.FC = () => {
       {/* ---------------- WALLET TAB ---------------- */}
       {mainTab === 'Wallet' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-              {/* Wallet UI (Stats, Filter, Table) ... */}
+              {/* Wallet UI (Stats, Filter, Table) ... Same as before ... */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Balance Card */}
                   <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">

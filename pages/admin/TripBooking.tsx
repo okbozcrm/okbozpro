@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, X, Save,
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
   TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car, RefreshCcw, Filter,
-  Building2, Percent
+  Building2, Percent, Download, Upload, FileSpreadsheet
 } from 'lucide-react';
 import { UserRole, CorporateAccount } from '../../types';
 
@@ -47,6 +47,43 @@ const formatCurrency = (amount: number) => {
   });
 };
 
+// Helper function to convert JSON to CSV
+const convertToCSV = (data: Trip[]) => {
+    const headers = [
+        "Trip ID", "Date", "Customer Name", "Customer Mobile", "Driver Name", 
+        "Driver Mobile", "Booking Type", "Order Type", "Vehicle", "Category", 
+        "Status", "Trip Price", "Tax", "Waiting Charge", "Discount", 
+        "Cancel Charge", "Admin Comm.", "Total Price", "Branch", "Owner"
+    ];
+    
+    const rows = data.map(t => [
+        t.tripId, t.date, t.userName, t.userMobile, t.driverName || '', 
+        t.driverMobile || '', t.bookingType, t.orderType, t.transportType, t.tripCategory, 
+        t.bookingStatus, t.tripPrice, t.tax, t.waitingCharge, t.discount, 
+        t.cancellationCharge, t.adminCommission, t.totalPrice, t.branch, t.ownerName || ''
+    ]);
+
+    const csvContent = [
+        headers.join(","), 
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    return csvContent;
+};
+
+// Helper function to download CSV
+const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+
 export const TripBooking: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const role = localStorage.getItem('user_role') as UserRole;
@@ -70,6 +107,8 @@ export const TripBooking: React.FC = () => {
   const [minCommission, setMinCommission] = useState('');
   const [minTax, setMinTax] = useState('');
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const initialFormState = {
     ownerId: corporateId,
     branch: '',
@@ -309,6 +348,109 @@ export const TripBooking: React.FC = () => {
       return matchesSearch && matchesStatus && matchesOrigin && matchesFleet && matchesCategory && matchesCorporate && matchesBranch && matchesComm && matchesTax;
   });
 
+  // --- Import/Export Handlers ---
+  const handleExportData = () => {
+      if (trips.length === 0) {
+          alert("No trip data available to export.");
+          return;
+      }
+      const csv = convertToCSV(trips);
+      downloadCSV(csv, `trip_booking_data_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleDownloadSample = () => {
+      const sampleData: Trip[] = [{
+          id: 'SAMPLE',
+          tripId: 'TRP-1001',
+          date: new Date().toISOString().split('T')[0],
+          branch: 'Main Branch',
+          bookingType: 'Online',
+          orderType: 'Scheduled',
+          transportType: 'Sedan',
+          tripCategory: 'Local',
+          bookingStatus: 'Completed',
+          userName: 'John Doe',
+          userMobile: '9876543210',
+          driverName: 'Driver A',
+          driverMobile: '9123456780',
+          tripPrice: 1000,
+          taxPercentage: 5,
+          tax: 50,
+          waitingCharge: 0,
+          discount: 0,
+          cancellationCharge: 0,
+          adminCommissionPercentage: 10,
+          adminCommission: 100,
+          totalPrice: 1050,
+          ownerName: 'Head Office'
+      }];
+      const csv = convertToCSV(sampleData);
+      downloadCSV(csv, 'trip_booking_sample.csv');
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const text = event.target?.result as string;
+          // Simple CSV parser logic (assuming standard CSV format)
+          const lines = text.split('\n');
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          
+          const newTrips: any[] = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+              if (!lines[i].trim()) continue;
+              const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+              
+              // Basic mapping based on index from sample format
+              // Note: Production-grade import should be more robust with header mapping
+              if (values.length >= 18) { // basic check
+                   const trip: any = {
+                       id: `T-IMP-${Date.now()}-${i}`,
+                       tripId: values[0] || `TRP-${Date.now()}`,
+                       date: values[1],
+                       userName: values[2],
+                       userMobile: values[3],
+                       driverName: values[4],
+                       driverMobile: values[5],
+                       bookingType: values[6],
+                       orderType: values[7],
+                       transportType: values[8],
+                       tripCategory: values[9],
+                       bookingStatus: values[10],
+                       tripPrice: Number(values[11]) || 0,
+                       tax: Number(values[12]) || 0,
+                       waitingCharge: Number(values[13]) || 0,
+                       discount: Number(values[14]) || 0,
+                       cancellationCharge: Number(values[15]) || 0,
+                       adminCommission: Number(values[16]) || 0,
+                       totalPrice: Number(values[17]) || 0,
+                       branch: values[18] || 'Main Branch',
+                       // Default assignment to current user/admin context
+                       ownerId: isSuperAdmin ? 'admin' : corporateId, 
+                       ownerName: isSuperAdmin ? 'Head Office' : 'Imported'
+                   };
+                   newTrips.push(trip);
+              }
+          }
+          
+          if (newTrips.length > 0) {
+              const targetKey = isSuperAdmin ? 'trips_data' : `trips_data_${corporateId}`;
+              const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+              localStorage.setItem(targetKey, JSON.stringify([...newTrips, ...existing]));
+              alert(`Successfully imported ${newTrips.length} trips!`);
+              loadData();
+          } else {
+              alert("No valid trip data found in file. Please check the format.");
+          }
+      };
+      reader.readAsText(file);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="max-w-full mx-auto space-y-8 pb-10">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -316,12 +458,24 @@ export const TripBooking: React.FC = () => {
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Trip Booking Terminal</h2>
           <p className="text-gray-500 font-medium">Fleet operations, billing and performance metrics</p>
         </div>
-        <button 
-            onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl shadow-emerald-900/20 transform active:scale-95"
-        >
-            <Plus className="w-5 h-5" /> New Trip Record
-        </button>
+        <div className="flex gap-3">
+             <input type="file" ref={fileInputRef} accept=".csv" className="hidden" onChange={handleImportData} />
+             <button onClick={() => fileInputRef.current?.click()} className="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2">
+                 <Upload className="w-4 h-4" /> Import CSV
+             </button>
+             <button onClick={handleExportData} className="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2">
+                 <Download className="w-4 h-4" /> Export CSV
+             </button>
+             <button onClick={handleDownloadSample} className="bg-white border border-gray-300 text-gray-500 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2" title="Download Sample CSV Format">
+                 <FileSpreadsheet className="w-4 h-4" /> Sample
+             </button>
+             <button 
+                onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl shadow-emerald-900/20 transform active:scale-95"
+            >
+                <Plus className="w-5 h-5" /> New Trip Record
+            </button>
+        </div>
       </div>
 
       {/* DASHBOARD STATS */}
