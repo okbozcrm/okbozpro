@@ -36,7 +36,7 @@ const GLOBAL_KEYS = [
   'global_travel_requests', // KM Claims
   'global_leave_requests',
   'internal_messages_data', // Boz Chat
-  'office_expenses',
+  'office_expenses', // Root Admin Expenses
   'campaign_history', // Email Marketing
   'app_branding',
   'app_theme',
@@ -62,7 +62,8 @@ const NAMESPACED_KEYS = [
   'company_shifts',
   'company_payout_dates',
   'corporate_profit_overview', // Added for Profit & Expense Report Sync
-  'analytics_cache' // Added for Full Reports Page Sync
+  'analytics_cache', // Added for Full Reports Page Sync
+  'office_expenses' // ADDED: Ensures Franchise expenses are synced
 ];
 
 // ⚡ Real-time Dynamic Logs
