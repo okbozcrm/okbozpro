@@ -5,7 +5,7 @@ import {
   PieChart, FileText, 
   CheckCircle, X, Download,
   Smartphone, Zap, Wifi, Users, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown, Building2, Upload, Loader2, Paperclip, Eye, Edit2, Trash2, Printer, MapPin, Filter, RefreshCcw, Calendar,
-  Info
+  Info, FileSpreadsheet
 } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend } from 'recharts';
 import { uploadFileToCloud } from '../../services/cloudService';
@@ -46,6 +46,7 @@ const COLORS = ['#10b981', '#3b82f6', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'
 
 const Expenses: React.FC = () => {
   const reportRef = useRef<HTMLDivElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null); // Ref for file input
   const [isExporting, setIsExporting] = useState(false);
   
   // Session & User Info
@@ -239,6 +240,113 @@ const Expenses: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // --- Export Excel Logic ---
+  const handleExportExcel = () => {
+    if (filteredExpenses.length === 0) {
+        alert("No expenses to export.");
+        return;
+    }
+    const headers = ["Ref #", "Date", "Type", "Category", "Title", "Amount", "Payment Method", "Status", "Branch", "Franchise", "Description"];
+    const rows = filteredExpenses.map(e => [
+      e.transactionNumber,
+      e.date,
+      e.type,
+      e.category,
+      `"${(e.title || '').replace(/"/g, '""')}"`,
+      e.amount,
+      e.paymentMethod,
+      e.status,
+      e.branch || '',
+      e.franchiseName || '',
+      `"${(e.description || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `finance_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- Download Sample Excel Logic ---
+  const handleDownloadSample = () => {
+      const headers = ["TransactionRef", "Date", "Type", "Category", "Title", "Amount", "PaymentMethod", "Status", "Branch", "Description"];
+      const sampleRow = ["JK-00001", "2023-10-25", "Expense", "Marketing", "Facebook Ads", "5000", "Credit Card", "Paid", "Main Branch", "October Campaign"];
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), sampleRow.join(",")].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "expense_import_sample.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  // --- Import Excel Logic ---
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const text = event.target?.result as string;
+          const lines = text.split('\n');
+          // Basic CSV Parsing (Assumes comma separated, no complex quotes handling for simplicity)
+          const headers = lines[0].split(',').map(h => h.trim());
+          
+          const newExpenses: Expense[] = [];
+          const targetCorpId = isSuperAdmin ? 'admin' : sessionId; 
+          const storageKey = targetCorpId === 'admin' ? 'office_expenses' : `office_expenses_${targetCorpId}`;
+          let franchiseName = 'Head Office';
+          if (!isSuperAdmin) {
+              franchiseName = 'My Franchise'; // Or fetch actual name
+          }
+
+          for (let i = 1; i < lines.length; i++) {
+              if (!lines[i].trim()) continue;
+              const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '')); // Remove surrounding quotes
+              
+              // Map by index based on Sample: 
+              // 0:Ref, 1:Date, 2:Type, 3:Category, 4:Title, 5:Amount, 6:Method, 7:Status, 8:Branch, 9:Desc
+              if (values.length >= 6) {
+                  const expense: Expense = {
+                      id: `EXP-IMP-${Date.now()}-${i}`,
+                      transactionNumber: values[0] || `IMP-${Date.now()}-${i}`,
+                      date: values[1] || new Date().toISOString().split('T')[0],
+                      type: (values[2] === 'Income' ? 'Income' : 'Expense') as 'Income' | 'Expense',
+                      category: values[3] || 'Other Expenses',
+                      title: values[4] || 'Imported Transaction',
+                      amount: parseFloat(values[5]) || 0,
+                      paymentMethod: values[6] || 'Cash',
+                      status: (values[7] === 'Paid' ? 'Paid' : 'Pending') as 'Paid' | 'Pending',
+                      branch: values[8] || '',
+                      description: values[9] || 'Imported via Excel',
+                      corporateId: targetCorpId,
+                      franchiseName: franchiseName,
+                      receiptUrl: ''
+                  };
+                  newExpenses.push(expense);
+              }
+          }
+
+          if (newExpenses.length > 0) {
+              const currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+              const updatedData = [...newExpenses, ...currentData];
+              localStorage.setItem(storageKey, JSON.stringify(updatedData));
+              loadExpenses();
+              window.dispatchEvent(new Event('cloud-sync-immediate'));
+              alert(`Successfully imported ${newExpenses.length} transactions.`);
+          } else {
+              alert("No valid data found in file.");
+          }
+      };
+      reader.readAsText(file);
+      if (importFileRef.current) importFileRef.current.value = '';
+  };
+
   const handleExportPDF = async () => {
     if (!reportRef.current) return;
     setIsExporting(true);
@@ -382,7 +490,19 @@ const Expenses: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div><h2 className="text-2xl font-bold text-gray-800">Finance & Expenses</h2><p className="text-gray-500">{isSuperAdmin ? "Consolidated financial report across all franchises" : "Track income, office expenses, and net balance"}</p></div>
-        <button onClick={handleOpenAddTransaction} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"><Plus className="w-5 h-5" /> Add Transaction</button>
+        <div className="flex flex-wrap gap-2">
+            <input type="file" accept=".csv" className="hidden" ref={importFileRef} onChange={handleImportExcel} />
+            <button onClick={() => importFileRef.current?.click()} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm">
+                <Upload className="w-4 h-4" /> Import Excel
+            </button>
+            <button onClick={handleDownloadSample} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-500 px-3 py-2 rounded-lg font-medium flex items-center gap-1 shadow-sm transition-colors text-xs" title="Download Sample CSV">
+                <FileSpreadsheet className="w-4 h-4" /> Sample
+            </button>
+            <button onClick={handleExportExcel} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm">
+                <Download className="w-4 h-4" /> Export Excel
+            </button>
+            <button onClick={handleOpenAddTransaction} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors text-sm"><Plus className="w-5 h-5" /> Add Transaction</button>
+        </div>
       </div>
 
       <div ref={reportRef} className="space-y-6">
