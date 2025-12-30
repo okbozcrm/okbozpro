@@ -69,6 +69,9 @@ const Expenses: React.FC = () => {
   const [corporates, setCorporates] = useState<any[]>([]);
   const [allBranches, setAllBranches] = useState<any[]>([]);
 
+  // NEW STATE for Other Expense Detail
+  const [otherExpenseDetail, setOtherExpenseDetail] = useState('');
+
   // Function to load expenses to ensure UI stays in sync with LocalStorage/Cloud
   const loadExpenses = useCallback(() => {
     let allExpenses: Expense[] = [];
@@ -155,7 +158,7 @@ const Expenses: React.FC = () => {
     type: 'Expense',
     transactionNumber: '',
     title: '',
-    category: 'Other Expenses',
+    category: 'Marketing',
     amount: 0,
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'Bank Transfer',
@@ -193,6 +196,7 @@ const Expenses: React.FC = () => {
     setFormData(initialFormState);
     setSelectedFile(null);
     setEditingExpenseId(null);
+    setOtherExpenseDetail(''); // Reset custom input
     setIsModalOpen(false);
     if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
@@ -220,7 +224,18 @@ const Expenses: React.FC = () => {
 
   const handleEdit = (expense: Expense) => {
     setEditingExpenseId(expense.id);
-    setFormData({ ...expense });
+    
+    // Check if category is a custom "Other Expenses" string
+    let categoryToSet = expense.category;
+    let customDetail = '';
+    
+    if (expense.category.startsWith('Other Expenses:')) {
+        categoryToSet = 'Other Expenses';
+        customDetail = expense.category.replace('Other Expenses: ', '');
+    }
+
+    setFormData({ ...expense, category: categoryToSet });
+    setOtherExpenseDetail(customDetail);
     setIsModalOpen(true);
   };
 
@@ -278,12 +293,18 @@ const Expenses: React.FC = () => {
         };
     }
 
+    // Handle Custom Category Logic
+    let finalCategory = formData.category || 'Other Expenses';
+    if (formData.category === 'Other Expenses' && otherExpenseDetail.trim()) {
+        finalCategory = `Other Expenses: ${otherExpenseDetail.trim()}`;
+    }
+
     const transactionData: Expense = {
       id: editingExpenseId || Date.now().toString(),
       transactionNumber: formData.transactionNumber!,
       type: formData.type as 'Income' | 'Expense',
       title: formData.title || '',
-      category: formData.category || 'Other Expenses',
+      category: finalCategory,
       amount: formData.amount || 0,
       date: formData.date || new Date().toISOString().split('T')[0],
       paymentMethod: formData.paymentMethod || 'Cash',
@@ -326,7 +347,18 @@ const Expenses: React.FC = () => {
 
   const filteredExpenses = expenses.filter(exp => {
     const matchesSearch = exp.title.toLowerCase().includes(searchTerm.toLowerCase()) || (exp.franchiseName && exp.franchiseName.toLowerCase().includes(searchTerm.toLowerCase())) || (exp.transactionNumber && exp.transactionNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = categoryFilter === 'All' || exp.category === categoryFilter;
+    
+    // UPDATED FILTER LOGIC FOR CUSTOM CATEGORIES
+    let matchesCategory = false;
+    if (categoryFilter === 'All') {
+        matchesCategory = true;
+    } else if (categoryFilter === 'Other Expenses') {
+        // Match base "Other Expenses" or custom "Other Expenses: ..."
+        matchesCategory = exp.category === 'Other Expenses' || exp.category.startsWith('Other Expenses:');
+    } else {
+        matchesCategory = exp.category === categoryFilter;
+    }
+
     const matchesType = typeFilter === 'All' || exp.type === typeFilter;
     const matchesCorporate = isSuperAdmin ? (filterCorporate === 'All' || exp.corporateId === filterCorporate) : (exp.corporateId || sessionId) === sessionId;
     const matchesBranch = filterBranch === 'All' || exp.branch === filterBranch;
@@ -338,7 +370,11 @@ const Expenses: React.FC = () => {
     const totalIncome = filteredExpenses.filter(e => e.type === 'Income').reduce((sum, item) => sum + item.amount, 0);
     const totalExpense = filteredExpenses.filter(e => e.type === 'Expense').reduce((sum, item) => sum + item.amount, 0);
     const categoryData: Record<string, number> = {};
-    filteredExpenses.filter(e => e.type === 'Expense').forEach(exp => { categoryData[exp.category] = (categoryData[exp.category] || 0) + exp.amount; });
+    filteredExpenses.filter(e => e.type === 'Expense').forEach(exp => { 
+        // Group all "Other Expenses: ..." under "Other Expenses" for chart clarity
+        const key = exp.category.startsWith('Other Expenses') ? 'Other Expenses' : exp.category;
+        categoryData[key] = (categoryData[key] || 0) + exp.amount; 
+    });
     return { totalIncome, totalExpense, balance: totalIncome - totalExpense, chartData: Object.keys(categoryData).map(key => ({ name: key, value: categoryData[key] })) };
   }, [filteredExpenses]);
 
@@ -445,7 +481,7 @@ const Expenses: React.FC = () => {
                       <span>Note: Editing this transaction will be logged with your username ({loggedInUserName}).</span>
                   </div>
               )}
-              <div className="flex bg-gray-100 p-1 rounded-lg"><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Income', category: INCOME_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}><ArrowUpCircle className="w-4 h-4" /> Income</button><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Expense', category: EXPENSE_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}><ArrowDownCircle className="w-4 h-4" /> Expense</button></div>
+              <div className="flex bg-gray-100 p-1 rounded-lg"><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Income', category: INCOME_CATEGORIES[0] }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}><ArrowUpCircle className="w-4 h-4" /> Income</button><button type="button" onClick={() => setFormData(prev => ({ ...prev, type: 'Expense', category: 'Marketing' }))} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${formData.type === 'Expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}><ArrowDownCircle className="w-4 h-4" /> Expense</button></div>
               {isSuperAdmin && (
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Franchise / Entity</label>
@@ -462,9 +498,27 @@ const Expenses: React.FC = () => {
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Title</label><input type="text" name="title" required value={formData.title} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" placeholder="e.g. Office Electricity Bill" /></div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"><option value="">Select Branch</option>{formBranches.map((b: any) => (<option key={b.name} value={b.name}>{b.name}</option>))}</select></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label><select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm">{(formData.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => (<option key={c} value={c}>{c}</option>))}</select></div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                    <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm">{(formData.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => (<option key={c} value={c}>{c}</option>))}</select>
+                </div>
                 <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Amount (₹)</label><input type="number" name="amount" required min="0" value={formData.amount || ''} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold" placeholder="0.00" /></div>
               </div>
+              
+              {/* Conditional Input for 'Other Expenses' */}
+              {formData.category === 'Other Expenses' && (
+                  <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className="block text-xs font-bold text-blue-600 uppercase mb-1">Specify Expense Details</label>
+                    <input 
+                      type="text" 
+                      value={otherExpenseDetail} 
+                      onChange={(e) => setOtherExpenseDetail(e.target.value)} 
+                      placeholder="e.g. Printer Repair" 
+                      className="w-full px-4 py-2.5 border border-blue-200 bg-blue-50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium" 
+                    />
+                  </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Method</label><select name="paymentMethod" value={formData.paymentMethod} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none bg-white text-sm"><option>Cash</option><option>Bank Transfer</option><option>UPI</option></select></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label><select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none bg-white text-sm"><option>Paid</option><option>Pending</option></select></div></div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Receipt Attachment</label><input type="file" className="hidden" ref={fileInputRef} onChange={handleFileChange} /><button type="button" onClick={() => fileInputRef.current?.click()} className="w-full border border-dashed border-gray-300 rounded-lg py-3 text-sm text-gray-500 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">{selectedFile ? selectedFile.name : 'Click to Upload Invoice/Receipt'}</button></div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description / Notes</label><textarea name="description" rows={3} value={formData.description} onChange={handleInputChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 resize-none text-sm" placeholder="Additional details about this transaction..." /></div>

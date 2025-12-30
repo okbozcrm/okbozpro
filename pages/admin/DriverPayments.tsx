@@ -4,7 +4,7 @@ import {
   Settings, Plus, Search, Filter, Download, 
   Truck, DollarSign, Calendar, CheckCircle, 
   AlertCircle, X, Save, ChevronDown, PieChart, Info, Building2,
-  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCw, Check
+  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCw, Check, MapPin
 } from 'lucide-react';
 import { Employee, CorporateAccount } from '../../types';
 import AiAssistant from '../../components/AiAssistant';
@@ -115,6 +115,7 @@ export const DriverPayments: React.FC = () => {
   // Compensation Form State - Multi-select supported
   const [selectedPaymentTypes, setSelectedPaymentTypes] = useState<string[]>(['Empty Km']);
   const [compForm, setCompForm] = useState({
+    corporateId: isSuperAdmin ? 'admin' : contextOwnerId, // Default owner
     branch: '',
     driverName: '',
     phone: '',
@@ -181,17 +182,17 @@ export const DriverPayments: React.FC = () => {
         });
 
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-        loadedStaff = [...adminStaff];
+        loadedStaff = [...adminStaff.map((s:any) => ({...s, owner: 'admin'}))];
         corps.forEach((c: any) => {
             const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
-            loadedStaff = [...loadedStaff, ...cStaff];
+            loadedStaff = [...loadedStaff, ...cStaff.map((s:any) => ({...s, owner: c.email}))];
         });
 
         const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        loadedBranches = [...adminBranches];
+        loadedBranches = [...adminBranches.map((b:any) => ({...b, owner: 'admin'}))];
         corps.forEach((c: any) => {
             const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            loadedBranches = [...loadedBranches, ...cBranches];
+            loadedBranches = [...loadedBranches, ...cBranches.map((b:any) => ({...b, owner: c.email}))];
         });
     } else {
         // --- Franchise / Employee View: Scoped Data ---
@@ -203,8 +204,8 @@ export const DriverPayments: React.FC = () => {
         loadedPayments = JSON.parse(localStorage.getItem(payKey) || '[]');
         const myWalletRaw = JSON.parse(localStorage.getItem(walletKey) || '[]');
         loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: contextOwnerId }));
-        loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]');
-        loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]');
+        loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]').map((s:any) => ({...s, owner: contextOwnerId}));
+        loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]').map((b:any) => ({...b, owner: contextOwnerId}));
     }
 
     setPayments(loadedPayments.reverse());
@@ -218,6 +219,12 @@ export const DriverPayments: React.FC = () => {
     window.addEventListener('storage', loadAllData);
     return () => window.removeEventListener('storage', loadAllData);
   }, [sessionId, userRole, isSuperAdmin]);
+
+  // --- Computed Form Lists (Dynamic Filtering) ---
+  const formBranches = useMemo(() => {
+      const targetOwner = compForm.corporateId || 'admin';
+      return allBranches.filter(b => b.owner === targetOwner);
+  }, [allBranches, compForm.corporateId]);
 
   // --- Computed Logic ---
   const eligiblePaidKm = useMemo(() => {
@@ -283,7 +290,8 @@ export const DriverPayments: React.FC = () => {
         return;
     }
 
-    const key = contextOwnerId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${contextOwnerId}`;
+    const targetCorpId = compForm.corporateId || 'admin';
+    const key = targetCorpId === 'admin' ? 'driver_payment_records' : `driver_payment_records_${targetCorpId}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     const newRecords: DriverPayment[] = [];
     const timestamp = Date.now();
@@ -327,7 +335,7 @@ export const DriverPayments: React.FC = () => {
                 vehicleNo: compForm.vehicleNo,
                 orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
                 branch: compForm.branch || 'Main Branch',
-                corporateId: contextOwnerId,
+                corporateId: targetCorpId,
                 type: type as any,
                 amount: amount,
                 status: compForm.status as any,
@@ -346,6 +354,7 @@ export const DriverPayments: React.FC = () => {
     }
 
     localStorage.setItem(key, JSON.stringify([...newRecords, ...existing]));
+    window.dispatchEvent(new Event('cloud-sync-immediate'));
     
     loadAllData();
     setIsModalOpen(false);
@@ -753,21 +762,52 @@ export const DriverPayments: React.FC = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                  
+                 {/* Updated Corporate and Branch Filtering Logic */}
+                 <div className="grid grid-cols-2 gap-3 mb-4">
+                   {isSuperAdmin && (
+                       <div>
+                           <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Corporate/Franchise</label>
+                           <select 
+                               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                               value={compForm.corporateId}
+                               onChange={(e) => setCompForm(prev => ({...prev, corporateId: e.target.value, branch: '', driverName: ''}))}
+                           >
+                               <option value="admin">Head Office</option>
+                               {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                           </select>
+                       </div>
+                   )}
+                   <div className={isSuperAdmin ? "" : "col-span-2"}>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Branch</label>
+                        <select 
+                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                            value={compForm.branch}
+                            onChange={(e) => setCompForm(prev => ({...prev, branch: e.target.value, driverName: ''}))}
+                        >
+                            <option value="">All Branches</option>
+                            {formBranches.map((b: any) => (
+                                <option key={b.id} value={b.name}>{b.name}</option>
+                            ))}
+                        </select>
+                   </div>
+                 </div>
+
                  <div className="space-y-1">
                      <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Truck className="w-3 h-3"/> Driver Details</label>
                      <div className="grid grid-cols-2 gap-3">
-                         <select 
-                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white"
+                         <input 
+                            type="text"
+                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                            placeholder="Driver Name"
                             value={compForm.driverName}
-                            onChange={(e) => {
-                                const drv = staffList.find(s => s.name === e.target.value);
-                                setCompForm(prev => ({...prev, driverName: e.target.value, phone: drv?.phone || ''}));
-                            }}
-                         >
-                             <option value="">Select Driver</option>
-                             {staffList.filter(s => s.role.includes('Driver')).map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                         </select>
-                         <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50" placeholder="Phone" value={compForm.phone} readOnly />
+                            onChange={(e) => setCompForm({...compForm, driverName: e.target.value})}
+                         />
+                         <input 
+                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" 
+                            placeholder="Phone Number" 
+                            value={compForm.phone} 
+                            onChange={(e) => setCompForm({...compForm, phone: e.target.value})} 
+                         />
                      </div>
                  </div>
                  
