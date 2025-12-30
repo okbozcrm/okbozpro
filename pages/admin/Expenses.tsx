@@ -54,6 +54,7 @@ const Expenses: React.FC = () => {
   const userRole = localStorage.getItem('user_role') || 'ADMIN';
   const isSuperAdmin = sessionId === 'admin';
   const loggedInUserName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || (isSuperAdmin ? 'Super Admin' : 'Admin');
+  const employeeCorporateId = localStorage.getItem('logged_in_employee_corporate_id');
 
   // State
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -97,19 +98,21 @@ const Expenses: React.FC = () => {
             }
         });
     } else {
-        // Franchise: Load Scoped Data
-        const key = `office_expenses_${sessionId}`;
+        // Franchise OR Employee View: Load Scoped Data
+        // If employee, they should see expenses for their corporate ID
+        const targetOwnerId = userRole === 'EMPLOYEE' ? (employeeCorporateId || 'admin') : sessionId;
+        const key = targetOwnerId === 'admin' ? 'office_expenses' : `office_expenses_${targetOwnerId}`;
         const saved = localStorage.getItem(key);
         if (saved) {
             try { 
-                allExpenses = JSON.parse(saved).map((e: any) => ({...e, corporateId: e.corporateId || sessionId})); 
+                allExpenses = JSON.parse(saved).map((e: any) => ({...e, corporateId: e.corporateId || targetOwnerId})); 
             } catch(e) { 
                 console.error("Error parsing expenses", e);
             }
         }
     }
     setExpenses(allExpenses.reverse()); // Show newest first
-  }, [isSuperAdmin, sessionId]);
+  }, [isSuperAdmin, sessionId, userRole, employeeCorporateId]);
 
   // Initial Data Load
   useEffect(() => {
@@ -127,9 +130,11 @@ const Expenses: React.FC = () => {
               branches = [...branches, ...cBranches.map((b:any) => ({...b, corporateId: c.email}))];
           });
       } else {
-          const key = `branches_data_${sessionId}`;
+          // Scoped branches for franchise/employee
+          const targetOwnerId = userRole === 'EMPLOYEE' ? (employeeCorporateId || 'admin') : sessionId;
+          const key = targetOwnerId === 'admin' ? 'branches_data' : `branches_data_${targetOwnerId}`;
           const saved = localStorage.getItem(key);
-          if (saved) branches = JSON.parse(saved).map((b:any) => ({...b, corporateId: sessionId}));
+          if (saved) branches = JSON.parse(saved).map((b:any) => ({...b, corporateId: targetOwnerId}));
       }
       setAllBranches(branches);
 
@@ -142,7 +147,7 @@ const Expenses: React.FC = () => {
           window.removeEventListener('storage', handleStorageChange);
           window.removeEventListener('cloud-sync-immediate', handleStorageChange);
       };
-  }, [isSuperAdmin, sessionId, loadExpenses]);
+  }, [isSuperAdmin, sessionId, loadExpenses, userRole, employeeCorporateId]);
 
   const availableBranches = useMemo(() => {
       if (filterCorporate === 'All') return allBranches;
@@ -174,10 +179,12 @@ const Expenses: React.FC = () => {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null); 
 
   const formBranches = useMemo(() => {
-      // Allow selecting branches based on the selected corporate in form (for admin) or current session (for franchise)
-      const targetOwner = isSuperAdmin ? (formData.corporateId || 'admin') : sessionId;
+      // Allow selecting branches based on the selected corporate in form (for admin) or current session (for franchise/employee)
+      let targetOwner = isSuperAdmin ? (formData.corporateId || 'admin') : sessionId;
+      if (userRole === 'EMPLOYEE') targetOwner = employeeCorporateId || 'admin';
+      
       return allBranches.filter(b => b.corporateId === targetOwner);
-  }, [allBranches, formData.corporateId, isSuperAdmin, sessionId]);
+  }, [allBranches, formData.corporateId, isSuperAdmin, sessionId, userRole, employeeCorporateId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -202,23 +209,46 @@ const Expenses: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
 
+  // --- NEW: Global Rolling Transaction Number Generator ---
   const generateNextTransactionNumber = () => {
-    let nextNum = 1;
-    // Look at all expenses to find max number
-    const jkTransactions = expenses.map(e => e.transactionNumber).filter(num => num && num.startsWith('JK-'));
-    if (jkTransactions.length > 0) {
-        const nums = jkTransactions.map(num => parseInt(num.split('-')[1])).filter(n => !isNaN(n));
-        if (nums.length > 0) nextNum = Math.max(...nums) + 1;
+    // Attempt to get the global counter from storage
+    let currentCount = parseInt(localStorage.getItem('global_transaction_counter') || '0');
+    
+    // If counter is 0 (first time run or reset), try to find the max from existing loaded expenses to prevent overlap
+    if (currentCount === 0 && expenses.length > 0) {
+        const existingNumbers = expenses
+            .map(e => e.transactionNumber)
+            .filter(n => n && n.startsWith('JK-'))
+            .map(n => parseInt(n.replace('JK-', ''), 10))
+            .filter(n => !isNaN(n));
+        
+        if (existingNumbers.length > 0) {
+            currentCount = Math.max(...existingNumbers);
+        }
     }
-    return `JK-${nextNum.toString().padStart(5, '0')}`;
+
+    const nextCount = currentCount + 1;
+    // Update Global Counter immediately
+    localStorage.setItem('global_transaction_counter', nextCount.toString());
+    
+    return `JK-${nextCount.toString().padStart(5, '0')}`;
   };
 
   const handleOpenAddTransaction = () => {
     resetForm();
+    const nextId = generateNextTransactionNumber();
+    
+    // Default Owner Calculation
+    let defaultOwner = 'admin';
+    if (!isSuperAdmin) {
+        if (userRole === 'EMPLOYEE') defaultOwner = employeeCorporateId || 'admin';
+        else defaultOwner = sessionId;
+    }
+
     setFormData(prev => ({ 
         ...prev, 
-        transactionNumber: generateNextTransactionNumber(),
-        corporateId: isSuperAdmin ? 'admin' : sessionId // Ensure correct default owner
+        transactionNumber: nextId,
+        corporateId: defaultOwner 
     }));
     setIsModalOpen(true);
   };
@@ -298,11 +328,18 @@ const Expenses: React.FC = () => {
           const headers = lines[0].split(',').map(h => h.trim());
           
           const newExpenses: Expense[] = [];
-          const targetCorpId = isSuperAdmin ? 'admin' : sessionId; 
+          
+          // Determine import target based on current user
+          let targetCorpId = isSuperAdmin ? 'admin' : sessionId; 
+          if (userRole === 'EMPLOYEE') targetCorpId = employeeCorporateId || 'admin';
+          
           const storageKey = targetCorpId === 'admin' ? 'office_expenses' : `office_expenses_${targetCorpId}`;
+          
           let franchiseName = 'Head Office';
-          if (!isSuperAdmin) {
-              franchiseName = 'My Franchise'; // Or fetch actual name
+          if (targetCorpId !== 'admin') {
+              const c = corporates.find(x => x.email === targetCorpId);
+              if (c) franchiseName = c.companyName;
+              else franchiseName = 'Franchise Panel';
           }
 
           for (let i = 1; i < lines.length; i++) {
@@ -375,8 +412,19 @@ const Expenses: React.FC = () => {
         receiptUrl = cloudUrl || await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result as string); reader.readAsDataURL(selectedFile!); });
     }
 
-    // Determine Owner Context
-    const targetCorpId = isSuperAdmin ? (formData.corporateId || 'admin') : sessionId;
+    // --- DETERMINE CORRECT OWNER/STORAGE KEY ---
+    // If Super Admin: Use selected corporateId or 'admin'
+    // If Franchise: Use sessionId
+    // If Employee: Use employeeCorporateId (Employer's ID) - This fixes the visibility issue
+    
+    let targetCorpId = 'admin';
+    if (isSuperAdmin) {
+        targetCorpId = formData.corporateId || 'admin';
+    } else if (userRole === 'EMPLOYEE') {
+        targetCorpId = employeeCorporateId || 'admin';
+    } else {
+        targetCorpId = sessionId; // Franchise
+    }
     
     // Determine Franchise Name
     let resolvedFranchiseName = 'Head Office';
@@ -612,7 +660,18 @@ const Expenses: React.FC = () => {
                   </div>
               )}
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Transaction Ref #</label><input type="text" name="transactionNumber" required placeholder="JK-00001" value={formData.transactionNumber} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm" /></div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Transaction Ref #</label>
+                    <input 
+                        type="text" 
+                        name="transactionNumber" 
+                        required 
+                        placeholder="Auto-Generated" 
+                        value={formData.transactionNumber} 
+                        readOnly
+                        className="w-full px-4 py-2.5 border border-gray-300 bg-gray-50 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm text-gray-600 cursor-not-allowed" 
+                    />
+                </div>
                 <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label><input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" /></div>
               </div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Title</label><input type="text" name="title" required value={formData.title} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" placeholder="e.g. Office Electricity Bill" /></div>

@@ -42,7 +42,8 @@ const GLOBAL_KEYS = [
   'app_theme',
   'maps_api_key',
   'dashboard_stats',
-  'google_sheet_script_url' // Added for Trip Booking Integration
+  'google_sheet_script_url', // Added for Trip Booking Integration
+  'global_transaction_counter' // ADDED: Rolling Transaction Number for Finance
 ];
 
 // 🏢 Franchise-Specific Data (Suffix applied automatically)
