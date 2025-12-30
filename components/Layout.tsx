@@ -84,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   }, [role]);
 
   const userName = role === UserRole.ADMIN ? 'Administrator' : (sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'User');
-  const userSubtitle = role === UserRole.ADMIN ? 'Head Office' : role === UserRole.CORPORATE ? 'Franchise Partner' : 'Staff Member';
+  const userSubtitle = role === UserRole.ADMIN ? 'Head Office' : role === UserRole.CORPORATE ? 'Franchise Partner' : role === UserRole.SUB_ADMIN ? 'Sub Admin' : 'Staff Member';
   
   const { notifications, unreadCount, markNotificationAsRead, markAllNotificationsAsRead, playAlarmSound } = useNotification();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -141,13 +141,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
-    if (justLoggedIn === 'true' && role === UserRole.EMPLOYEE) {
+    if (justLoggedIn === 'true' && (role === UserRole.EMPLOYEE || role === UserRole.SUB_ADMIN)) {
         const hour = new Date().getHours();
         let greet = 'Good Morning';
         if (hour >= 12 && hour < 17) greet = 'Good Afternoon';
         else if (hour >= 17) greet = 'Good Evening';
         setGreeting(greet);
-        setWelcomeName(sessionStorage.getItem('loggedInUserName') || 'Employee');
+        setWelcomeName(sessionStorage.getItem('loggedInUserName') || 'User');
         setShowWelcomePopup(true);
         sessionStorage.removeItem('justLoggedIn');
         setTimeout(() => setShowWelcomePopup(false), 3000);
@@ -289,6 +289,48 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const visibleAdminLinks = useMemo(() => {
     return orderedLinks.filter(link => {
       if (role === UserRole.ADMIN) return true;
+      
+      // Sub Admin Logic
+      if (role === UserRole.SUB_ADMIN) {
+          const subAdmins = JSON.parse(localStorage.getItem('sub_admins_data') || '[]');
+          const myId = localStorage.getItem('sub_admin_id'); 
+          const me = subAdmins.find((s: any) => s.id === myId);
+          
+          if (!me || !me.permissions) return false;
+          
+          // Map link IDs to Module Names used in SubAdminManagement.tsx
+          const permKeyMap: Record<string, string> = {
+              'dashboard': 'Dashboard',
+              'tracking': 'Live Tracking',
+              'chat': 'Boz Chat',
+              'employee-settings': 'Employee Setting',
+              'reports': 'Reports',
+              'marketing': 'Email Marketing',
+              'auto-dialer': 'Auto Dialer',
+              'customer-care': 'Customer Care',
+              'trips': 'Trip Booking',
+              'driver-payments': 'Driver Payments',
+              'leads': 'Franchisee Leads',
+              'attendance': 'Attendance Dashboard',
+              'tasks': 'Tasks',
+              'staff': 'Staff Management',
+              'documents': 'Documents',
+              'branches': 'Branches',
+              'vendors': 'Vendor Attachment',
+              'payroll': 'Payroll',
+              'finance-and-expenses': 'Finance & Expenses',
+              'corporate': 'Corporate',
+              'data-export': 'Data & Backup',
+              'settings': 'Settings',
+              'km-claims': 'KM Claims (TA)',
+              'sub-admins': 'Sub Admin Mgt' // Usually redundant as sub-admins shouldn't manage other sub-admins, but if permission exists
+          };
+          
+          const moduleName = permKeyMap[link.id];
+          if (moduleName && me.permissions[moduleName]?.view) return true;
+          return false;
+      }
+
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 'sub-admins',

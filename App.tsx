@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -31,6 +32,7 @@ import ApplyLeave from './pages/user/ApplyLeave';
 import UserProfile from './pages/user/UserProfile'; 
 import TaskManagement from './pages/TaskManagement';
 import KmClaims from './pages/KmClaims';
+import GenAITools from './pages/admin/GenAITools';
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -107,11 +109,11 @@ const App: React.FC = () => {
                 <Layout role={userRole} onLogout={handleLogout}>
                   <Routes>
                     <Route path="/" element={<Navigate to={homePath} replace />} />
-                    {(userRole === UserRole.ADMIN || userRole === UserRole.CORPORATE) && (
+                    {(userRole === UserRole.ADMIN || userRole === UserRole.CORPORATE || userRole === UserRole.SUB_ADMIN) && (
                       <>
                         <Route path="/admin" element={<Dashboard />} />
                         <Route path="/admin/reports" element={<Reports />} />
-                        <Route path="/admin/marketing" element={userRole === UserRole.ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
+                        <Route path="/admin/marketing" element={userRole === UserRole.ADMIN || userRole === UserRole.SUB_ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
                         <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
                         <Route path="/admin/auto-dialer" element={<AutoDialer />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
@@ -131,6 +133,7 @@ const App: React.FC = () => {
                         <Route path="/admin/finance-and-expenses" element={<Expenses />} />
                         <Route path="/admin/data-export" element={<DataExport />} />
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
+                        <Route path="/admin/gen-ai-tools" element={<GenAITools />} />
                         {userRole === UserRole.ADMIN && (
                           <>
                             <Route path="/admin/corporate" element={<Corporate />} />

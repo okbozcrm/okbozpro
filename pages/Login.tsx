@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck, Download } from 'lucide-react';
@@ -78,6 +79,26 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 success = true;
                 role = UserRole.ADMIN;
                 sessionId = 'admin';
+            } else {
+                // Check Sub Admins
+                try {
+                    const subAdmins = JSON.parse(localStorage.getItem('sub_admins_data') || '[]');
+                    const foundSub = subAdmins.find((s: any) => s.email.toLowerCase() === email.toLowerCase() && s.password === password && s.status === 'Active');
+                    
+                    if (foundSub) {
+                        success = true;
+                        role = UserRole.SUB_ADMIN;
+                        // For data scoping, we set sessionId to the context (admin or corporate email)
+                        // This allows the sub-admin to see the data of the entity they manage
+                        sessionId = foundSub.context === 'Head Office' ? 'admin' : foundSub.context;
+                        employeeName = foundSub.name;
+                        
+                        // Store specific sub-admin ID for permission checks
+                        localStorage.setItem('sub_admin_id', foundSub.id);
+                    }
+                } catch(e) {
+                    console.error("Sub admin login error", e);
+                }
             }
         } 
         else if (activeTab === 'corporate') {
@@ -130,7 +151,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
             
             // Trigger Welcome Popup on next load
             sessionStorage.setItem('justLoggedIn', 'true');
-            if (role === UserRole.EMPLOYEE) {
+            if (role === UserRole.EMPLOYEE || role === UserRole.SUB_ADMIN) {
                 sessionStorage.setItem('loggedInUserName', employeeName);
             }
 
@@ -186,7 +207,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                  <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
               ) : (
                 <div 
-                    className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg bg-emerald-600"
+                    className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg"
+                    style={{ backgroundColor: primaryColor }}
                 >
                     {companyName.charAt(0)}
                 </div>

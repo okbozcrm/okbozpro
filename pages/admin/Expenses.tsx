@@ -439,12 +439,8 @@ const Expenses: React.FC = () => {
     // Determine Edit Metadata
     let editMetadata = {};
     if (editingExpenseId) {
-        let editorRoleLabel = 'Staff';
-        if (isSuperAdmin) editorRoleLabel = 'Super Admin';
-        else if (userRole === UserRole.CORPORATE) editorRoleLabel = 'Franchise Admin';
-        
         editMetadata = {
-            editedBy: `${loggedInUserName} (${editorRoleLabel})`,
+            editedBy: loggedInUserName,
             lastEditedAt: new Date().toLocaleString()
         };
     }
@@ -462,7 +458,7 @@ const Expenses: React.FC = () => {
       title: formData.title || '',
       category: finalCategory,
       amount: formData.amount || 0,
-      date: formData.date || new Date().toISOString().split('T')[0],
+      date: formData.date || new Date().toISOString().split('T')[0], // Ensure updated date is saved
       paymentMethod: formData.paymentMethod || 'Cash',
       status: formData.status as 'Paid' | 'Pending',
       description: formData.description,
@@ -484,6 +480,8 @@ const Expenses: React.FC = () => {
 
     let updatedData: Expense[];
     if (editingExpenseId) {
+        // We find the existing record to merge other potential fields not in the form, though Expense type covers all.
+        // Important: this map replaces the object.
         updatedData = currentData.map(exp => exp.id === editingExpenseId ? transactionData : exp);
     } else {
         updatedData = [transactionData, ...currentData];
@@ -582,7 +580,7 @@ const Expenses: React.FC = () => {
                    <table className="w-full text-left text-sm whitespace-nowrap">
                      <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                        <tr>
-                         <th className="px-6 py-4">Ref #</th>
+                         <th className="px-6 py-4">Ref # / Activity</th>
                          <th className="px-6 py-4">Title / Category</th>
                          {isSuperAdmin && <th className="px-6 py-4">Franchise</th>}
                          <th className="px-6 py-4">Branch</th>
@@ -596,11 +594,14 @@ const Expenses: React.FC = () => {
                        {filteredExpenses.map((exp) => (
                          <tr key={exp.id} className="hover:bg-gray-50 transition-colors group">
                            <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                              {exp.transactionNumber || '-'}
+                              <div className="font-bold text-gray-700">{exp.transactionNumber || '-'}</div>
                               {exp.editedBy && (
-                                <div className="mt-1" title={`Last edited by ${exp.editedBy} on ${exp.lastEditedAt}`}>
-                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-100 cursor-help">
-                                        <Info className="w-2.5 h-2.5" /> EDITED
+                                <div className="mt-1 flex flex-col gap-0.5 animate-in fade-in">
+                                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded w-fit border border-amber-100">
+                                        <Edit2 className="w-2.5 h-2.5" /> Edited by {exp.editedBy}
+                                    </span>
+                                    <span className="text-[9px] text-gray-400 pl-1">
+                                        {exp.lastEditedAt}
                                     </span>
                                 </div>
                               )}
@@ -637,6 +638,95 @@ const Expenses: React.FC = () => {
             </div>
           </div>
       </div>
+
+      {/* Invoice Viewer Modal - ADDED THIS BLOCK */}
+      {showInvoiceViewer && invoiceData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                 <h3 className="font-bold text-gray-800">Transaction Details</h3>
+                 <button onClick={() => setShowInvoiceViewer(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+              </div>
+              <div className="p-6 space-y-4">
+                 <div className="flex justify-between border-b border-gray-100 pb-4 mb-4">
+                    <div>
+                        <p className="text-xs text-gray-500 uppercase font-bold">Amount</p>
+                        <p className={`text-2xl font-black ${invoiceData.type === 'Income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {invoiceData.type === 'Income' ? '+' : '-'}₹{invoiceData.amount.toLocaleString()}
+                        </p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-xs text-gray-500 uppercase font-bold">Date</p>
+                        <p className="text-sm font-medium text-gray-900">{invoiceData.date}</p>
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-3">
+                     <div>
+                         <p className="text-xs text-gray-500">Title</p>
+                         <p className="font-bold text-gray-800">{invoiceData.title}</p>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                         <div>
+                             <p className="text-xs text-gray-500">Category</p>
+                             <p className="text-sm font-medium">{invoiceData.category}</p>
+                         </div>
+                         <div>
+                             <p className="text-xs text-gray-500">Payment Mode</p>
+                             <p className="text-sm font-medium">{invoiceData.paymentMethod}</p>
+                         </div>
+                     </div>
+                     <div>
+                         <p className="text-xs text-gray-500">Transaction Ref</p>
+                         <p className="text-sm font-mono text-gray-600 bg-gray-50 p-1 rounded w-fit">{invoiceData.transactionNumber}</p>
+                     </div>
+                     {invoiceData.description && (
+                         <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                             <p className="text-xs text-gray-500 mb-1">Description</p>
+                             <p className="text-sm text-gray-700 italic">"{invoiceData.description}"</p>
+                         </div>
+                     )}
+                     
+                     {invoiceData.receiptUrl && (
+                         <div className="mt-4">
+                             <p className="text-xs text-gray-500 mb-2">Attached Receipt</p>
+                             <div className="relative group rounded-lg overflow-hidden border border-gray-200">
+                                 {invoiceData.receiptUrl.includes('application/pdf') ? (
+                                     <div className="p-4 flex items-center justify-center bg-gray-50 text-gray-500">
+                                         <FileText className="w-8 h-8" />
+                                         <span className="ml-2 text-sm">PDF Document</span>
+                                     </div>
+                                 ) : (
+                                     <img src={invoiceData.receiptUrl} alt="Receipt" className="w-full h-48 object-cover" />
+                                 )}
+                                 <a 
+                                    href={invoiceData.receiptUrl} 
+                                    download={`Receipt-${invoiceData.transactionNumber}`}
+                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white font-bold gap-2"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                 >
+                                    <Download className="w-5 h-5" /> Download
+                                 </a>
+                             </div>
+                         </div>
+                     )}
+                     
+                     {invoiceData.editedBy && (
+                         <div className="text-[10px] text-gray-400 mt-4 pt-4 border-t border-gray-100">
+                             Last edited by <span className="font-bold">{invoiceData.editedBy}</span> on {invoiceData.lastEditedAt}
+                         </div>
+                     )}
+                 </div>
+              </div>
+              <div className="p-4 bg-gray-50 border-t border-gray-100">
+                 <button onClick={() => setShowInvoiceViewer(false)} className="w-full py-2.5 bg-white border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 text-sm shadow-sm">
+                     Close
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
