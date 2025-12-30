@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc, initializeFirestore } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import { BozNotification, UserRole } from '../types';
@@ -41,7 +41,8 @@ const GLOBAL_KEYS = [
   'app_branding',
   'app_theme',
   'maps_api_key',
-  'dashboard_stats'
+  'dashboard_stats',
+  'google_sheet_script_url' // Added for Trip Booking Integration
 ];
 
 // 🏢 Franchise-Specific Data (Suffix applied automatically)
@@ -92,9 +93,21 @@ const getActiveConfig = (config?: FirebaseConfig): FirebaseConfig | null => {
 const getFirebaseApp = (config?: FirebaseConfig): FirebaseApp | null => {
   const activeConfig = getActiveConfig(config);
   if (!activeConfig) return null;
+  
   if (getApps().length > 0) return getApp();
+  
   try {
-    return initializeApp(activeConfig);
+    const app = initializeApp(activeConfig);
+    // Initialize Firestore with long polling to prevent connection issues in certain environments
+    try {
+        initializeFirestore(app, {
+            experimentalForceLongPolling: true,
+        });
+    } catch(e) {
+        // Firestore might already be initialized if getApps() missed something or race condition
+        console.warn("Firestore initialization warning:", e);
+    }
+    return app;
   } catch (e) {
     console.error("Firebase Init Error:", e);
     return null;

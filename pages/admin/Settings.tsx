@@ -7,7 +7,8 @@ import {
   PhoneForwarded, Headset, ClipboardList,
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
-  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane, TrendingUp
+  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane, TrendingUp,
+  FileSpreadsheet
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -25,6 +26,7 @@ const Settings: React.FC = () => {
 
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
+  const [sheetUrl, setSheetUrl] = useState('');
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
@@ -43,6 +45,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     try {
       checkConnection();
+      setSheetUrl(localStorage.getItem('google_sheet_script_url') || '');
     } catch (e) {
       console.error("Connection check failed on mount", e);
     }
@@ -74,8 +77,6 @@ const Settings: React.FC = () => {
         } catch(e) {}
     } else {
         // If Franchise, check their specific key if root returned 0 or if scoping applies
-        // However, standard logic usually stores franchise data in key_email OR key (if mixed).
-        // For simplicity in this view, we check the namespaced key for the current session user too if count is 0
         if (count === 0 && sessionId) {
              const cData = localStorage.getItem(`${key}_${sessionId}`);
              if (cData) {
@@ -117,10 +118,7 @@ const Settings: React.FC = () => {
     ];
 
     return collections.map(col => {
-        // Calculate true local count (aggregated)
         let localCount = getAggregatedLocalCount(col.key);
-        
-        // Get sample content for inspector from root key or first available
         let localContent: any = null;
         let localStr: string | null = localStorage.getItem(col.key);
         
@@ -138,12 +136,10 @@ const Settings: React.FC = () => {
 
         let cloudCount: string | number = '-';
         if (cloudData && cloudData[col.key]) {
-            // NOTE: Cloud stats currently return the count of documents/fields in the root doc
-            // For full accuracy, cloud stats logic would also need to aggregate, but for now we show what's returned
             cloudCount = cloudData[col.key].count || '0';
         }
 
-        const isSynced = localCount > 0 ? true : (localCount === 0); // Simplified sync status
+        const isSynced = localCount > 0 ? true : (localCount === 0);
 
         return {
             ...col,
@@ -176,6 +172,11 @@ const Settings: React.FC = () => {
   const handleSaveBranding = () => {
     updateBranding({ companyName: brandName, primaryColor: brandColor });
     alert("Site settings saved!");
+  };
+
+  const handleSaveIntegrations = () => {
+    localStorage.setItem('google_sheet_script_url', sheetUrl);
+    alert("Integration settings saved!");
   };
 
   const handleBackup = async () => {
@@ -273,6 +274,7 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="space-y-4 animate-in fade-in duration-500">
+          {/* ... Cloud Status Card ... */}
           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3">
                   <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -293,7 +295,8 @@ const Settings: React.FC = () => {
                   Verify Integrity
               </button>
           </div>
-
+          
+          {/* ... Collection Stats Grid ... */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {collectionStats.map(stat => (
                   <div key={stat.key} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all group">
@@ -334,7 +337,36 @@ const Settings: React.FC = () => {
           </div>
       </div>
 
+      {/* External Integrations Section */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
+         <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
+            <FileSpreadsheet className="w-5 h-5 text-green-600" /> External Integrations
+         </h3>
+         <div className="space-y-6">
+            <div>
+               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Trip Booking Google Sheet Script URL</label>
+               <input 
+                  type="text" 
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-800"
+                  placeholder="https://script.google.com/macros/s/..."
+               />
+               <p className="text-xs text-gray-400 mt-2 ml-1">Paste your deployed Google Apps Script Web App URL here to enable automatic row insertion from the Trip Booking page.</p>
+            </div>
+            <div className="pt-2">
+                <button 
+                   onClick={handleSaveIntegrations}
+                   className="bg-green-600 hover:bg-green-700 text-white py-3 px-8 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/10"
+                >
+                   <Save className="w-4 h-4" /> Save Integration Settings
+                </button>
+            </div>
+         </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Branding Card */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
              <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
                 <Globe className="w-5 h-5 text-indigo-500" /> Branding Logic
@@ -373,6 +405,7 @@ const Settings: React.FC = () => {
              </div>
           </div>
 
+          {/* Security Card */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 p-8">
               <h3 className="font-black text-gray-800 mb-6 flex items-center gap-3 uppercase tracking-widest text-sm">
                   <LockIcon className="w-5 h-5 text-emerald-500" /> Security Override
@@ -431,6 +464,7 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden">
+        {/* ... Cloud Integrity Controls ... */}
         <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
           <div className="flex items-center gap-3">
               <div className="p-3 bg-blue-100 rounded-2xl text-blue-600">

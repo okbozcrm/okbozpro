@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Plus, Search, DollarSign, 
   PieChart, FileText, 
@@ -54,35 +54,8 @@ const Expenses: React.FC = () => {
   const isSuperAdmin = sessionId === 'admin';
   const loggedInUserName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || (isSuperAdmin ? 'Super Admin' : 'Admin');
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    if (isSuperAdmin) {
-        let allExpenses: Expense[] = [];
-        const adminData = localStorage.getItem('office_expenses');
-        if (adminData) {
-            try { 
-                allExpenses = [...allExpenses, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: e.franchiseName || 'Head Office', corporateId: e.corporateId || 'admin'}))];
-            } catch (e) {}
-        }
-        const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporates.forEach((corp: any) => {
-            const cData = localStorage.getItem(`office_expenses_${corp.email}`);
-            if (cData) {
-                try {
-                    allExpenses = [...allExpenses, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, corporateId: corp.email}))];
-                } catch (e) {}
-            }
-        });
-        return allExpenses;
-    } else {
-        const key = `office_expenses_${sessionId}`;
-        const saved = localStorage.getItem(key);
-        if (saved) {
-            try { return JSON.parse(saved).map((e: any) => ({...e, corporateId: e.corporateId || sessionId})); } catch(e) { return []; }
-        }
-        return [];
-    }
-  });
-
+  // State
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -96,9 +69,51 @@ const Expenses: React.FC = () => {
   const [corporates, setCorporates] = useState<any[]>([]);
   const [allBranches, setAllBranches] = useState<any[]>([]);
 
+  // Function to load expenses to ensure UI stays in sync with LocalStorage/Cloud
+  const loadExpenses = useCallback(() => {
+    let allExpenses: Expense[] = [];
+    
+    if (isSuperAdmin) {
+        // Admin: Load Root + All Corporates
+        const adminData = localStorage.getItem('office_expenses');
+        if (adminData) {
+            try { 
+                allExpenses = [...allExpenses, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: e.franchiseName || 'Head Office', corporateId: e.corporateId || 'admin'}))];
+            } catch (e) {}
+        }
+        
+        // Dynamically load from all available corporate accounts
+        const currentCorps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        currentCorps.forEach((corp: any) => {
+            const cData = localStorage.getItem(`office_expenses_${corp.email}`);
+            if (cData) {
+                try {
+                    allExpenses = [...allExpenses, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, corporateId: corp.email}))];
+                } catch (e) {}
+            }
+        });
+    } else {
+        // Franchise: Load Scoped Data
+        const key = `office_expenses_${sessionId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try { 
+                allExpenses = JSON.parse(saved).map((e: any) => ({...e, corporateId: e.corporateId || sessionId})); 
+            } catch(e) { 
+                console.error("Error parsing expenses", e);
+            }
+        }
+    }
+    setExpenses(allExpenses.reverse()); // Show newest first
+  }, [isSuperAdmin, sessionId]);
+
+  // Initial Data Load
   useEffect(() => {
+      loadExpenses();
+      
       const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
       setCorporates(corps);
+      
       let branches: any[] = [];
       if (isSuperAdmin) {
           const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
@@ -113,7 +128,17 @@ const Expenses: React.FC = () => {
           if (saved) branches = JSON.parse(saved).map((b:any) => ({...b, corporateId: sessionId}));
       }
       setAllBranches(branches);
-  }, [isSuperAdmin, sessionId]);
+
+      // Listen for updates (from Cloud Sync or other tabs)
+      const handleStorageChange = () => loadExpenses();
+      window.addEventListener('storage', handleStorageChange);
+      window.addEventListener('cloud-sync-immediate', handleStorageChange); // Custom event for immediate UI update
+
+      return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          window.removeEventListener('cloud-sync-immediate', handleStorageChange);
+      };
+  }, [isSuperAdmin, sessionId, loadExpenses]);
 
   const availableBranches = useMemo(() => {
       if (filterCorporate === 'All') return allBranches;
@@ -145,22 +170,10 @@ const Expenses: React.FC = () => {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null); 
 
   const formBranches = useMemo(() => {
-      return allBranches.filter(b => b.corporateId === formData.corporateId);
-  }, [allBranches, formData.corporateId]);
-
-  useEffect(() => {
-    if (!isSuperAdmin) {
-        localStorage.setItem(`office_expenses_${sessionId}`, JSON.stringify(expenses));
-    } else {
-        const headOffice = expenses.filter(e => e.corporateId === 'admin');
-        localStorage.setItem('office_expenses', JSON.stringify(headOffice.map(({franchiseName, corporateId, ...rest}) => rest)));
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((corp: any) => {
-            const corpData = expenses.filter(e => e.corporateId === corp.email);
-            localStorage.setItem(`office_expenses_${corp.email}`, JSON.stringify(corpData.map(({franchiseName, corporateId, ...rest}) => rest)));
-        });
-    }
-  }, [expenses, isSuperAdmin, sessionId]);
+      // Allow selecting branches based on the selected corporate in form (for admin) or current session (for franchise)
+      const targetOwner = isSuperAdmin ? (formData.corporateId || 'admin') : sessionId;
+      return allBranches.filter(b => b.corporateId === targetOwner);
+  }, [allBranches, formData.corporateId, isSuperAdmin, sessionId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -186,6 +199,7 @@ const Expenses: React.FC = () => {
 
   const generateNextTransactionNumber = () => {
     let nextNum = 1;
+    // Look at all expenses to find max number
     const jkTransactions = expenses.map(e => e.transactionNumber).filter(num => num && num.startsWith('JK-'));
     if (jkTransactions.length > 0) {
         const nums = jkTransactions.map(num => parseInt(num.split('-')[1])).filter(n => !isNaN(n));
@@ -196,7 +210,11 @@ const Expenses: React.FC = () => {
 
   const handleOpenAddTransaction = () => {
     resetForm();
-    setFormData(prev => ({ ...prev, transactionNumber: generateNextTransactionNumber() }));
+    setFormData(prev => ({ 
+        ...prev, 
+        transactionNumber: generateNextTransactionNumber(),
+        corporateId: isSuperAdmin ? 'admin' : sessionId // Ensure correct default owner
+    }));
     setIsModalOpen(true);
   };
 
@@ -205,8 +223,6 @@ const Expenses: React.FC = () => {
     setFormData({ ...expense });
     setIsModalOpen(true);
   };
-
-  // REMOVED handleDelete FUNCTION
 
   const handleExportPDF = async () => {
     if (!reportRef.current) return;
@@ -236,17 +252,22 @@ const Expenses: React.FC = () => {
         receiptUrl = cloudUrl || await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result as string); reader.readAsDataURL(selectedFile!); });
     }
 
+    // Determine Owner Context
+    const targetCorpId = isSuperAdmin ? (formData.corporateId || 'admin') : sessionId;
+    
+    // Determine Franchise Name
     let resolvedFranchiseName = 'Head Office';
-    const targetCorpId = formData.corporateId || sessionId;
     if (targetCorpId !== 'admin') {
         const corp = corporates.find(c => c.email === targetCorpId);
         resolvedFranchiseName = corp ? corp.companyName : 'Franchise';
+    } else if (!isSuperAdmin) {
+        // If logged in as franchise and saving to self
+        resolvedFranchiseName = 'My Franchise';
     }
 
     // Determine Edit Metadata
     let editMetadata = {};
     if (editingExpenseId) {
-        // Construct the role label for display
         let editorRoleLabel = 'Staff';
         if (isSuperAdmin) editorRoleLabel = 'Super Admin';
         else if (userRole === UserRole.CORPORATE) editorRoleLabel = 'Franchise Admin';
@@ -275,9 +296,31 @@ const Expenses: React.FC = () => {
       ...editMetadata
     };
 
-    setExpenses(prev => editingExpenseId ? prev.map(exp => exp.id === editingExpenseId ? { ...transactionData } : exp) : [transactionData, ...prev]);
+    // --- SAVE TO LOCALSTORAGE (Specific Key) ---
+    const storageKey = targetCorpId === 'admin' ? 'office_expenses' : `office_expenses_${targetCorpId}`;
+    
+    // Fetch current data for this specific key to append/update
+    let currentData: Expense[] = [];
+    try {
+        currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } catch(e) {}
+
+    let updatedData: Expense[];
+    if (editingExpenseId) {
+        updatedData = currentData.map(exp => exp.id === editingExpenseId ? transactionData : exp);
+    } else {
+        updatedData = [transactionData, ...currentData];
+    }
+    
+    localStorage.setItem(storageKey, JSON.stringify(updatedData));
+    
+    // Update local state immediately via re-fetch
+    loadExpenses();
+    
     setIsUploading(false);
     resetForm();
+    
+    // Trigger Sync
     window.dispatchEvent(new Event('cloud-sync-immediate'));
   };
 

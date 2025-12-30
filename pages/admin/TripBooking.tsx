@@ -5,7 +5,7 @@ import {
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
   TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car, RefreshCcw, Filter,
-  Building2, Percent, Download, Upload, FileSpreadsheet
+  Building2, Percent, Download, Upload, FileSpreadsheet, Send
 } from 'lucide-react';
 import { UserRole, CorporateAccount } from '../../types';
 
@@ -229,6 +229,28 @@ export const TripBooking: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const saveToGoogleSheet = async (tripData: Trip) => {
+    const scriptUrl = localStorage.getItem('google_sheet_script_url');
+    if (!scriptUrl) {
+        console.warn("Google Sheet URL not configured. Skipping sheet save.");
+        return;
+    }
+
+    try {
+        await fetch(scriptUrl, {
+            method: 'POST',
+            mode: 'no-cors', // Important to avoid CORS errors with Google Scripts
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(tripData)
+        });
+        console.log("Trip data sent to Google Sheet");
+    } catch (error) {
+        console.error("Failed to save to Google Sheet", error);
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.tripId || !formData.date || !formData.userName) {
@@ -275,11 +297,19 @@ export const TripBooking: React.FC = () => {
     const cleanForStorage = updatedStorage.map(({ownerId, ownerName, ...rest}: any) => rest);
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
 
+    // --- AUTOMATIC GOOGLE SHEET SYNC ---
+    // Only sync on new creation or if you want updates too, keep it here.
+    // For "Automated" feel, usually syncing on Creation/Update is good.
+    saveToGoogleSheet(tripData);
+
     window.dispatchEvent(new Event('cloud-sync-immediate'));
     setIsModalOpen(false);
     setEditingId(null);
     setFormData(initialFormState);
     loadData();
+    
+    // Optional: Visual confirmation for the user
+    // alert("Trip Saved & Synced to Cloud!"); 
   };
 
   const handleEdit = (trip: Trip) => {
