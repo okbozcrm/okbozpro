@@ -163,12 +163,14 @@ const StaffList: React.FC = () => {
 
     const targetId = formData.franchiseId || 'admin';
     const storageKey = targetId === 'admin' ? 'staff_data' : `staff_data_${targetId}`;
+    let isMoveOperation = false;
     
     // Logic to handle moving staff between franchises if editing
     if (editingId) {
         const originalEmp = employees.find(emp => emp.id === editingId);
         const originalFranchiseId = originalEmp?.franchiseId || 'admin';
         if (originalFranchiseId !== targetId) {
+            isMoveOperation = true;
             const oldKey = originalFranchiseId === 'admin' ? 'staff_data' : `staff_data_${originalFranchiseId}`;
             const oldStorage = JSON.parse(localStorage.getItem(oldKey) || '[]');
             localStorage.setItem(oldKey, JSON.stringify(oldStorage.filter((e: any) => e.id !== editingId)));
@@ -177,19 +179,23 @@ const StaffList: React.FC = () => {
 
     const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
     let updatedStorage: any[];
-    if (editingId) {
+
+    if (editingId && !isMoveOperation) {
+        // Simple Update: Same franchise
         updatedStorage = currentStorage.map((emp: any) => emp.id === editingId ? payload : emp);
     } else {
+        // Create OR Move (Add to new list)
         updatedStorage = [payload, ...currentStorage];
     }
     
+    // Clean up temporary UI fields before saving to DB
     const cleanForStorage = updatedStorage.map(({franchiseName, franchiseId, ...rest}: any) => rest);
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
     
     window.dispatchEvent(new Event('cloud-sync-immediate'));
     loadScopedStaff();
     setIsModalOpen(false);
-    alert(editingId ? "Profile updated!" : "Employee onboarded successfully!");
+    alert(editingId && !isMoveOperation ? "Profile updated!" : isMoveOperation ? "Employee moved successfully!" : "Employee onboarded successfully!");
   };
 
   const filteredEmployees = useMemo(() => {

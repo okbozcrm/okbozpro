@@ -3,15 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Phone, PhoneForwarded, PhoneMissed, PhoneIncoming, PhoneOutgoing,
   Search, Filter, History, User, Building2, MapPin, Calendar, Clock,
-  CheckCircle, XCircle, MoreVertical, Star, Mic, Hash
+  CheckCircle, XCircle, MoreVertical, Star
 } from 'lucide-react';
-
-interface InteractionLog {
-  timestamp: string;
-  status: 'Interested' | 'Not Interested' | 'Callback' | 'Connected' | 'No Answer' | 'Missed';
-  note?: string;
-  duration?: string;
-}
+import { UserRole } from '../../types';
 
 interface Contact {
   id: string;
@@ -21,7 +15,13 @@ interface Contact {
   role?: string;
   company?: string;
   lastCall?: string;
-  history?: InteractionLog[];
+  status?: string;
+  history?: Array<{
+    timestamp: string;
+    status: string; // 'Connected' | 'Missed' | 'Voicemail'
+    duration?: string;
+    note?: string;
+  }>;
 }
 
 const AutoDialer: React.FC = () => {
@@ -41,16 +41,7 @@ const AutoDialer: React.FC = () => {
         try {
             const leads = JSON.parse(localStorage.getItem('leads_data') || '[]');
             allContacts = [...allContacts, ...leads.map((l: any) => ({
-                id: l.id, 
-                name: l.name, 
-                phone: l.phone, 
-                type: 'Lead', 
-                role: 'Potential Franchise', 
-                history: l.history?.map((h: any) => ({
-                    timestamp: h.date || new Date().toLocaleString(),
-                    status: h.outcome || 'Connected',
-                    note: h.note
-                })) || []
+                id: l.id, name: l.name, phone: l.phone, type: 'Lead', role: 'Potential Franchise', status: l.status, history: []
             }))];
         } catch (e) {}
 
@@ -58,12 +49,7 @@ const AutoDialer: React.FC = () => {
         try {
             const staff = JSON.parse(localStorage.getItem('staff_data') || '[]');
             allContacts = [...allContacts, ...staff.map((s: any) => ({
-                id: s.id, 
-                name: s.name, 
-                phone: s.phone, 
-                type: 'Staff', 
-                role: s.role, 
-                history: []
+                id: s.id, name: s.name, phone: s.phone, type: 'Staff', role: s.role, status: s.status, history: []
             }))];
         } catch (e) {}
 
@@ -71,20 +57,10 @@ const AutoDialer: React.FC = () => {
         try {
             const vendors = JSON.parse(localStorage.getItem('vendor_data') || '[]');
             allContacts = [...allContacts, ...vendors.map((v: any) => ({
-                id: v.id, 
-                name: v.ownerName, 
-                phone: v.phone, 
-                type: 'Vendor', 
-                role: 'Transport Partner', 
-                history: v.history?.map((h: any) => ({
-                    timestamp: h.date || new Date().toLocaleString(),
-                    status: h.outcome || 'Connected',
-                    note: h.message
-                })) || []
+                id: v.id, name: v.ownerName, phone: v.phone, type: 'Vendor', role: 'Transport Partner', status: v.status, history: []
             }))];
         } catch (e) {}
 
-        // Sort by ID or Name stability
         setContacts(allContacts);
     };
     loadData();
@@ -106,20 +82,20 @@ const AutoDialer: React.FC = () => {
       // Simulate connection
       setTimeout(() => {
           setCallStatus('Connected');
-          // In a real app, this would integrate with Twilio/Exotel or open tel: link
-          // window.location.href = `tel:${activeContact.phone}`;
+          // In a real app, this would integrate with Twilio/Exotel
+          window.location.href = `tel:${activeContact.phone}`;
       }, 1500);
   };
 
   const endCall = () => {
       setCallStatus('Idle');
       if (activeContact) {
-          // Add to history (local state only for this demo view)
-          const newHistory: InteractionLog = {
+          // Add to history (local state for demo)
+          const newHistory = {
               timestamp: new Date().toLocaleString(),
               status: 'Connected',
-              duration: formatTime(callDuration),
-              note: 'Auto-dialer outgoing call'
+              duration: `${Math.floor(callDuration / 60)}m ${callDuration % 60}s`,
+              note: 'Auto-logged call'
           };
           
           const updatedContact = { 
@@ -182,7 +158,7 @@ const AutoDialer: React.FC = () => {
                 </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto">
                 {filteredContacts.map(contact => (
                     <div 
                         key={contact.id} 
@@ -230,62 +206,19 @@ const AutoDialer: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 p-8 flex flex-col items-center justify-center overflow-hidden">
+                    <div className="flex-1 p-8 flex flex-col items-center justify-center">
                         {callStatus === 'Idle' ? (
-                            <div className="text-center space-y-6 w-full max-w-md">
+                            <div className="text-center space-y-6">
                                 <div className="w-32 h-32 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-emerald-100">
                                     <Phone className="w-12 h-12 text-emerald-600" />
                                 </div>
                                 <button 
                                     onClick={handleCall}
-                                    className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-1 mb-6 group shrink-0"
+                                    className="px-10 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-3 mx-auto"
                                 >
-                                    <Phone className="w-8 h-8 fill-current group-hover:scale-110 transition-transform" />
-                                    <span className="text-lg font-bold tracking-wide">DIAL NOW</span>
+                                    <Phone className="w-6 h-6 fill-current" /> Call Now
                                 </button>
                                 <p className="text-gray-400 text-sm font-medium">Ready to dial {activeContact.phone}</p>
-                                
-                                {/* History Section */}
-                                <div className="mb-6 space-y-3 w-full text-left">
-                                  <div className="flex justify-between items-center">
-                                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                          <History className="w-3 h-3" /> Interaction Log
-                                      </p>
-                                      <span className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">{(activeContact.history || []).length} Records</span>
-                                  </div>
-                                  
-                                  <div className="bg-gray-50 rounded-xl border border-gray-200 p-2 max-h-64 overflow-y-auto custom-scrollbar shadow-inner">
-                                      {(activeContact.history || []).length > 0 ? (
-                                          <div className="space-y-2">
-                                              {activeContact.history!.map((log, idx) => (
-                                                  <div key={idx} className="p-3 bg-white border border-gray-100 rounded-xl hover:border-blue-200 transition-all shadow-sm">
-                                                      <div className="flex justify-between items-start mb-2">
-                                                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg tracking-wide ${
-                                                              log.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                                              log.status === 'Callback' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                                              log.status === 'Not Interested' ? 'bg-red-50 text-red-700 border border-red-100' :
-                                                              'bg-gray-100 text-gray-600 border border-gray-200'
-                                                          }`}>
-                                                              {log.status}
-                                                          </span>
-                                                          <span className="text-[9px] text-gray-400 font-bold bg-gray-50 px-1.5 py-0.5 rounded">
-                                                              {log.timestamp}
-                                                          </span>
-                                                      </div>
-                                                      <p className="text-xs text-gray-700 leading-relaxed font-medium pl-1">
-                                                          {log.note || "No notes recorded"}
-                                                      </p>
-                                                  </div>
-                                              ))}
-                                          </div>
-                                      ) : (
-                                          <div className="flex flex-col items-center justify-center p-8 text-gray-400 opacity-60">
-                                              <History className="w-8 h-8 mb-2" />
-                                              <p className="text-xs font-medium uppercase tracking-wider">No history yet</p>
-                                          </div>
-                                      )}
-                                  </div>
-                              </div>
                             </div>
                         ) : (
                             <div className="text-center space-y-8 animate-in zoom-in duration-300">
@@ -311,6 +244,32 @@ const AutoDialer: React.FC = () => {
                                 </button>
                             </div>
                         )}
+                    </div>
+
+                    <div className="p-6 border-t border-gray-100 bg-gray-50 h-1/3 overflow-y-auto">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <History className="w-4 h-4" /> Call History
+                        </h4>
+                        <div className="space-y-3">
+                            {(activeContact.history || []).length > 0 ? (
+                                activeContact.history!.map((log, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-full ${log.status === 'Connected' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                {log.status === 'Connected' ? <PhoneIncoming className="w-4 h-4" /> : <PhoneMissed className="w-4 h-4" />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-700">{log.status}</p>
+                                                <p className="text-xs text-gray-400">{log.timestamp}</p>
+                                            </div>
+                                        </div>
+                                        {log.duration && <span className="text-xs font-mono font-medium text-gray-600">{log.duration}</span>}
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-center text-gray-400 text-xs py-4">No recent history.</p>
+                            )}
+                        </div>
                     </div>
                 </>
             ) : (
