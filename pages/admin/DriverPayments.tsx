@@ -98,7 +98,7 @@ export const DriverPayments: React.FC = () => {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
 
-  // General Search
+  // General Search (Wallet)
   const [searchTerm, setSearchTerm] = useState('');
 
   // Wallet Specific Filters
@@ -108,9 +108,15 @@ export const DriverPayments: React.FC = () => {
   const [walletType, setWalletType] = useState('All');
   const [walletCorpFilter, setWalletCorpFilter] = useState('All');
 
-  // Compensation Specific Filters
-  const [compDate, setCompDate] = useState('');
+  // Compensation Specific Filters (Enhanced)
+  const [compDate, setCompDate] = useState(new Date().toISOString().slice(0, 7)); // Default current month
+  const [filterDateType, setFilterDateType] = useState<'Date' | 'Month'>('Month');
   const [compStatus, setCompStatus] = useState('All');
+  const [filterCorp, setFilterCorp] = useState('All');
+  const [filterComponent, setFilterComponent] = useState('All');
+  const [filterDriver, setFilterDriver] = useState('');
+  const [filterPhone, setFilterPhone] = useState('');
+  const [filterOrderId, setFilterOrderId] = useState('');
   
   // Compensation Form State - Multi-select supported
   const [selectedPaymentTypes, setSelectedPaymentTypes] = useState<string[]>(['Empty Km']);
@@ -474,7 +480,19 @@ export const DriverPayments: React.FC = () => {
       loadAllData();
   };
 
-  // --- Stats & Filtering (Same as before) ---
+  // --- Reset Filters ---
+  const resetCompFilters = () => {
+    setFilterCorp('All');
+    setFilterComponent('All');
+    setFilterDriver('');
+    setFilterPhone('');
+    setFilterOrderId('');
+    setCompStatus('All');
+    setFilterDateType('Month');
+    setCompDate(new Date().toISOString().slice(0, 7));
+  };
+
+  // --- Stats & Filtering ---
   const walletStats = useMemo(() => {
       const approved = walletTransactions.filter(t => t.status === 'Approved');
       const topUp = approved.filter(t => t.type === 'Top-up').reduce((sum, t) => sum + t.amount, 0);
@@ -511,11 +529,23 @@ export const DriverPayments: React.FC = () => {
   });
 
   const filteredPayments = payments.filter(p => {
-      const matchesSearch = p.driverName.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm);
+      const matchesCorp = isSuperAdmin 
+          ? (filterCorp === 'All' || p.corporateId === filterCorp) 
+          : p.corporateId === contextOwnerId;
+      
+      const matchesComponent = filterComponent === 'All' || p.type === filterComponent;
+      const matchesDriver = p.driverName.toLowerCase().includes(filterDriver.toLowerCase());
+      const matchesPhone = p.phone.includes(filterPhone);
+      const matchesOrderId = p.orderId.toLowerCase().includes(filterOrderId.toLowerCase());
       const matchesStatus = compStatus === 'All' || p.status === compStatus;
-      const matchesDate = !compDate || p.date === compDate;
-      const matchesCorp = isSuperAdmin ? true : p.corporateId === contextOwnerId;
-      return matchesSearch && matchesStatus && matchesCorp && matchesDate;
+
+      let matchesDate = true;
+      if (compDate) {
+          if (filterDateType === 'Date') matchesDate = p.date === compDate;
+          if (filterDateType === 'Month') matchesDate = p.date.startsWith(compDate.slice(0, 7)); // YYYY-MM
+      }
+
+      return matchesCorp && matchesComponent && matchesDriver && matchesPhone && matchesOrderId && matchesStatus && matchesDate;
   });
 
   return (
@@ -709,6 +739,118 @@ export const DriverPayments: React.FC = () => {
             {/* Dashboard View */}
             {activeView === 'Dashboard' && (
                 <div className="space-y-6">
+                    {/* Advanced Filter Panel */}
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                <Filter className="w-4 h-4 text-emerald-600" /> Filter Payments
+                            </h3>
+                            <button onClick={resetCompFilters} className="text-sm text-red-500 hover:text-red-700 font-medium flex items-center gap-1 transition-colors">
+                                <RefreshCw className="w-3 h-3" /> Reset
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Row 1 */}
+                            {isSuperAdmin && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Corporate</label>
+                                    <select 
+                                        value={filterCorp} 
+                                        onChange={(e) => setFilterCorp(e.target.value)} 
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option value="All">All Corporates</option>
+                                        <option value="admin">Head Office</option>
+                                        {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Component</label>
+                                <select 
+                                    value={filterComponent} 
+                                    onChange={(e) => setFilterComponent(e.target.value)} 
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="All">All Types</option>
+                                    <option>Empty Km</option>
+                                    <option>Promo Code</option>
+                                    <option>Sticker</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Status</label>
+                                <select 
+                                    value={compStatus} 
+                                    onChange={(e) => setCompStatus(e.target.value)} 
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="All">All Status</option>
+                                    <option>Paid</option>
+                                    <option>Pending</option>
+                                    <option>Rejected</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Date Filter</label>
+                                <div className="flex gap-2">
+                                    <select 
+                                        value={filterDateType} 
+                                        onChange={(e) => setFilterDateType(e.target.value as any)} 
+                                        className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option>Month</option>
+                                        <option>Date</option>
+                                    </select>
+                                    <input 
+                                        type={filterDateType === 'Date' ? 'date' : 'month'} 
+                                        value={compDate} 
+                                        onChange={(e) => setCompDate(e.target.value)} 
+                                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Row 2 */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Driver Name</label>
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                    <input 
+                                        value={filterDriver} 
+                                        onChange={(e) => setFilterDriver(e.target.value)} 
+                                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                        placeholder="Search Name" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Phone Number</label>
+                                <input 
+                                    value={filterPhone} 
+                                    onChange={(e) => setFilterPhone(e.target.value)} 
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                    placeholder="Search Phone" 
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Order ID</label>
+                                <input 
+                                    value={filterOrderId} 
+                                    onChange={(e) => setFilterOrderId(e.target.value)} 
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                                    placeholder="Search ID" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Stats & Table ... */}
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                         {/* ... Stats Cards ... */}
@@ -722,9 +864,6 @@ export const DriverPayments: React.FC = () => {
                             <h3 className="font-bold text-gray-800">Compensation History</h3>
                             <div className="flex flex-wrap gap-2">
                                 <button onClick={() => setIsModalOpen(true)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm"><Plus className="w-4 h-4" /> Log Payment</button>
-                                <input type="date" value={compDate} onChange={(e) => setCompDate(e.target.value)} className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"/>
-                                <select value={compStatus} onChange={(e) => setCompStatus(e.target.value)} className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"><option value="All">All Status</option><option value="Paid">Paid</option><option value="Pending">Pending</option></select>
-                                <input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-3 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm"/>
                             </div>
                         </div>
                         <div className="overflow-x-auto">
