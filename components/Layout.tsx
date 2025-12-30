@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck, Home } from 'lucide-react';
 import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -18,7 +18,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
-  { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
+  { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, 
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
   { id: 'auto-dialer', path: '/admin/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
   { id: 'customer-care', path: '/admin/customer-care', label: 'Customer Care', icon: Headset },
@@ -323,7 +323,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'data-export': 'Data & Backup',
               'settings': 'Settings',
               'km-claims': 'KM Claims (TA)',
-              'sub-admins': 'Sub Admin Mgt' // Usually redundant as sub-admins shouldn't manage other sub-admins, but if permission exists
+              'sub-admins': 'Sub Admin Mgt'
           };
           
           const moduleName = permKeyMap[link.id];
@@ -345,7 +345,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const userLinks = useMemo(() => {
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
-        { id: 'auto-dialer', path: '/user/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
         { id: 'my-km-claims', path: '/user/km-claims', label: 'My KM Claims (TA)', icon: Bike },
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
@@ -383,6 +382,17 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const sidebarLinks = role === UserRole.EMPLOYEE ? userLinks : visibleAdminLinks;
   const currentPath = location.pathname;
 
+  // NEW: Bottom Navigation Logic for Employees
+  const isEmployee = role === UserRole.EMPLOYEE;
+  
+  const bottomNavItems = [
+    { id: 'home', path: '/user', label: 'Home', icon: Home },
+    { id: 'tasks', path: '/user/tasks', label: 'Tasks', icon: ClipboardList },
+    { id: 'leave', path: '/user/apply-leave', label: 'Leaves', icon: Plane },
+    { id: 'salary', path: '/user/salary', label: 'Salary', icon: DollarSign },
+    { id: 'profile', path: '/user/profile', label: 'Profile', icon: UserCircle },
+  ];
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {showWelcomePopup && (
@@ -398,6 +408,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               </div>
           </div>
       )}
+      
+      {/* Sidebar - Hidden on mobile if Employee, accessible via toggle for Admin */}
       <div className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white dark:bg-gray-850 border-r border-gray-100 dark:border-gray-750 transition-transform duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="flex items-center justify-between p-4 h-16 shrink-0">
           <Link to="/" className="flex items-center gap-2 cursor-pointer">
@@ -439,10 +451,29 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           )}
         </nav>
       </div>
-      <div className="flex-1 flex flex-col md:ml-64 relative">
+      
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col md:ml-64 relative h-full">
         <header className="h-16 flex items-center justify-between px-4 sm:px-6 bg-white dark:bg-gray-850 border-b border-gray-100 dark:border-gray-750 shrink-0 relative z-40">
-          <button className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full" onClick={() => setSidebarOpen(true)}><Menu className="w-5 h-5" /></button>
           
+          {/* Admin/Corp Mobile Toggle */}
+          {!isEmployee && (
+             <button className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full" onClick={() => setSidebarOpen(true)}><Menu className="w-5 h-5" /></button>
+          )}
+
+          {/* Employee Mobile Branding */}
+          {isEmployee && (
+             <div className="md:hidden flex items-center gap-2">
+                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md" style={{ backgroundColor: primaryColor }}>
+                     {companyName.charAt(0)}
+                 </div>
+                 <span className="font-bold text-gray-800 dark:text-white truncate max-w-[150px]">
+                     {sidebarLinks.find(link => currentPath.startsWith(link.path))?.label || 'Home'}
+                 </span>
+             </div>
+          )}
+          
+          {/* Desktop Title */}
           <div className="hidden md:block">
             <h1 className="text-lg font-semibold text-gray-800 dark:text-white">
                 {sidebarLinks.find(link => currentPath.startsWith(link.path))?.label || 'Dashboard'}
@@ -510,7 +541,28 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             <button onClick={onLogout} className="p-2 rounded-full text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ml-1" title="Logout"><LogOut className="w-5 h-5" /></button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6">{children}</main>
+
+        {/* Content Area with specific padding for mobile employees */}
+        <main className={`flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 ${isEmployee ? 'pb-24' : ''}`}>
+           {children}
+        </main>
+        
+        {/* Bottom Navigation for Employees on Mobile */}
+        {isEmployee && (
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-850 border-t border-gray-200 dark:border-gray-700 z-50 flex justify-around items-center pb-safe pt-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                {bottomNavItems.map((item) => {
+                    const isActive = location.pathname === item.path || (item.path !== '/user' && location.pathname.startsWith(item.path));
+                    return (
+                        <Link to={item.path} key={item.id} className="flex flex-col items-center gap-1 p-2 min-w-[60px] active:scale-95 transition-transform">
+                            <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-emerald-50 dark:bg-emerald-900/30' : ''}`}>
+                                <item.icon className={`w-5 h-5 ${isActive ? 'text-emerald-600 dark:text-emerald-400 fill-emerald-100 dark:fill-emerald-900' : 'text-gray-400 dark:text-gray-500'}`} strokeWidth={isActive ? 2.5 : 2} />
+                            </div>
+                            <span className={`text-[10px] font-bold ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-500'}`}>{item.label}</span>
+                        </Link>
+                    );
+                })}
+            </div>
+        )}
       </div>
     </div>
   );
