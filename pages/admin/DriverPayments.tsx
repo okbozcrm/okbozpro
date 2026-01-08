@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { UserRole, CorporateAccount, Employee, Branch } from '../../types'; // Import Branch interface
 import { sendSystemNotification } from '../../services/cloudService';
-import AiAssistant from '../../components/AiAssistant';
+// AiAssistant removed as per user request
+// import AiAssistant from '../../components/AiAssistant'; 
 
 interface PaymentRules {
   freeLimitKm: number;
@@ -641,8 +642,11 @@ export const DriverPayments: React.FC = () => {
       const totalPaid = filteredPayments.reduce((acc, curr) => acc + (curr.status === 'Paid' ? curr.amount : 0), 0);
       const pendingCount = filteredPayments.filter(p => p.status === 'Pending').length;
       const emptyKmPaid = filteredPayments.filter(p => p.type === 'Empty Km' && p.status === 'Paid').reduce((sum, p) => sum + p.amount, 0);
-      const promoStickerPaid = filteredPayments.filter(p => (p.type === 'Promo Code' || p.type === 'Sticker') && p.status === 'Paid').reduce((sum, p) => sum + p.amount, 0);
-      return { totalPaid, pendingCount, emptyKmPaid, promoStickerPaid };
+      // Separated Promo Code and Sticker payouts
+      const promoCodePaid = filteredPayments.filter(p => p.type === 'Promo Code' && p.status === 'Paid').reduce((sum, p) => sum + p.amount, 0);
+      const stickerPaid = filteredPayments.filter(p => p.type === 'Sticker' && p.status === 'Paid').reduce((sum, p) => sum + p.amount, 0);
+      
+      return { totalPaid, pendingCount, emptyKmPaid, promoCodePaid, stickerPaid };
   }, [filteredPayments]);
 
   // Display text for active date filter
@@ -935,8 +939,7 @@ export const DriverPayments: React.FC = () => {
                                         <option value="Empty Km">Empty Km</option>
                                         <option value="Promo Code">Promo Code</option>
                                         <option value="Sticker">Sticker</option>
-                                        <option value="Salary">Salary</option>
-                                        <option value="Incentive">Incentive</option>
+                                        {/* Removed Salary and Incentive options */}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                 </div>
@@ -1023,12 +1026,14 @@ export const DriverPayments: React.FC = () => {
                     </div>
 
                     {/* Stats & Table ... */}
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                        {/* ... Stats Cards ... */}
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4"> {/* Changed grid-cols to accommodate new cards */}
                         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Total Paid</p><h3 className="text-3xl font-bold text-gray-900 mt-2">₹{compStats.totalPaid.toLocaleString()}</h3></div>
                         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Pending</p><h3 className="text-3xl font-bold text-red-600 mt-2">{compStats.pendingCount}</h3></div>
                         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Empty Km Paid</p><h3 className="text-2xl font-bold text-orange-500 mt-1">₹{compStats.emptyKmPaid.toLocaleString()}</h3></div>
-                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Other Paid</p><h3 className="text-2xl font-bold text-purple-600 mt-1">₹{compStats.promoStickerPaid.toLocaleString()}</h3></div>
+                        {/* NEW: Promo Code Paid Card */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Promo Code Paid</p><h3 className="text-2xl font-bold text-blue-600 mt-1">₹{compStats.promoCodePaid.toLocaleString()}</h3></div>
+                        {/* NEW: Sticker Paid Card */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase">Sticker Paid</p><h3 className="text-2xl font-bold text-purple-600 mt-1">₹{compStats.stickerPaid.toLocaleString()}</h3></div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
@@ -1147,7 +1152,7 @@ export const DriverPayments: React.FC = () => {
                      <input className="w-full p-2.5 border border-gray-300 rounded-lg text-sm" placeholder="Related Order ID" value={compForm.orderId} onChange={(e) => setCompForm({...compForm, orderId: e.target.value})} />
                  </div>
 
-                 {/* NEW: Date to Pay Field */}
+                 {/* Date to Pay Field */}
                  <div>
                     <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Date to Pay (Optional)</label>
                     <input 
@@ -1285,7 +1290,7 @@ export const DriverPayments: React.FC = () => {
                                   onChange={(e) => setWalletForm(prev => ({...prev, corporateId: e.target.value}))}
                               >
                                   <option value="admin">Head Office</option>
-                                  {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                                  {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
                               </select>
                           </div>
                       )}
@@ -1381,11 +1386,12 @@ export const DriverPayments: React.FC = () => {
           </div>
       )}
 
-      <AiAssistant 
+      {/* AiAssistant removed as per user request */}
+      {/* <AiAssistant 
         systemInstruction="You are an AI assistant for Driver Payments & Wallet management. Help calculate commissions, explain wallet deduction rules, and clarify payment statuses."
         initialMessage="Need help calculating a driver's payout or understanding wallet rules?"
         triggerButtonLabel="Payment AI"
-      />
+      /> */}
     </div>
   );
 };

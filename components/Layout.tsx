@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck, BookOpen } from 'lucide-react';
 import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -39,6 +39,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'corporate', path: '/admin/corporate', label: 'Corporate', icon: Building2 },
   { id: 'data-export', path: '/admin/data-export', label: 'Data & Backup', icon: Database }, 
   { id: 'settings', path: '/admin/settings', label: 'Settings', icon: Settings },
+  { id: 'sop-documents', path: '/admin/sop', label: 'SOP Documents', icon: BookOpen }, // NEW: SOP Documents
 ];
 
 const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
@@ -323,7 +324,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'data-export': 'Data & Backup',
               'settings': 'Settings',
               'km-claims': 'KM Claims (TA)',
-              'sub-admins': 'Sub Admin Mgt' // Usually redundant as sub-admins shouldn't manage other sub-admins, but if permission exists
+              'sub-admins': 'Sub Admin Mgt',
+              'sop-documents': 'SOP Documents' // NEW: Added SOP Document permission check
           };
           
           const moduleName = permKeyMap[link.id];
@@ -335,7 +337,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
-        'auto-dialer'
+        'auto-dialer', 'sop-documents' // NEW: SOP Documents for Corporate
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
       return false;
@@ -429,7 +431,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           </div>
           {(role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
              <div className="mt-4 p-2 border-t border-gray-100 dark:border-gray-700">
-                <button onClick={() => setIsEditingSidebar(!isEditingSidebar)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Edit2 className="w-4 h-4 text-gray-500 dark:text-gray-400" /> {isEditingSidebar ? 'Done Editing' : 'Edit Sidebar'}</button>
+                <button onClick={() => setIsEditingSidebar(!isEditingSidebar)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Edit2 className="w-4 h-4" /> {isEditingSidebar ? 'Done Editing' : 'Edit Sidebar'}</button>
              </div>
           )}
           {role === UserRole.EMPLOYEE && isInstallable && (
@@ -461,6 +463,17 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 border-r border-gray-100 dark:border-gray-700 pr-3 mr-1">
+                {(role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
+                    <a 
+                        href="https://docs.google.com/document/d/1_YOUR_SOP_DOCUMENT_ID/edit?usp=sharing" // Placeholder URL
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all hover:scale-105"
+                        title="View SOPs (Header)"
+                    >
+                        <BookOpen className="w-5 h-5" />
+                    </a>
+                )}
                 <button 
                   onClick={handleManualRefresh} 
                   disabled={isRefreshing}

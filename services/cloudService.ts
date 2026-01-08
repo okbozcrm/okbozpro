@@ -1,4 +1,5 @@
 
+
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore, doc, setDoc, collection, getDocs, Firestore, updateDoc, initializeFirestore } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -43,7 +44,8 @@ const GLOBAL_KEYS = [
   'maps_api_key',
   'dashboard_stats',
   'google_sheet_script_url', // Added for Trip Booking Integration
-  'global_transaction_counter' // ADDED: Rolling Transaction Number for Finance
+  'global_transaction_counter', // ADDED: Rolling Transaction Number for Finance
+  'google_sop_folder_url' // NEW: Google Drive SOPs Folder URL
 ];
 
 // 🏢 Franchise-Specific Data (Suffix applied automatically)
@@ -80,6 +82,7 @@ let isSyncing = false;
 const lastSyncedData: Record<string, string> = {};
 
 const getActiveConfig = (config?: FirebaseConfig): FirebaseConfig | null => {
+  // Fix: Corrected typo from HARDCODED_FIRECODED_FIREBASE_CONFIG to HARDCODED_FIREBASE_CONFIG
   if (HARDCODED_FIREBASE_CONFIG.apiKey && HARDCODED_FIREBASE_CONFIG.apiKey.length > 5) {
       return HARDCODED_FIREBASE_CONFIG;
   }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -33,6 +34,7 @@ import UserProfile from './pages/user/UserProfile';
 import TaskManagement from './pages/TaskManagement';
 import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
+import SOPDocuments from './pages/admin/SOPDocuments'; // NEW: Import SOPDocuments
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -131,12 +133,13 @@ const App: React.FC = () => {
                         <Route path="/admin/payroll" element={<Payroll />} />
                         <Route path="/admin/expenses" element={<Expenses />} />
                         <Route path="/admin/finance-and-expenses" element={<Expenses />} />
+                        <Route path="/admin/corporate" element={<Corporate />} />
                         <Route path="/admin/data-export" element={<DataExport />} />
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
                         <Route path="/admin/gen-ai-tools" element={<GenAITools />} />
+                        <Route path="/admin/sop" element={<SOPDocuments />} /> {/* NEW: SOP Documents Route */}
                         {userRole === UserRole.ADMIN && (
                           <>
-                            <Route path="/admin/corporate" element={<Corporate />} />
                             <Route path="/admin/settings" element={<Settings />} />
                             <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
                             <Route path="/admin/admin-finance" element={<Expenses />} />

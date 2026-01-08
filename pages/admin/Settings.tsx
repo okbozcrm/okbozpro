@@ -8,7 +8,7 @@ import {
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
   DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane, TrendingUp,
-  FileSpreadsheet
+  FileSpreadsheet, BookOpen
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
@@ -27,6 +27,7 @@ const Settings: React.FC = () => {
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
   const [sheetUrl, setSheetUrl] = useState('');
+  const [sopFolderUrl, setSopFolderUrl] = useState(''); // NEW: State for SOPs Folder URL
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
@@ -46,6 +47,7 @@ const Settings: React.FC = () => {
     try {
       checkConnection();
       setSheetUrl(localStorage.getItem('google_sheet_script_url') || '');
+      setSopFolderUrl(localStorage.getItem('google_sop_folder_url') || ''); // NEW: Load SOPs URL
     } catch (e) {
       console.error("Connection check failed on mount", e);
     }
@@ -66,8 +68,8 @@ const Settings: React.FC = () => {
     // 2. If Super Admin, aggregate from all Corporates
     if (isSuperAdmin) {
         try {
-            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            corps.forEach((c: any) => {
+            const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            corporates.forEach((c: any) => {
                 const cData = localStorage.getItem(`${key}_${c.email}`);
                 if (cData) {
                     const parsed = JSON.parse(cData);
@@ -114,7 +116,9 @@ const Settings: React.FC = () => {
         { key: 'corporate_accounts', label: 'Corporate', icon: Building2 },
         { key: 'global_travel_requests', label: 'KM Claims (TA)', icon: Bike },
         { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane },
-        { key: 'corporate_profit_overview', label: 'Profit Overview', icon: TrendingUp }
+        { key: 'corporate_profit_overview', label: 'Profit Overview', icon: TrendingUp },
+        { key: 'sub_admins_data', label: 'Sub Admin Mgt', icon: ShieldCheck },
+        { key: 'google_sop_folder_url', label: 'SOP Documents URL', icon: BookOpen } // NEW: SOP Documents entry
     ];
 
     return collections.map(col => {
@@ -176,6 +180,7 @@ const Settings: React.FC = () => {
 
   const handleSaveIntegrations = () => {
     localStorage.setItem('google_sheet_script_url', sheetUrl);
+    localStorage.setItem('google_sop_folder_url', sopFolderUrl); // NEW: Save SOPs URL
     alert("Integration settings saved!");
   };
 
@@ -354,6 +359,18 @@ const Settings: React.FC = () => {
                />
                <p className="text-xs text-gray-400 mt-2 ml-1">Paste your deployed Google Apps Script Web App URL here to enable automatic row insertion from the Trip Booking page.</p>
             </div>
+            {/* NEW: SOPs Google Drive Folder URL */}
+            <div>
+               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">SOPs Google Drive Folder URL</label>
+               <input 
+                  type="text" 
+                  value={sopFolderUrl}
+                  onChange={(e) => setSopFolderUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-medium text-gray-800"
+                  placeholder="https://drive.google.com/drive/folders/..."
+               />
+               <p className="text-xs text-gray-400 mt-2 ml-1">Provide the shared Google Drive folder URL containing your SOP documents.</p>
+            </div>
             <div className="pt-2">
                 <button 
                    onClick={handleSaveIntegrations}
@@ -450,6 +467,7 @@ const Settings: React.FC = () => {
                           />
                       </div>
                   </div>
+                  
                   {adminPassMsg.text && (
                       <p className={`text-[10px] font-black uppercase text-center ${adminPassMsg.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>{adminPassMsg.text}</p>
                   )}
