@@ -6,102 +6,37 @@ import { sendSystemNotification } from '../../services/cloudService';
 
 const ApplyLeave: React.FC = () => {
   const [formData, setFormData] = useState({
-    type: '',
+    type: 'Casual Leave (CL)',
     startDate: '',
     endDate: '',
     reason: ''
   });
 
   const sessionId = localStorage.getItem('app_session_id') || '';
-  const userRole = localStorage.getItem('user_role');
 
   // Initialize history from global storage filtered by current user
   const [history, setHistory] = useState<LeaveRequest[]>([]);
-  const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
-
-  // Function to load and calculate data
-  const loadData = () => {
-        // 1. Load History
-        const savedRequests = localStorage.getItem('global_leave_requests');
-        let allRequests: LeaveRequest[] = [];
-        if (savedRequests) {
-            try {
-                allRequests = JSON.parse(savedRequests);
-                setHistory(allRequests.filter(r => r.employeeId === sessionId).sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime()));
-            } catch (e) { console.error("Failed to parse leave history", e); }
-        }
-
-        // 2. Identify Corporate Owner to fetch Settings
-        let ownerId = 'admin';
-        if (userRole === 'EMPLOYEE') {
-            ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
-        } else if (userRole === 'CORPORATE') {
-            ownerId = sessionId;
-        }
-
-        // 3. Load Configured Leave Types
-        const configKey = ownerId === 'admin' ? 'company_leave_types' : `company_leave_types_${ownerId}`;
-        const rawConfig = localStorage.getItem(configKey);
-        
-        let configuredLeaves = [];
-        if (rawConfig) {
-            try { configuredLeaves = JSON.parse(rawConfig); } catch(e) {}
-        }
-        
-        // Fallback Defaults if no config found
-        if (configuredLeaves.length === 0) {
-            configuredLeaves = [
-                { id: 1, name: 'Casual Leave', code: 'CL', days: 12 },
-                { id: 2, name: 'Sick Leave', code: 'SL', days: 10 },
-                { id: 3, name: 'Privilege Leave', code: 'PL', days: 15 }
-            ];
-        }
-
-        // 4. Calculate Balances
-        const COLORS = [
-            { color: 'text-blue-600', bg: 'bg-blue-50', bar: 'bg-blue-500' },
-            { color: 'text-red-600', bg: 'bg-red-50', bar: 'bg-red-500' },
-            { color: 'text-emerald-600', bg: 'bg-emerald-50', bar: 'bg-emerald-500' },
-            { color: 'text-purple-600', bg: 'bg-purple-50', bar: 'bg-purple-500' },
-            { color: 'text-orange-600', bg: 'bg-orange-50', bar: 'bg-orange-500' },
-        ];
-
-        const computedBalances = configuredLeaves.map((leave: any, idx: number) => {
-            // Count used days: Approved requests matching this leave type name
-            const usedDays = allRequests
-                .filter(r => r.employeeId === sessionId && r.status === 'Approved' && (r.type === leave.name || r.type.includes(leave.name)))
-                .reduce((sum, r) => sum + (Number(r.days) || 0), 0);
-            
-            const total = Number(leave.days) || 0;
-            const style = COLORS[idx % COLORS.length];
-
-            return {
-                type: leave.name,
-                code: leave.code,
-                total: total,
-                available: Math.max(0, total - usedDays),
-                used: usedDays,
-                ...style
-            };
-        });
-
-        setLeaveBalances(computedBalances);
-        
-        // Set default form type if empty
-        if (computedBalances.length > 0) {
-            setFormData(prev => {
-                if (!prev.type) return { ...prev, type: `${computedBalances[0].type} (${computedBalances[0].code})` };
-                return prev;
-            });
-        }
-  };
 
   useEffect(() => {
-    loadData();
-    window.addEventListener('storage', loadData);
-    return () => window.removeEventListener('storage', loadData);
-  }, [sessionId, userRole]);
+    const loadLeaveHistory = () => {
+        const saved = localStorage.getItem('global_leave_requests');
+        if (saved) {
+            try {
+                const all: LeaveRequest[] = JSON.parse(saved);
+                setHistory(all.filter(r => r.employeeId === sessionId).sort((a,b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime()));
+            } catch (e) { console.error("Failed to parse leave history", e); }
+        }
+    };
+    loadLeaveHistory();
+    window.addEventListener('storage', loadLeaveHistory);
+    return () => window.removeEventListener('storage', loadLeaveHistory);
+  }, [sessionId]);
 
+  const balances = [
+    { type: 'Casual Leave', code: 'CL', available: 8, total: 12, color: 'text-blue-600', bg: 'bg-blue-50', bar: 'bg-blue-500' },
+    { type: 'Sick Leave', code: 'SL', available: 8, total: 10, color: 'text-red-600', bg: 'bg-red-50', bar: 'bg-red-500' },
+    { type: 'Privilege Leave', code: 'PL', available: 9, total: 15, color: 'text-emerald-600', bg: 'bg-emerald-50', bar: 'bg-emerald-500' },
+  ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -133,18 +68,6 @@ const ApplyLeave: React.FC = () => {
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-    // Check Balance (Simple check based on name)
-    const selectedTypeName = formData.type.split(' (')[0]; // Extract name from "Name (Code)"
-    const balanceObj = leaveBalances.find(b => b.type === selectedTypeName);
-    
-    // Only block if it's a tracked leave type and balance is insufficient
-    // "Loss of Pay" usually bypasses this, or if config is missing
-    if (balanceObj && days > balanceObj.available && !formData.type.includes("Loss of Pay")) {
-        if (!window.confirm(`Warning: You only have ${balanceObj.available} days available for ${selectedTypeName}. This may be treated as Loss of Pay. Continue?`)) {
-            return;
-        }
-    }
-
     const employeeName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'Employee';
     const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
 
@@ -174,15 +97,11 @@ const ApplyLeave: React.FC = () => {
         targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
         corporateId: corporateId === 'admin' ? undefined : corporateId,
         employeeId: sessionId,
-        link: '/admin/attendance' // Admin checks attendance dashboard for leaves usually
+        link: '/admin'
     });
 
     setHistory([newLeave, ...history]);
-    
-    // Reset form but keep default type
-    const defaultType = leaveBalances.length > 0 ? `${leaveBalances[0].type} (${leaveBalances[0].code})` : '';
-    setFormData({ type: defaultType, startDate: '', endDate: '', reason: '' });
-    
+    setFormData({ type: 'Casual Leave (CL)', startDate: '', endDate: '', reason: '' });
     window.dispatchEvent(new Event('storage'));
     alert("Leave request submitted successfully! It is now pending Admin approval.");
   };
@@ -193,7 +112,35 @@ const ApplyLeave: React.FC = () => {
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div>
         <h2 className="text-2xl font-bold text-gray-800">Leave Management</h2>
-        <p className="text-gray-500">Apply for new leaves and check status</p>
+        <p className="text-gray-500">Check your balances and apply for new leaves</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {balances.map((bal, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between h-32 relative overflow-hidden">
+            <div className="flex justify-between items-start z-10">
+              <div>
+                <p className="text-gray-500 text-sm font-medium">{bal.type}</p>
+                <h3 className={`text-3xl font-bold mt-1 ${bal.color}`}>{bal.available}</h3>
+              </div>
+              <div className={`p-2 rounded-lg ${bal.bg}`}>
+                <PieChart className={`w-5 h-5 ${bal.color}`} />
+              </div>
+            </div>
+            <div className="z-10">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Used: {bal.total - bal.available}</span>
+                <span>Total: {bal.total}</span>
+              </div>
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${bal.bar}`} 
+                  style={{ width: `${(bal.available / bal.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -213,10 +160,10 @@ const ApplyLeave: React.FC = () => {
                   onChange={handleInputChange}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                 >
-                  {leaveBalances.map(b => (
-                      <option key={b.code} value={`${b.type} (${b.code})`}>{b.type} ({b.code})</option>
-                  ))}
-                  <option value="Loss of Pay (LWP)">Loss of Pay (LWP)</option>
+                  <option>Casual Leave (CL)</option>
+                  <option>Sick Leave (SL)</option>
+                  <option>Privilege Leave (PL)</option>
+                  <option>Loss of Pay (LWP)</option>
                 </select>
               </div>
 

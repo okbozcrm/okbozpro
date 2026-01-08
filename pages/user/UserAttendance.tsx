@@ -8,8 +8,8 @@ import {
   QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
-  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Star, Shield,
-  Coffee, RefreshCw, AlertCircle, Check, Undo, Redo, ArrowRight
+  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield,
+  Coffee, RefreshCw, AlertCircle, Check, Undo, Redo
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -18,7 +18,6 @@ import {
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount, UserRole, PunchRecord, LeaveRequest } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
-import AttendanceCalendar from '../../components/AttendanceCalendar';
 
 interface UserAttendanceProps {
   isAdmin?: boolean;
@@ -552,165 +551,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     );
   };
 
-  const renderMonthlyCalendar = () => (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-emerald-900/5 overflow-hidden animate-in fade-in duration-500 mt-6 max-w-2xl mx-auto">
-        
-        {/* Admin Filters - Placed Above Month Navigation */}
-        {isAdmin && (
-            <div className="p-4 border-b border-gray-50 bg-white flex flex-wrap gap-3 justify-center">
-                 {isSuperAdmin && (
-                    <div className="relative group">
-                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                        <select 
-                            value={filterCorporate} 
-                            onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} 
-                            className="pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                            <option value="All">All Corporates</option>
-                            <option value="admin">Head Office</option>
-                            {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                    </div>
-                )}
-
-                <div className="relative group">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                    <select 
-                        value={filterBranch} 
-                        onChange={(e) => setFilterBranch(e.target.value)} 
-                        className="pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer hover:bg-gray-100 transition-colors"
-                    >
-                        <option value="All">All Branches</option>
-                        {availableBranchesList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                </div>
-
-                <div className="relative group flex-1 min-w-[200px]">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                    <select 
-                        value={selectedEmployee?.id || ''} 
-                        onChange={(e) => {
-                            const emp = employees.find(ep => ep.id === e.target.value);
-                            setSelectedEmployee(emp || null);
-                        }} 
-                        className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer hover:bg-gray-100 transition-colors"
-                    >
-                        {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                        {filteredStaffList.length === 0 && <option disabled>No staff found</option>}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                </div>
-            </div>
-        )}
-
-        {/* Month Navigation & Actions */}
-        <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-            <div className="flex items-center gap-4">
-                <button onClick={handlePrevMonth} className="p-2 bg-white hover:bg-gray-50 rounded-xl border border-gray-100 shadow-sm transition-all"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
-                <div className="text-center min-w-[140px]">
-                    <h3 className="text-lg font-black text-gray-800 tracking-tight">{selectedMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
-                </div>
-                <button onClick={handleNextMonth} className="p-2 bg-white hover:bg-gray-50 rounded-xl border border-gray-100 shadow-sm transition-all"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
-            </div>
-            
-            {isAdmin && (
-                <div className="flex gap-2">
-                    {historyIndex > 0 && (
-                        <button onClick={handleUndo} className="p-2 bg-white hover:bg-gray-50 text-gray-500 rounded-lg border border-gray-200 transition-all" title="Undo"><Undo className="w-3.5 h-3.5" /></button>
-                    )}
-                    {historyIndex < history.length - 1 && (
-                        <button onClick={handleRedo} className="p-2 bg-white hover:bg-gray-50 text-gray-500 rounded-lg border border-gray-200 transition-all" title="Redo"><Redo className="w-3.5 h-3.5" /></button>
-                    )}
-                    <div className="h-8 w-px bg-gray-200 mx-1 hidden sm:block"></div>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="p-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100" title="Mark All Present"><Check className="w-4 h-4"/></button>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="p-2 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 transition-colors border border-rose-100" title="Mark All Absent"><X className="w-4 h-4"/></button>
-                </div>
-            )}
-        </div>
-        <div className="p-6 bg-white flex justify-center">
-             <AttendanceCalendar 
-                data={attendanceData} 
-                stats={{
-                    present: dashboardStats.present,
-                    absent: dashboardStats.absent,
-                    halfDay: dashboardStats.halfDay,
-                    paidLeave: dashboardStats.leave,
-                    weekOff: dashboardStats.weekOff
-                }}
-                onDateClick={(day) => isAdmin ? handleEditClick(day) : undefined}
-             />
-        </div>
-        
-        {/* NEW: Detailed History List Below Calendar */}
-        <div className="p-6 bg-white border-t border-gray-50">
-            <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <ListOrdered className="w-4 h-4" /> Daily Punch History
-            </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-                {attendanceData.slice().reverse().map((record) => (
-                    <div key={record.date} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group">
-                        {/* Date Column */}
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gray-50 p-2 rounded-xl text-center min-w-[50px] border border-gray-100">
-                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">{new Date(record.date).toLocaleString('default', { month: 'short' })}</span>
-                                <span className="block text-xl font-black text-gray-800 leading-none mt-0.5">{new Date(record.date).getDate()}</span>
-                            </div>
-                            <div>
-                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(record.date).toLocaleDateString('en-US', { weekday: 'long' })}</div>
-                                <div className={`text-[10px] font-black px-2 py-0.5 rounded-lg w-fit mt-1 border ${
-                                    record.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                    record.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                                    record.status === AttendanceStatus.HALF_DAY ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                    record.status === AttendanceStatus.WEEK_OFF ? 'bg-slate-50 text-slate-500 border-slate-200' :
-                                    'bg-gray-50 text-gray-500 border-gray-200'
-                                }`}>
-                                    {record.status.replace('_', ' ')}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Punches Column */}
-                        <div className="flex-1 px-4 hidden sm:block">
-                             {record.punches && record.punches.length > 0 ? (
-                                <div className="flex flex-wrap gap-2">
-                                    {record.punches.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-1.5 text-[10px] bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono">
-                                            <span className="text-emerald-600 font-bold">{p.in}</span>
-                                            <ArrowRight className="w-3 h-3 text-gray-300" />
-                                            <span className={`${p.out ? 'text-rose-500' : 'text-gray-300'} font-bold`}>{p.out || '--:--'}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                             ) : (
-                                 <span className="text-[10px] text-gray-300 italic font-medium ml-2">No punch logs</span>
-                             )}
-                        </div>
-
-                        {/* Total Time Column */}
-                        <div className="text-right">
-                             {record.punches && record.punches.length > 0 ? (
-                                 <div className="flex items-center gap-1.5 justify-end text-indigo-600 font-black bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100">
-                                    <Clock className="w-3.5 h-3.5" />
-                                    <span className="text-xs">{formatDuration(calculateTotalWorkTime(record.punches))}</span>
-                                 </div>
-                             ) : (
-                                 <div className="w-8 h-1 bg-gray-100 rounded-full ml-auto"></div>
-                             )}
-                        </div>
-                    </div>
-                ))}
-                {attendanceData.length === 0 && (
-                    <div className="text-center py-8 text-gray-400 text-xs font-medium italic">
-                        No records found for this month.
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
-  );
-
   const renderDailyStatus = () => (
     <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in fade-in duration-500">
         <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-gray-50/30">
@@ -818,6 +658,139 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     )}
                 </tbody>
             </table>
+        </div>
+    </div>
+  );
+
+  const renderMonthlyCalendar = () => (
+    <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-4">
+                {isAdmin && (
+                    <div className="relative group">
+                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all">
+                            {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
+                    </div>
+                )}
+                <div className="flex items-center gap-1 bg-white border border-gray-100 rounded-[1.5rem] p-1.5 shadow-sm">
+                    <button onClick={handlePrevMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronLeft className="w-6 h-6"/></button>
+                    <span className="px-6 text-sm font-black uppercase tracking-[0.2em] text-gray-800 min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button onClick={handleNextMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronRight className="w-6 h-6"/></button>
+                </div>
+            </div>
+            {isAdmin && selectedEmployee && (
+                <div className="flex flex-wrap gap-2">
+                    <button 
+                        onClick={() => handleUndo()}
+                        disabled={historyIndex <= 0}
+                        className={`p-3 rounded-2xl border transition-all shadow-sm ${historyIndex > 0 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+                        title="Undo"
+                    >
+                        <Undo className="w-4 h-4" />
+                    </button>
+                    <button 
+                        onClick={() => handleRedo()}
+                        disabled={historyIndex >= history.length - 1}
+                        className={`p-3 rounded-2xl border transition-all shadow-sm ${historyIndex < history.length - 1 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+                        title="Redo"
+                    >
+                        <Redo className="w-4 h-4" />
+                    </button>
+                    <div className="h-10 w-px bg-gray-200 mx-2"></div>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-5 py-3 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm"><CheckCircle className="w-4 h-4" /> Present (Month)</button>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-5 py-3 bg-rose-50 text-rose-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-2 shadow-sm"><XCircle className="w-4 h-4" /> Absent (Month)</button>
+                </div>
+            )}
+        </div>
+        <div className="p-8 md:p-12">
+            <div className="grid grid-cols-7 gap-px bg-gray-50 border border-gray-50 rounded-[2.5rem] overflow-hidden shadow-inner">
+                {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
+                    <div key={day} className={`bg-white py-8 text-center text-[12px] font-black tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-gray-400'}`}>{day}</div>
+                ))}
+                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-white min-h-[180px] opacity-10"></div>)}
+                {attendanceData.map((day, idx) => {
+                    const isWeekend = new Date(day.date).getDay() === 0;
+                    const isToday = day.date === todayDateStr;
+                    const totalMins = calculateTotalWorkTime(day.punches);
+                    const durationStr = formatDuration(totalMins);
+                    const punchCount = day.punches?.length || 0;
+                    
+                    // Dynamic Color Logic
+                    let cellStyle = "bg-white border-gray-100";
+                    let badgeStyle = "bg-gray-100 text-gray-500 border-gray-200";
+                    let statusText = day.status.replace('_', ' ');
+
+                    switch (day.status) {
+                        case AttendanceStatus.PRESENT:
+                            cellStyle = "bg-gradient-to-br from-emerald-50/50 to-emerald-100/30 border-emerald-100 hover:shadow-emerald-100/50";
+                            badgeStyle = "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.ABSENT:
+                            cellStyle = "bg-gradient-to-br from-rose-50/50 to-rose-100/30 border-rose-100 hover:shadow-rose-100/50";
+                            badgeStyle = "bg-rose-100 text-rose-700 border-rose-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.HALF_DAY:
+                            cellStyle = "bg-gradient-to-br from-amber-50/50 to-amber-100/30 border-amber-100 hover:shadow-amber-100/50";
+                            badgeStyle = "bg-amber-100 text-amber-800 border-amber-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.PAID_LEAVE:
+                            cellStyle = "bg-gradient-to-br from-blue-50/50 to-blue-100/30 border-blue-100 hover:shadow-blue-100/50";
+                            badgeStyle = "bg-blue-100 text-blue-700 border-blue-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.HOLIDAY:
+                            cellStyle = "bg-gradient-to-br from-violet-50/50 to-violet-100/30 border-violet-100 hover:shadow-violet-100/50";
+                            badgeStyle = "bg-violet-100 text-violet-700 border-violet-200 shadow-sm";
+                            break;
+                        case AttendanceStatus.WEEK_OFF:
+                            cellStyle = "bg-slate-50/50 border-slate-100";
+                            badgeStyle = "bg-slate-100 text-slate-500 border-slate-200";
+                            break;
+                        case AttendanceStatus.ALTERNATE_DAY:
+                            cellStyle = "bg-gradient-to-br from-teal-50/50 to-teal-100/30 border-teal-100 hover:shadow-teal-100/50";
+                            badgeStyle = "bg-teal-100 text-teal-700 border-teal-200 shadow-sm";
+                            break;
+                        default:
+                            // Not marked
+                             if (day.date <= todayDateStr && !isWeekend) {
+                                cellStyle = "bg-gradient-to-br from-rose-50/30 to-rose-100/20 border-rose-100";
+                                badgeStyle = "bg-rose-50 text-rose-600 border-rose-100";
+                                statusText = "ABSENT (N/A)";
+                             } else if (isWeekend) {
+                                cellStyle = "bg-slate-50/30 border-slate-100";
+                                badgeStyle = "bg-slate-100 text-slate-500 border-slate-200";
+                                statusText = "WEEK OFF";
+                             }
+                            break;
+                    }
+
+                    return (
+                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-6 min-h-[180px] flex flex-col gap-4 relative transition-all border group hover:scale-[1.02] hover:z-10 duration-200 ${cellStyle} ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
+                            <div className="flex justify-between items-start z-10">
+                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'} opacity-80 group-hover:opacity-100`}>{new Date(day.date).getDate()}</span>
+                                {statusText && (
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border ${badgeStyle}`}>{statusText}</span>
+                                )}
+                            </div>
+                            
+                            {punchCount > 0 && (
+                                <div className="mt-auto space-y-2 p-3 bg-white/60 backdrop-blur-sm rounded-[1.5rem] border border-gray-100/50 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
+                                    <div className="flex items-center justify-between text-indigo-600">
+                                        <div className="flex items-center gap-1.5"><ArrowRightLeft className="w-3 h-3" /><span>{punchCount} Punches</span></div>
+                                        <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">History</span>
+                                    </div>
+                                    <div className="pt-1.5 border-t border-gray-200/50 flex items-center justify-between text-emerald-600">
+                                        <div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /><span>{durationStr || '0h 0m'}</span></div>
+                                        <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">Logged Hrs</span>
+                                    </div>
+                                </div>
+                            )}
+                            {isToday && <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500 animate-ping z-10"></div>}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     </div>
   );
@@ -934,7 +907,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                   {!isAdmin && selectedEmployee && (
                       <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
                         <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
-                        <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-center gap-16">
+                        <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
                             <div className="text-center md:text-left space-y-10">
                                 <div className="space-y-2">
                                     <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
@@ -989,6 +962,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                            <div className="hidden lg:block relative">
+                                <div className="w-80 h-80 rounded-[4rem] bg-gray-50 flex items-center justify-center border-2 border-gray-100 shadow-inner relative overflow-hidden group-hover:border-emerald-100 transition-colors duration-700">
+                                    <Zap className={`w-32 h-32 transition-all duration-700 ${isPunching ? 'text-indigo-400 scale-110' : isPunchedIn ? 'text-rose-100' : 'text-emerald-100'}`} />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent"></div>
+                                    <div className="absolute inset-4 border border-dashed border-gray-200 rounded-full animate-[spin_20s_linear_infinite]"></div>
+                                    <div className="absolute top-1/2 left-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
                                 </div>
                             </div>
                         </div>

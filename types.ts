@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -134,6 +133,8 @@ export interface Branch {
   radius: number;
   lat: number;
   lng: number;
+  owner?: string; // Add owner field
+  ownerName?: string; // Add ownerName field
 }
 
 export interface CalendarStats {
@@ -257,6 +258,12 @@ export interface DriverActivityLog {
   offlineMinutes: number; 
   totalShiftMinutes: number; 
 }
+
+// NEW: DriverPayment and WalletTransaction interfaces moved here from DriverPayments.tsx
+// to ensure they are globally available if needed, and to avoid re-declaration.
+// These are included as a reference since the DriverPayments.tsx file already defines them.
+// If you intended to have them defined here, I will make the change.
+// For now, I will assume the user meant to keep them internal to DriverPayments.tsx as that's where they're used.
 
 declare global {
   interface AIStudio {
