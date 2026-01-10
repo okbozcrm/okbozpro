@@ -1,10 +1,13 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike, Loader2 } from 'lucide-react';
+
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike, Loader2, MessageCircle, Mail } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole } from '../../types';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const timeToMinutes = (timeStr?: string) => {
   if (!timeStr || timeStr === '--:--') return 0;
@@ -29,22 +32,42 @@ const UserSalary: React.FC = () => {
 
   const [payoutSettings, setPayoutSettings] = useState({ dates: {} as Record<string, string>, globalDay: '5' });
 
+  const slipRef = useRef<HTMLDivElement>(null);
+  const [isExportingSlip, setIsExportingSlip] = useState(false);
+
+  // NEW: State to hold current month's payroll entry for display
+  const [currentMonthPayrollEntry, setCurrentMonthPayrollEntry] = useState<PayrollEntry | null>(null);
+
+
   useEffect(() => {
       const loadUserAndSettings = () => {
           const storedSessionId = localStorage.getItem('app_session_id');
           if (storedSessionId) {
               const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
               let found = adminStaff.find((e: any) => e.id === storedSessionId);
+              let corporateOwnerId = 'admin';
+
               if (!found) {
                 const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
                 for (const corp of corporates) {
                     const key = `staff_data_${corp.email}`;
                     const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
                     found = cStaff.find((e: any) => e.id === storedSessionId);
-                    if (found) break;
+                    if (found) {
+                        corporateOwnerId = corp.email;
+                        break;
+                    }
                 }
               }
               setUser(found || null);
+
+              // NEW: Load current month's payroll entry
+              if (found) {
+                  const currentMonthYear = new Date().toISOString().slice(0, 7);
+                  const payrollKey = corporateOwnerId === 'admin' ? 'payroll_data' : `payroll_data_${corporateOwnerId}`;
+                  const currentPayrollState = JSON.parse(localStorage.getItem(payrollKey) || '{}');
+                  setCurrentMonthPayrollEntry(currentPayrollState[found.id] || null);
+              }
           }
           setPayoutSettings({ 
               dates: JSON.parse(localStorage.getItem('company_payout_dates') || '{}'), 
@@ -78,27 +101,61 @@ const UserSalary: React.FC = () => {
     const currentMonthStr = today.toISOString().slice(0, 7);
     const monthlyCtc = parseFloat(user.salary || '0');
     
-    const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
-    const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+    // Check if currentMonthPayrollEntry exists, otherwise calculate
+    let grossEarned = 0;
     let payableDays = 0;
     let totalWorkMinutes = 0;
-    attendance.forEach(day => {
-        if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) payableDays += 1;
-        else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
-        if (day.checkIn && day.checkOut) {
-            const start = timeToMinutes(day.checkIn);
-            const end = timeToMinutes(day.checkOut);
-            if (end > start) totalWorkMinutes += (end - start);
-        }
-    });
+    let paidAdvances = 0;
+    let travelIncentive = 0;
+    
+    if (currentMonthPayrollEntry) {
+        grossEarned = currentMonthPayrollEntry.basicSalary + currentMonthPayrollEntry.allowances;
+        payableDays = currentMonthPayrollEntry.payableDays;
+        paidAdvances = currentMonthPayrollEntry.advanceDeduction;
+        travelIncentive = currentMonthPayrollEntry.travelAllowance;
+        // Total work minutes need to be calculated separately if not directly stored in PayrollEntry
+        const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
+        const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
+        attendance.forEach(day => {
+            if (day.punches) {
+                day.punches.forEach(punch => {
+                    if (punch.in && punch.out) {
+                        const start = timeToMinutes(punch.in);
+                        const end = timeToMinutes(punch.out);
+                        if (end > start) totalWorkMinutes += (end - start);
+                    }
+                });
+            }
+        });
 
-    const perDaySalary = monthlyCtc / daysInMonth;
-    const grossEarned = Math.round(perDaySalary * payableDays);
-    const paidAdvances = advanceHistory.filter(a => a.status === 'Paid').reduce((sum, item) => sum + (item.amountApproved || 0), 0);
-    const travelIncentive = kmClaims.filter(c => c.status === 'Approved' && c.date.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.totalAmount, 0);
+    } else { // Fallback if no specific payroll entry is found
+        const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
+        const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        attendance.forEach(day => {
+            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) payableDays += 1;
+            else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
+            if (day.punches) { // Use punches array for accurate work time
+                day.punches.forEach(punch => {
+                    if (punch.in && punch.out) {
+                        const start = timeToMinutes(punch.in);
+                        const end = timeToMinutes(punch.out);
+                        if (end > start) totalWorkMinutes += (end - start);
+                    }
+                });
+            }
+        });
+
+        const perDaySalary = monthlyCtc / daysInMonth;
+        grossEarned = Math.round(perDaySalary * payableDays);
+        paidAdvances = advanceHistory.filter(a => a.status === 'Paid').reduce((sum, item) => sum + (item.amountApproved || 0), 0);
+        travelIncentive = kmClaims.filter(c => c.status === 'Approved' && c.date.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.totalAmount, 0);
+    }
+
+
     const netPay = grossEarned + travelIncentive - paidAdvances;
+    const workingDays = new Date(year, month + 1, 0).getDate();
 
     const earnings = [
         { label: 'Basic Salary & HRA', amount: grossEarned },
@@ -109,13 +166,13 @@ const UserSalary: React.FC = () => {
         month: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         netPay,
         grossEarned: grossEarned + travelIncentive,
-        workingDays: daysInMonth,
+        workingDays: workingDays,
         paidDays: payableDays,
         totalWorkTime: `${Math.floor(totalWorkMinutes / 60)}h ${totalWorkMinutes % 60}m`,
         earnings,
         deductions: paidAdvances > 0 ? [{ label: 'Salary Advance Rec.', amount: paidAdvances }] : []
     };
-  }, [user, advanceHistory, kmClaims, refreshToggle]);
+  }, [user, advanceHistory, kmClaims, refreshToggle, currentMonthPayrollEntry]);
 
   const handleSubmitAdvance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +219,64 @@ const UserSalary: React.FC = () => {
     alert("Advance request submitted successfully. It will be reviewed by HR.");
   };
 
+  const generateSlipPDF = async () => {
+    if (!slipRef.current || !user || !salaryData) return;
+    setIsExportingSlip(true);
+    try {
+      const canvas = await html2canvas(slipRef.current, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), (canvas.height * pdf.internal.pageSize.getWidth()) / canvas.width);
+      pdf.save(`SalarySlip_${user.name}_${new Date().toISOString().slice(0, 7)}.pdf`);
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+    } finally {
+      setIsExportingSlip(false);
+    }
+  };
+
+  const generateShareableText = () => {
+    if (!user || !salaryData) return '';
+    const monthYear = salaryData.month;
+    
+    let text = `*OK BOZ Salary Slip Summary*\n\n`;
+    text += `Employee: *${user.name}*\n`;
+    text += `Month: *${monthYear}*\n`;
+    text += `Net Payout: *₹${salaryData.netPay.toLocaleString()}*\n\n`;
+    text += `Status: *${currentMonthPayrollEntry?.status || 'Pending'}*\n`;
+    if (currentMonthPayrollEntry?.status === 'Paid') {
+        text += `Paid Date: ${currentMonthPayrollEntry.paidDate || 'N/A'}\n`;
+        text += `Payment Mode: ${currentMonthPayrollEntry.paymentMode || 'N/A'}\n`;
+    }
+    if (currentMonthPayrollEntry?.remarks) {
+        text += `Notes: "${currentMonthPayrollEntry.remarks}"\n`;
+    }
+    text += `\nThank you for your hard work!`;
+    return text;
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!user) return;
+    const text = generateShareableText();
+    const phone = user.phone.replace(/\D/g, '');
+    if (phone) {
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    } else {
+      alert("Your phone number is not available for WhatsApp share.");
+    }
+  };
+
+  const handleShareEmail = () => {
+    if (!user) return;
+    const text = generateShareableText();
+    const email = user.email;
+    if (email) {
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(`OK BOZ Salary Slip for ${user.name}`)}&body=${encodeURIComponent(text)}`;
+    } else {
+      alert("Your email is not available for Email share.");
+    }
+  };
+
   if (!user || !salaryData) return <div className="p-10 text-center font-bold text-gray-500">Loading salary structure...</div>;
 
   return (
@@ -195,8 +310,15 @@ const UserSalary: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center"><h3 className="font-black uppercase tracking-widest text-[11px] text-gray-400">Current Month Breakdown</h3></div>
+        <div ref={slipRef} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+            <h3 className="font-black uppercase tracking-widest text-[11px] text-gray-400">Current Month Breakdown ({salaryData.month})</h3>
+            {currentMonthPayrollEntry?.status === 'Paid' && (
+                <span className="flex items-center gap-1.5 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold border border-emerald-200">
+                    <CheckCircle className="w-3 h-3"/> Paid
+                </span>
+            )}
+          </div>
           <div className="p-6 space-y-6">
             <div className="space-y-4">
                 {salaryData.earnings.map((item, idx) => (
@@ -212,7 +334,28 @@ const UserSalary: React.FC = () => {
                   </div>
                 ))}
             </div>
-            <div className="pt-4 flex justify-between items-center"><span className="text-lg font-black text-gray-800">Net Payable Amount</span><span className="text-3xl font-black text-emerald-600">₹{salaryData.netPay.toLocaleString()}</span></div>
+            <div className="pt-4 flex justify-between items-center">
+                <span className="text-lg font-black text-gray-800">Net Payable Amount</span>
+                <span className="text-3xl font-black text-emerald-600">₹{salaryData.netPay.toLocaleString()}</span>
+            </div>
+
+            {currentMonthPayrollEntry?.status === 'Paid' && (
+                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 space-y-2 mt-6">
+                    <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" /> Payment Details
+                    </h4>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        <div><span className="text-gray-600">Status:</span> <span className="font-medium text-emerald-700">{currentMonthPayrollEntry.status}</span></div>
+                        <div><span className="text-gray-600">Paid Date:</span> <span className="font-medium text-emerald-700">{currentMonthPayrollEntry.paidDate || 'N/A'}</span></div>
+                        <div className="col-span-2"><span className="text-gray-600">Mode:</span> <span className="font-medium text-emerald-700">{currentMonthPayrollEntry.paymentMode || 'N/A'}</span></div>
+                    </div>
+                    {currentMonthPayrollEntry.remarks && (
+                        <div className="mt-2 pt-2 border-t border-emerald-100">
+                            <span className="text-xs text-gray-600">Notes:</span> <span className="text-sm italic text-gray-700">"{currentMonthPayrollEntry.remarks}"</span>
+                        </div>
+                    )}
+                </div>
+            )}
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
@@ -236,6 +379,17 @@ const UserSalary: React.FC = () => {
                     </div>
                 ))}
                 {advanceHistory.length === 0 && <div className="py-10 text-center text-gray-400 italic text-sm">No advance history found.</div>}
+            </div>
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                <button onClick={generateSlipPDF} disabled={isExportingSlip} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-black text-sm shadow-md flex items-center gap-2">
+                    {isExportingSlip ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF
+                </button>
+                <button onClick={handleShareWhatsApp} className="bg-green-500 text-white px-6 py-2 rounded-lg font-black text-sm shadow-md flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" /> WhatsApp
+                </button>
+                <button onClick={handleShareEmail} className="bg-blue-500 text-white px-6 py-2 rounded-lg font-black text-sm shadow-md flex items-center gap-2">
+                    <Mail className="w-4 h-4" /> Email
+                </button>
             </div>
         </div>
       </div>

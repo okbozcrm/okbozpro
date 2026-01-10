@@ -1,3 +1,4 @@
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -259,11 +260,47 @@ export interface DriverActivityLog {
   totalShiftMinutes: number; 
 }
 
-// NEW: DriverPayment and WalletTransaction interfaces moved here from DriverPayments.tsx
-// to ensure they are globally available if needed, and to avoid re-declaration.
-// These are included as a reference since the DriverPayments.tsx file already defines them.
-// If you intended to have them defined here, I will make the change.
-// For now, I will assume the user meant to keep them internal to DriverPayments.tsx as that's where they're used.
+// NEW: PayrollEntry (moved from Payroll.tsx)
+export interface PayrollEntry {
+  employeeId: string;
+  basicSalary: number;
+  allowances: number;
+  travelAllowance: number; // Linked to KM Claims
+  bonus: number;
+  deductions: number;
+  advanceDeduction: number;
+  payableDays: number;
+  totalDays: number;
+  status: 'Paid' | 'Pending'; 
+  paidDate?: string;          
+  paymentMode?: string;       
+  remarks?: string;           // NEW: Added remarks field
+}
+
+// NEW: PartnerPayoutRecord (moved from Reports.tsx)
+export enum PartnerPayoutStatus {
+  PENDING = 'Pending',
+  PAID = 'Paid',
+  REJECTED = 'Rejected', // Added for completeness if needed
+}
+
+export interface PartnerPayoutRecord {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  corporateId: string;
+  monthYear: string;
+  shareAmountCalculated: number;
+  balanceCarriedOverFromPrev: number;
+  totalPayable: number;
+  status: PartnerPayoutStatus;
+  paidDate?: string;
+  paymentMethod?: string;
+  notes?: string;
+  generatedAt: string;
+  sharePercentage: number;
+}
+
 
 declare global {
   interface AIStudio {

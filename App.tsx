@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -8,7 +7,7 @@ import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/admin/Dashboard';
 import BranchForm from './components/BranchForm';
 import StaffList from './pages/admin/StaffList';
-import Payroll from './pages/admin/Payroll';
+import { Payroll } from './pages/admin/Payroll';
 import Settings from './pages/admin/Settings';
 import EmployeeSettings from './pages/admin/EmployeeSettings'; 
 import Expenses from './pages/admin/Expenses';
