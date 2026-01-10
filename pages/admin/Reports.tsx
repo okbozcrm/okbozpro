@@ -8,7 +8,7 @@ import {
   Download, TrendingUp, DollarSign, 
   Briefcase, ArrowUpRight, Car, MapPin, Activity, CheckSquare, Users, Percent, Calendar, Clock, Filter, PieChart as PieChartIcon,
   Share2, Mail, MessageCircle, FileText, Check, Loader2, Truck, Wallet, ReceiptIndianRupee, RefreshCw, TrendingDown, History, Landmark, X, Building2, ChevronDown, Database, ArrowRight, ShieldCheck, Map,
-  CheckCircle, Minus, Equal
+  CheckCircle, Minus, Equal, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, CorporateAccount, Branch, Employee, UserRole, SalaryAdvanceRequest, TravelAllowanceRequest, DailyAttendance, Partner } from '../../types';
@@ -208,7 +208,7 @@ const Reports: React.FC = () => {
     let totalAdvances = 0;
     let totalNet = 0;
     let employeeCount = 0;
-    const historyData: any[] = []; // For graph
+    let historyData: any[] = []; // For graph, initialized as empty array
 
     // Filter staff based on scope
     const scopedStaff = staff.filter(emp => {
@@ -309,9 +309,10 @@ const Reports: React.FC = () => {
              const dStr = `${targetYear}-${String(targetMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
              historyData.push({ date: dStr, amount: totalNet / daysInMonth, count: employeeCount }); // Simplified distribution for graph
          }
-    } else {
+    } else if (filterType === 'Date') {
          historyData.push({ date: selectedDate, amount: totalNet, count: employeeCount });
     }
+    // If filterType is 'All' and no month/date selected, historyData remains empty, which is fine.
 
     return { totalNet, totalGross, totalTravel, totalAdvances, employeeCount, historyData };
   }, [staff, advances, kmClaims, selectedMonth, selectedDate, filterType, filterCorporate, filterBranch, isSuperAdmin]);
@@ -493,6 +494,19 @@ const Reports: React.FC = () => {
       document.body.removeChild(link);
   };
 
+  // --- NEW: Year Navigation Handlers ---
+  const handlePrevYear = () => {
+    const [year, month] = selectedMonth.split('-');
+    const newYear = parseInt(year, 10) - 1;
+    setSelectedMonth(`${newYear}-${month}`);
+  };
+
+  const handleNextYear = () => {
+    const [year, month] = selectedMonth.split('-');
+    const newYear = parseInt(year, 10) + 1;
+    setSelectedMonth(`${newYear}-${month}`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -509,7 +523,17 @@ const Reports: React.FC = () => {
               <div className="h-6 w-px bg-gray-200 mx-1 hidden lg:block"></div>
               <div className="flex bg-gray-100 p-1 rounded-lg">{(['All', 'Date', 'Month'] as const).map(type => (<button key={type} onClick={() => setFilterType(type)} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filterType === type ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{type === 'All' ? 'All' : type === 'Date' ? 'Daily' : 'Monthly'}</button>))}</div>
               {filterType === 'Date' && (<div className="flex items-center gap-2 animate-in zoom-in-95"><input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-bold"/></div>)}
-              {filterType === 'Month' && (<div className="flex items-center gap-2 animate-in zoom-in-95"><input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-bold"/></div>)}
+              {filterType === 'Month' && (
+                <div className="flex items-center gap-2 animate-in zoom-in-95">
+                  <button onClick={handlePrevYear} className="p-2 text-gray-500 hover:text-gray-700 bg-gray-100 rounded-lg transition-colors border border-gray-200" title="Previous Year">
+                      <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-bold"/>
+                  <button onClick={handleNextYear} className="p-2 text-gray-500 hover:text-gray-700 bg-gray-100 rounded-lg transition-colors border border-gray-200" title="Next Year">
+                      <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <button onClick={resetFilters} className="p-2 text-gray-400 hover:text-red-500 transition-colors ml-auto"><RefreshCw className="w-4 h-4" /></button>
           </div>
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden xl:block border-l border-gray-100 pl-4">{filterType === 'All' ? 'Viewing Life-time' : filterType === 'Date' ? `${new Date(selectedDate).toLocaleDateString()}` : `${new Date(selectedMonth).toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}`}</div>
@@ -646,9 +670,9 @@ const Reports: React.FC = () => {
           {activeTab === 'Financial' && (
               <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Total Income</p><h3 className="text-2xl font-bold text-emerald-600">{formatCurrency(financialStats.totalIncome)}</h3></div>
-                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Total Expenses (with Payroll)</p><h3 className="text-2xl font-bold text-red-600">{formatCurrency(financialStats.totalExpense)}</h3></div>
-                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm text-gray-500 mb-1">Net Cash Flow</p><h3 className={`text-2xl font-bold ${financialStats.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(financialStats.netProfit)}</h3></div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm font-medium text-gray-500 mb-1">Total Income</p><h3 className="text-2xl font-bold text-emerald-600">{formatCurrency(financialStats.totalIncome)}</h3></div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm font-medium text-gray-500 mb-1">Total Expenses (with Payroll)</p><h3 className="text-2xl font-bold text-red-600">{formatCurrency(financialStats.totalExpense)}</h3></div>
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><p className="text-sm font-medium text-gray-500 mb-1">Net Cash Flow</p><h3 className={`text-2xl font-bold ${financialStats.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(financialStats.netProfit)}</h3></div>
                   </div>
               </div>
           )}
