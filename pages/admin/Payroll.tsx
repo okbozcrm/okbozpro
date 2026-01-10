@@ -63,13 +63,14 @@ const Payroll: React.FC = () => {
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const navigate = useNavigate();
 
-  // NEW: State for Mark Paid Modal
+  // State for Mark Paid Modal
   const [isMarkPaidModalOpen, setIsMarkPaidModalOpen] = useState(false);
   const [currentEmployeeForPayout, setCurrentEmployeeForPayout] = useState<{ emp: ExtendedEmployee, data: PayrollEntry } | null>(null);
   const [payoutForm, setPayoutForm] = useState({
       paidDate: new Date().toISOString().split('T')[0],
       paymentMode: 'Bank Transfer',
-      remarks: ''
+      remarks: '',
+      manualDeductions: '', // NEW: Add manualDeductions to payoutForm
   });
   const [isProcessingMarkPaid, setIsProcessingMarkPaid] = useState(false);
 
@@ -162,7 +163,7 @@ const Payroll: React.FC = () => {
               .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth))
               .reduce((sum, r) => sum + r.totalAmount, 0);
 
-          // NEW: Preserve status, paidDate, paymentMode, and remarks if already exists for this month
+          // Preserve existing manual deductions if available, otherwise default to 0
           const existingEntry = payrollData[emp.id];
           newPayrollData[emp.id] = {
               employeeId: emp.id,
@@ -170,14 +171,16 @@ const Payroll: React.FC = () => {
               allowances: Math.round(grossEarned * 0.5),
               travelAllowance: travelIncentive,
               bonus: 0,
-              deductions: 0,
+              // `deductions` field is no longer used, replaced by `manualDeductions`
+              // deductions: 0, 
               advanceDeduction: unpaidAdvances,
+              manualDeductions: existingEntry?.manualDeductions || 0, // NEW: Preserve or default manual deductions
               payableDays,
               totalDays: daysInMonth,
               status: existingEntry?.status || 'Pending', // Initialize as Pending if no existing status
               paidDate: existingEntry?.paidDate,
               paymentMode: existingEntry?.paymentMode,
-              remarks: existingEntry?.remarks, // NEW: Preserve remarks
+              remarks: existingEntry?.remarks, 
           };
       });
       setPayrollData(newPayrollData);
@@ -187,8 +190,9 @@ const Payroll: React.FC = () => {
     handleAutoCalculate();
   }, [employees, advances, kmClaims, selectedMonth, refreshToggle]);
 
+  // Updated calculateNetPay to include manualDeductions
   const calculateNetPay = (entry: PayrollEntry): number => 
-    (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.deductions + entry.advanceDeduction);
+    (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.advanceDeduction + entry.manualDeductions);
 
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -201,6 +205,7 @@ const Payroll: React.FC = () => {
   const payrollSummary = useMemo(() => {
     let totalGross = 0;
     let totalAdvances = 0;
+    let totalManualDeductions = 0; // NEW: Track total manual deductions
     let totalNet = 0;
     let totalTravel = 0;
     let count = 0;
@@ -215,22 +220,24 @@ const Payroll: React.FC = () => {
             totalGross += (data.basicSalary + data.allowances + data.bonus);
             totalTravel += data.travelAllowance;
             totalAdvances += data.advanceDeduction;
+            totalManualDeductions += data.manualDeductions; // NEW: Add to total
             totalNet += netPay;
 
             if (data.status === 'Paid') totalPaid += netPay;
             else totalPending += netPay;
         }
     });
-    return { totalGross, totalAdvances, totalNet, totalTravel, count, totalPaid, totalPending };
+    return { totalGross, totalAdvances, totalManualDeductions, totalNet, totalTravel, count, totalPaid, totalPending }; // NEW: Return totalManualDeductions
   }, [filteredEmployees, payrollData]);
 
-  // NEW: Handle Mark Paid for an Employee
+  // Handle Mark Paid for an Employee
   const handleMarkPaid = (emp: ExtendedEmployee, data: PayrollEntry) => {
     setCurrentEmployeeForPayout({ emp, data });
     setPayoutForm({
         paidDate: new Date().toISOString().split('T')[0],
         paymentMode: 'Bank Transfer',
-        remarks: data.remarks || '', // Populate remarks if existing
+        remarks: data.remarks || '',
+        manualDeductions: data.manualDeductions?.toString() || '', // NEW: Populate manualDeductions
     });
     setIsMarkPaidModalOpen(true);
   };
@@ -247,7 +254,8 @@ const Payroll: React.FC = () => {
         status: 'Paid',
         paidDate: payoutForm.paidDate,
         paymentMode: payoutForm.paymentMode,
-        remarks: payoutForm.remarks, // Save remarks
+        remarks: payoutForm.remarks,
+        manualDeductions: parseFloat(payoutForm.manualDeductions) || 0, // NEW: Save manual deductions
     };
 
     setPayrollData(prev => ({
@@ -296,7 +304,7 @@ const Payroll: React.FC = () => {
     alert(`Payout for ${emp.name} marked as Paid!`);
   };
 
-  // --- NEW: Year Navigation Handlers ---
+  // --- Year Navigation Handlers ---
   const handlePrevYear = () => {
     const [year, month] = selectedMonth.split('-');
     const newYear = parseInt(year, 10) - 1;
@@ -405,7 +413,6 @@ const Payroll: React.FC = () => {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
                 <div className="flex flex-wrap gap-2 items-center">
-                    {/* NEW: Year navigation buttons with improved styling */}
                     <button onClick={handlePrevYear} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Previous Year">
                         <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -430,6 +437,7 @@ const Payroll: React.FC = () => {
                             <th className="px-4 py-5 text-right">Gross Salary</th>
                             <th className="px-4 py-5 text-right text-blue-600">Travel Incentive</th>
                             <th className="px-4 py-5 text-right text-red-500">Advances</th>
+                            <th className="px-4 py-5 text-right text-red-500">Other Deductions</th> {/* NEW COLUMN */}
                             <th className="px-8 py-5 text-right">Net Payout</th>
                             <th className="px-6 py-5 text-center">Status</th>
                             <th className="px-6 py-5 text-center">Paid Date</th>
@@ -450,6 +458,7 @@ const Payroll: React.FC = () => {
                                     <td className="px-4 py-5 text-right font-bold text-gray-900">₹{(data.basicSalary + data.allowances).toLocaleString()}</td>
                                     <td className="px-4 py-5 text-right text-blue-600 font-bold">₹{data.travelAllowance.toLocaleString()}</td>
                                     <td className="px-4 py-5 text-right text-red-500 font-bold">-₹{data.advanceDeduction.toLocaleString()}</td>
+                                    <td className="px-4 py-5 text-right text-red-500 font-bold">-₹{data.manualDeductions.toLocaleString()}</td> {/* NEW DISPLAY */}
                                     <td className="px-8 py-5 text-right font-black text-gray-900 text-lg">₹{net.toLocaleString()}</td>
                                     <td className="px-6 py-5 text-center">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -477,7 +486,7 @@ const Payroll: React.FC = () => {
                                 </tr>
                             );
                         })}
-                        {filteredEmployees.length === 0 && <tr><td colSpan={11} className="py-20 text-center text-gray-400 italic">No staff found for the selected filters.</td></tr>}
+                        {filteredEmployees.length === 0 && <tr><td colSpan={12} className="py-20 text-center text-gray-400 italic">No staff found for the selected filters.</td></tr>} {/* Updated colspan */}
                     </tbody>
                 </table>
             </div>
@@ -602,8 +611,12 @@ const Payroll: React.FC = () => {
                         <div>
                             <div className="bg-gray-50 px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">Deductions</div>
                             <div className="p-4 space-y-3">
-                                <div className="flex justify-between text-sm"><span className="text-gray-600">Tax / Prof Tax</span><span className="font-medium text-gray-900">₹{activeSlip.data.deductions.toLocaleString()}</span></div>
+                                {/* Display existing advance deduction */}
                                 <div className="flex justify-between text-sm"><span className="text-red-600">Advance Adj.</span><span className="font-bold text-red-600">-₹{activeSlip.data.advanceDeduction.toLocaleString()}</span></div>
+                                {/* Display new manual deductions */}
+                                {activeSlip.data.manualDeductions > 0 && (
+                                    <div className="flex justify-between text-sm"><span className="text-red-600">Other Deductions</span><span className="font-bold text-red-600">-₹{activeSlip.data.manualDeductions.toLocaleString()}</span></div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -652,7 +665,7 @@ const Payroll: React.FC = () => {
         </div>
       )}
 
-      {/* NEW: Mark Paid Modal */}
+      {/* Mark Paid Modal */}
       {isMarkPaidModalOpen && currentEmployeeForPayout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
@@ -693,6 +706,17 @@ const Payroll: React.FC = () => {
                         <option>Cash</option>
                         <option>Cheque</option>
                     </select>
+                </div>
+                <div> {/* NEW: Input for Other Deductions */}
+                    <label className="block text-sm font-medium text-red-700 mb-1.5">Other Deductions (₹)</label>
+                    <input
+                        type="number"
+                        min="0"
+                        value={payoutForm.manualDeductions}
+                        onChange={e => setPayoutForm({...payoutForm, manualDeductions: e.target.value})}
+                        className="w-full px-4 py-3 border border-red-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 bg-red-50 font-bold text-red-800"
+                        placeholder="0"
+                    />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks (Optional)</label>

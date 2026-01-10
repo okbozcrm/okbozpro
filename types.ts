@@ -267,8 +267,9 @@ export interface PayrollEntry {
   allowances: number;
   travelAllowance: number; // Linked to KM Claims
   bonus: number;
-  deductions: number;
-  advanceDeduction: number;
+  // deductions: number; // This field is currently unused (always 0), can remove or repurpose
+  advanceDeduction: number; // Auto-calculated from advances
+  manualDeductions: number; // New: Manual deductions entered by admin
   payableDays: number;
   totalDays: number;
   status: 'Paid' | 'Pending'; 
