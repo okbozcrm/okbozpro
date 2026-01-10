@@ -6,7 +6,7 @@ import {
   Banknote, History, Trash2, Printer, User, ArrowLeft, 
   Calendar, Building2, MapPin, Users, TrendingUp, TrendingDown, Wallet,
   ArrowRight, ShieldCheck, Landmark, Loader2, FileText, Bike, BarChart3,
-  Send, AlertCircle, IndianRupee, Check, MessageCircle, Mail
+  Send, AlertCircle, IndianRupee, Check, MessageCircle, Mail, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
@@ -296,6 +296,20 @@ const Payroll: React.FC = () => {
     alert(`Payout for ${emp.name} marked as Paid!`);
   };
 
+  // --- NEW: Year Navigation Handlers ---
+  const handlePrevYear = () => {
+    const [year, month] = selectedMonth.split('-');
+    const newYear = parseInt(year, 10) - 1;
+    setSelectedMonth(`${newYear}-${month}`);
+  };
+
+  const handleNextYear = () => {
+    const [year, month] = selectedMonth.split('-');
+    const newYear = parseInt(year, 10) + 1;
+    setSelectedMonth(`${newYear}-${month}`);
+  };
+
+  // --- SLIP GENERATION & SHARING HANDLERS ---
   const generateSlipPDF = async () => {
     if (!slipRef.current || !activeSlip) return;
     setIsExportingSlip(true);
@@ -304,9 +318,10 @@ const Payroll: React.FC = () => {
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), (canvas.height * pdf.internal.pageSize.getWidth()) / canvas.width);
-      pdf.save(`SalarySlip_${activeSlip.emp.name}_${selectedMonth}.pdf`);
+      pdf.save(`SalarySlip_${activeSlip.emp.name}_${new Date(selectedMonth).toISOString().slice(0, 7)}.pdf`);
     } catch (error) {
       console.error("Failed to generate PDF:", error);
+      alert("Failed to generate PDF. Please try again.");
     } finally {
       setIsExportingSlip(false);
     }
@@ -314,21 +329,20 @@ const Payroll: React.FC = () => {
 
   const generateShareableText = () => {
     if (!activeSlip) return '';
-    const { emp, data } = activeSlip;
-    const netPay = calculateNetPay(data);
     const monthYear = new Date(selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const netPay = calculateNetPay(activeSlip.data);
     
     let text = `*OK BOZ Salary Slip Summary*\n\n`;
-    text += `Employee: *${emp.name}*\n`;
+    text += `Employee: *${activeSlip.emp.name}*\n`;
     text += `Month: *${monthYear}*\n`;
     text += `Net Payout: *₹${netPay.toLocaleString()}*\n\n`;
-    text += `Status: *${data.status}*\n`;
-    if (data.status === 'Paid') {
-        text += `Paid Date: ${data.paidDate || 'N/A'}\n`;
-        text += `Payment Mode: ${data.paymentMode || 'N/A'}\n`;
+    text += `Status: *${activeSlip.data.status || 'Pending'}*\n`;
+    if (activeSlip.data.status === 'Paid') {
+        text += `Paid Date: ${activeSlip.data.paidDate || 'N/A'}\n`;
+        text += `Payment Mode: ${activeSlip.data.paymentMode || 'N/A'}\n`;
     }
-    if (data.remarks) {
-        text += `Notes: "${data.remarks}"\n`;
+    if (activeSlip.data.remarks) {
+        text += `Notes: "${activeSlip.data.remarks}"\n`;
     }
     text += `\nThank you for your hard work!`;
     return text;
@@ -337,11 +351,11 @@ const Payroll: React.FC = () => {
   const handleShareWhatsApp = () => {
     if (!activeSlip) return;
     const text = generateShareableText();
-    const phone = activeSlip.emp.phone.replace(/\D/g, '');
+    const phone = activeSlip.emp.phone?.replace(/\D/g, '');
     if (phone) {
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     } else {
-      alert("Employee phone number not available for WhatsApp share.");
+      alert("Driver's phone number is not available for WhatsApp share.");
     }
   };
 
@@ -352,7 +366,7 @@ const Payroll: React.FC = () => {
     if (email) {
       window.location.href = `mailto:${email}?subject=${encodeURIComponent(`OK BOZ Salary Slip for ${activeSlip.emp.name}`)}&body=${encodeURIComponent(text)}`;
     } else {
-      alert("Employee email not available for Email share.");
+      alert("Driver's email is not available for Email share.");
     }
   };
 
@@ -390,8 +404,16 @@ const Payroll: React.FC = () => {
         
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
+                    {/* NEW: Year navigation buttons with improved styling */}
+                    <button onClick={handlePrevYear} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Previous Year">
+                        <ChevronLeft className="w-4 h-4" />
+                    </button>
                     <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black" />
+                    <button onClick={handleNextYear} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Next Year">
+                        <ChevronRight className="w-4 h-4" />
+                    </button>
+
                     {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black"><option value="All">All Corporates</option><option value="admin">Head Office</option>{corporatesList.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}</select>)}
                     <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black"><option value="All">All Branches</option>{Array.from(new Set(employees.map(e => e.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}</select>
                 </div>
