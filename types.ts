@@ -1,4 +1,5 @@
 
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -196,6 +197,8 @@ export interface Enquiry {
   outstationSubType?: 'RoundTrip' | 'OneWay'; 
   transportData?: {
     drop?: string;
+    // FIX: Added 'drops' property to support multi-drop data structures used in CustomerCare.tsx line 795
+    drops?: { address: string; coords: { lat: number; lng: number } | null }[];
     estKm?: string;
     waitingMins?: string;
     packageId?: string;
@@ -267,9 +270,9 @@ export interface PayrollEntry {
   allowances: number;
   travelAllowance: number; // Linked to KM Claims
   bonus: number;
-  // deductions: number; // This field is currently unused (always 0), can remove or repurpose
+  manualDeductions: number; // Replaced 'deductions' with explicit manual deductions
+  manualDeductionReason?: string; // NEW: Reason for manual deduction
   advanceDeduction: number; // Auto-calculated from advances
-  manualDeductions: number; // New: Manual deductions entered by admin
   payableDays: number;
   totalDays: number;
   status: 'Paid' | 'Pending'; 

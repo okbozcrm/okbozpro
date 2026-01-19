@@ -38,7 +38,8 @@ interface ExtendedEmployee extends Employee {
     corporateName?: string;
 }
 
-const Payroll: React.FC = () => {
+// Re-ensuring explicit named export for Payroll component
+export const Payroll: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Salary' | 'Advances' | 'KM Claims (TA)' | 'History'>('Salary');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -70,7 +71,8 @@ const Payroll: React.FC = () => {
       paidDate: new Date().toISOString().split('T')[0],
       paymentMode: 'Bank Transfer',
       remarks: '',
-      manualDeductions: '', // NEW: Add manualDeductions to payoutForm
+      manualDeductions: '', // NEW
+      manualDeductionReason: '', // NEW
   });
   const [isProcessingMarkPaid, setIsProcessingMarkPaid] = useState(false);
 
@@ -163,7 +165,7 @@ const Payroll: React.FC = () => {
               .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth))
               .reduce((sum, r) => sum + r.totalAmount, 0);
 
-          // Preserve existing manual deductions if available, otherwise default to 0
+          // Preserve existing manual deductions and reason if available, otherwise default to 0
           const existingEntry = payrollData[emp.id];
           newPayrollData[emp.id] = {
               employeeId: emp.id,
@@ -171,10 +173,9 @@ const Payroll: React.FC = () => {
               allowances: Math.round(grossEarned * 0.5),
               travelAllowance: travelIncentive,
               bonus: 0,
-              // `deductions` field is no longer used, replaced by `manualDeductions`
-              // deductions: 0, 
               advanceDeduction: unpaidAdvances,
               manualDeductions: existingEntry?.manualDeductions || 0, // NEW: Preserve or default manual deductions
+              manualDeductionReason: existingEntry?.manualDeductionReason || '', // NEW: Preserve or default manual deduction reason
               payableDays,
               totalDays: daysInMonth,
               status: existingEntry?.status || 'Pending', // Initialize as Pending if no existing status
@@ -238,6 +239,7 @@ const Payroll: React.FC = () => {
         paymentMode: 'Bank Transfer',
         remarks: data.remarks || '',
         manualDeductions: data.manualDeductions?.toString() || '', // NEW: Populate manualDeductions
+        manualDeductionReason: data.manualDeductionReason || '', // NEW: Populate manualDeductionReason
     });
     setIsMarkPaidModalOpen(true);
   };
@@ -256,6 +258,7 @@ const Payroll: React.FC = () => {
         paymentMode: payoutForm.paymentMode,
         remarks: payoutForm.remarks,
         manualDeductions: parseFloat(payoutForm.manualDeductions) || 0, // NEW: Save manual deductions
+        manualDeductionReason: payoutForm.manualDeductionReason, // NEW: Save manual deduction reason
     };
 
     setPayrollData(prev => ({
@@ -351,6 +354,9 @@ const Payroll: React.FC = () => {
     }
     if (activeSlip.data.remarks) {
         text += `Notes: "${activeSlip.data.remarks}"\n`;
+    }
+    if (activeSlip.data.manualDeductionReason) { // NEW: Include manual deduction reason
+      text += `Deduction Reason: "${activeSlip.data.manualDeductionReason}"\n`;
     }
     text += `\nThank you for your hard work!`;
     return text;
@@ -491,7 +497,6 @@ const Payroll: React.FC = () => {
                 </table>
             </div>
         </div>
-      </div>
       )}
 
       {activeTab === 'Advances' && (
@@ -646,6 +651,11 @@ const Payroll: React.FC = () => {
                                     <span className="text-xs text-gray-600">Notes:</span> <span className="text-sm italic text-gray-700">"{activeSlip.data.remarks}"</span>
                                 </div>
                             )}
+                            {activeSlip.data.manualDeductionReason && (
+                                <div className="mt-2 pt-2 border-t border-emerald-100">
+                                    <span className="text-xs text-gray-600">Deduction Reason:</span> <span className="text-sm italic text-gray-700">"{activeSlip.data.manualDeductionReason}"</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -718,6 +728,16 @@ const Payroll: React.FC = () => {
                         placeholder="0"
                     />
                 </div>
+                <div> {/* NEW: Input for Deduction Reason */}
+                    <label className="block text-sm font-medium text-red-700 mb-1.5">Deduction Reason (Optional)</label>
+                    <textarea
+                        rows={2}
+                        value={payoutForm.manualDeductionReason}
+                        onChange={e => setPayoutForm({...payoutForm, manualDeductionReason: e.target.value})}
+                        className="w-full px-4 py-3 border border-red-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 resize-none bg-red-50"
+                        placeholder="Reason for this deduction (e.g., Uniform fee, Damaged equipment, etc.)"
+                    />
+                </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks (Optional)</label>
                     <textarea 
@@ -745,5 +765,3 @@ const Payroll: React.FC = () => {
     </div>
   );
 };
-
-export { Payroll };

@@ -71,6 +71,12 @@ interface CustomerCareProps {
   role: UserRole;
 }
 
+// Internal type for managing sequential drops
+interface DropPoint {
+    address: string;
+    coords: { lat: number; lng: number } | null;
+}
+
 export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsVehicleType, setSettingsVehicleType] = useState<VehicleType>('Sedan');
@@ -83,7 +89,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [outstationSubType, setOutstationSubType] = useState<OutstationSubType>('RoundTrip');
   
   const [transportDetails, setTransportDetails] = useState({
-    drop: '', estKm: '', waitingMins: '', packageId: '',
+    drops: [{ address: '', coords: null }] as DropPoint[], // Array of drops for multi-drop
+    estKm: '', waitingMins: '', packageId: '',
     destination: '', days: '1', estTotalKm: '', nights: '0'
   });
 
@@ -94,9 +101,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   // Map State
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [dropCoords, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [rentalPackages, setRentalPackages] = useState<RentalPackage[]>(() => {
@@ -273,50 +278,63 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     }
   }, []);
 
-  // --- AUTOMATIC DISTANCE CALCULATION ---
+  // --- AUTOMATIC MULTI-DROP DISTANCE CALCULATION ---
   useEffect(() => {
     if (!isMapReady || !window.google || !window.google.maps.DistanceMatrixService || !pickupCoords) return;
 
     const service = new window.google.maps.DistanceMatrixService();
 
-    let destination: { lat: number; lng: number } | null = null;
-    let isRoundTrip = false;
-    let isOutstation = false;
+    const calculateSequentialDistance = async () => {
+        let totalKm = 0;
+        const locations = [pickupCoords];
 
-    if (tripType === 'Local' && dropCoords) {
-        destination = dropCoords;
-    } else if (tripType === 'Outstation' && destCoords) {
-        destination = destCoords;
-        isRoundTrip = outstationSubType === 'RoundTrip';
-        isOutstation = true;
-    }
+        if (tripType === 'Local') {
+            transportDetails.drops.forEach(d => { if (d.coords) locations.push(d.coords); });
+        } else if (tripType === 'Outstation' && destCoords) {
+            locations.push(destCoords);
+        }
 
-    if (destination) {
-        service.getDistanceMatrix(
-            {
-                origins: [pickupCoords],
-                destinations: [destination],
-                travelMode: window.google.maps.TravelMode.DRIVING,
-                unitSystem: window.google.maps.UnitSystem.METRIC,
-            },
-            (response: any, status: any) => {
-                if (status === "OK" && response.rows[0].elements[0].status === "OK") {
-                    const distanceInMeters = response.rows[0].elements[0].distance.value;
-                    let distanceInKm = distanceInMeters / 1000;
-                    
-                    if (isRoundTrip) distanceInKm = distanceInKm * 2; 
+        if (locations.length < 2) return;
 
-                    const formattedDist = distanceInKm.toFixed(1);
+        // Sequence calculation: [P -> D1], [D1 -> D2]...
+        for (let i = 0; i < locations.length - 1; i++) {
+            const start = locations[i];
+            const end = locations[i+1];
 
-                    setTransportDetails(prev => ({ 
-                        ...prev, 
-                        [isOutstation ? 'estTotalKm' : 'estKm']: formattedDist 
-                    }));
+            try {
+                const response: any = await new Promise((resolve, reject) => {
+                    service.getDistanceMatrix({
+                        origins: [start],
+                        destinations: [end],
+                        travelMode: window.google.maps.TravelMode.DRIVING,
+                        unitSystem: window.google.maps.UnitSystem.METRIC,
+                    }, (res, status) => {
+                        if (status === "OK") resolve(res);
+                        else reject(status);
+                    });
+                });
+
+                if (response.rows[0].elements[0].status === "OK") {
+                    totalKm += response.rows[0].elements[0].distance.value / 1000;
                 }
+            } catch (err) {
+                console.error("Distance segment calculation failed", err);
             }
-        );
-    }
-  }, [pickupCoords, dropCoords, destCoords, isMapReady, tripType, outstationSubType]);
+        }
+
+        if (tripType === 'Outstation' && outstationSubType === 'RoundTrip') {
+            totalKm *= 2;
+        }
+
+        const formattedDist = totalKm.toFixed(1);
+        setTransportDetails(prev => ({ 
+            ...prev, 
+            [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: formattedDist 
+        }));
+    };
+
+    calculateSequentialDistance();
+  }, [pickupCoords, transportDetails.drops, destCoords, isMapReady, tripType, outstationSubType]);
 
 
   const handlePricingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -399,6 +417,31 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     }
   };
 
+  // --- MULTI-DROP HANDLERS ---
+  const handleAddDrop = () => {
+      setTransportDetails(prev => ({
+          ...prev,
+          drops: [...prev.drops, { address: '', coords: null }]
+      }));
+  };
+
+  const handleRemoveDrop = (index: number) => {
+      setTransportDetails(prev => {
+          const newDrops = prev.drops.filter((_, i) => i !== index);
+          // Always keep at least one drop input
+          if (newDrops.length === 0) return { ...prev, drops: [{ address: '', coords: null }] };
+          return { ...prev, drops: newDrops };
+      });
+  };
+
+  const handleDropChange = (index: number, address: string, coords: any) => {
+      setTransportDetails(prev => {
+          const newDrops = [...prev.drops];
+          newDrops[index] = { address, coords };
+          return { ...prev, drops: newDrops };
+      });
+  };
+
   useEffect(() => {
       let total = 0;
       const rules = pricing[vehicleType];
@@ -413,7 +456,9 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           const extraKm = Math.max(0, km - rules.localBaseKm) * rules.localPerKmRate;
           const wait = (parseFloat(transportDetails.waitingMins) || 0) * rules.localWaitingRate;
           total = base + extraKm + wait;
-          details = `Local Trip: ${km}km`;
+          
+          const validDrops = transportDetails.drops.filter(d => d.address);
+          details = `Local Trip: ${km}km (${validDrops.length} Drops)`;
       } else if (tripType === 'Rental') {
           const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
           if (pkg) {
@@ -457,13 +502,22 @@ Regards,
 OK BOZ Support Team`;
       } else {
           const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
+          
+          let dropsDisplay = '';
+          if (tripType === 'Local') {
+              dropsDisplay = transportDetails.drops
+                .filter(d => d.address)
+                .map((d, i) => `📍 Drop ${i+1}: ${d.address}`)
+                .join('\n');
+          }
+
           msg = `Hello ${customerDetails.name || 'Customer'},
 Here is your ${tripType} estimate from OK BOZ! 🚕
 
 *${tripType} Trip Estimate*
 🚘 Vehicle: ${vehicleType}
 📍 Pickup: ${customerDetails.pickup || 'TBD'}
-${tripType === 'Local' ? `📍 Drop: ${transportDetails.drop}` : ''}
+${tripType === 'Local' ? dropsDisplay : ''}
 ${tripType === 'Outstation' ? `🌍 Destination: ${transportDetails.destination}` : ''}
 📝 Details: ${details}
 ${tripType === 'Local' ? `⏳ Waiting Time: ${transportDetails.waitingMins} mins` : ''}
@@ -497,7 +551,10 @@ Book now with OK BOZ Transport!`;
       let detailsText = '';
       if (enquiryCategory === 'Transport') {
           detailsText = `[${vehicleType} - ${tripType}] `;
-          if (tripType === 'Local') detailsText += `Pickup: ${customerDetails.pickup} -> Drop: ${transportDetails.drop}. Dist: ${transportDetails.estKm}km.`;
+          if (tripType === 'Local') {
+              const dropsStr = transportDetails.drops.map((d,i) => `Drop ${i+1}: ${d.address}`).join(' -> ');
+              detailsText += `Pickup: ${customerDetails.pickup} -> ${dropsStr}. Dist: ${transportDetails.estKm}km.`;
+          }
           if (tripType === 'Rental') {
               const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
               detailsText += `Package: ${pkg?.name}. Pickup: ${customerDetails.pickup}.`;
@@ -553,7 +610,7 @@ Book now with OK BOZ Transport!`;
           tripType: tripType,
           vehicleType: vehicleType,
           outstationSubType: tripType === 'Outstation' ? outstationSubType : undefined,
-          transportData: enquiryCategory === 'Transport' ? transportDetails : undefined,
+          transportData: enquiryCategory === 'Transport' ? { ...transportDetails, drop: transportDetails.drops[0]?.address } : undefined, // Legacy fallback
           estimatedPrice: enquiryCategory === 'Transport' ? estimatedCost : undefined,
         };
         newEnquiriesList = newEnquiriesList.map(e => e.id === editingOrderId ? updatedEnquiry : e);
@@ -581,7 +638,7 @@ Book now with OK BOZ Transport!`;
           tripType: tripType,
           vehicleType: vehicleType,
           outstationSubType: tripType === 'Outstation' ? outstationSubType : undefined,
-          transportData: enquiryCategory === 'Transport' ? transportDetails : undefined,
+          transportData: enquiryCategory === 'Transport' ? { ...transportDetails, drop: transportDetails.drops[0]?.address } : undefined,
           estimatedPrice: enquiryCategory === 'Transport' ? estimatedCost : undefined,
         };
         newEnquiriesList = [updatedEnquiry, ...newEnquiriesList];
@@ -613,7 +670,7 @@ Book now with OK BOZ Transport!`;
       alert(`${enquiryCategory === 'Transport' ? 'Order' : 'Enquiry'} ${status} Successfully!`);
       
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drop: '', estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
+      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
       setGeneratedMessage('');
       setEstimatedCost(0);
       setIsScheduleModalOpen(false);
@@ -663,7 +720,7 @@ Book now with OK BOZ Transport!`;
 
   const handleCancelForm = () => {
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drop: '', estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
+      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
       setGeneratedMessage('');
       setEstimatedCost(0);
       setEditingOrderId(null);
@@ -733,8 +790,12 @@ Book now with OK BOZ Transport!`;
         setTripType(order.tripType || 'Local');
         setVehicleType(order.vehicleType || 'Sedan');
         setOutstationSubType(order.outstationSubType || 'RoundTrip');
+        
+        // Handle migration from legacy single-drop to multi-drop
+        const drops = order.transportData.drops || [{ address: order.transportData.drop || '', coords: null }];
+        
         setTransportDetails({
-          drop: order.transportData.drop || '',
+          drops: drops,
           estKm: order.transportData.estKm || '',
           waitingMins: order.transportData.waitingMins || '',
           packageId: order.transportData.packageId || '',
@@ -918,223 +979,6 @@ Book now with OK BOZ Transport!`;
         )}
       </div>
 
-      <div className="space-y-6">
-          <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800">Orders Dashboard</h2>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div 
-                onClick={() => setFilterStatus('All')}
-                className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'All' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-gray-500 uppercase">Total Orders</p>
-                  <h3 className="text-2xl font-bold text-gray-800">{dashboardStats.total}</h3>
-              </div>
-              <div 
-                onClick={() => { setFilterDateType('Date'); setFilterDate(new Date().toISOString().split('T')[0]); }}
-                className={`bg-indigo-50 p-4 rounded-xl border border-indigo-200 shadow-sm cursor-pointer hover:bg-indigo-100 transition-colors ${filterDate === new Date().toISOString().split('T')[0] && filterDateType === 'Date' ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-indigo-600 uppercase">Follow-ups Today</p>
-                  <h3 className="text-2xl font-bold text-indigo-700">{dashboardStats.todaysFollowUps}</h3>
-              </div>
-              <div 
-                onClick={() => setFilterStatus('Order Accepted')}
-                className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'Order Accepted' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-gray-500 uppercase">Accepted</p>
-                  <h3 className="text-2xl font-bold text-emerald-600">{dashboardStats.accepted}</h3>
-              </div>
-              <div 
-                onClick={() => setFilterStatus('Completed')}
-                className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'Completed' ? 'ring-2 ring-purple-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-gray-500 uppercase">Completed</p>
-                  <h3 className="text-2xl font-bold text-purple-600">{dashboardStats.completed}</h3>
-              </div>
-              <div 
-                onClick={() => setFilterStatus('Scheduled')}
-                className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm cursor-pointer transition-all hover:shadow-md ${filterStatus === 'Scheduled' ? 'ring-2 ring-orange-500 ring-offset-2' : ''}`}
-              >
-                  <p className="text-xs font-bold text-gray-500 uppercase">Scheduled</p>
-                  <h3 className="text-2xl font-bold text-orange-600">{dashboardStats.scheduled}</h3>
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-4">
-              <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                  <div className="relative flex-1 w-full md:max-w-md">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input 
-                          placeholder="Search Orders, Customers, Phone..." 
-                          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          value={filterSearch}
-                          onChange={(e) => setFilterSearch(e.target.value)}
-                      />
-                  </div>
-                  
-                  <div className="flex gap-2 flex-wrap items-center w-full md:w-auto">
-                      <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
-                          <button onClick={() => setFilterDateType('All')} className={`px-3 py-1 text-xs rounded transition-colors ${filterDateType === 'All' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500'}`}>All</button>
-                          <button onClick={() => setFilterDateType('Month')} className={`px-3 py-1 text-xs rounded transition-colors ${filterDateType === 'Month' ? 'bg-white shadow text-emerald-600 font-bold' : 'text-gray-500'}`}>Month</button>
-                          <button onClick={() => setFilterDateType('Date')} className={`px-3 py-1 text-xs rounded transition-colors ${filterDateType === 'Date' ? 'bg-white shadow text-blue-600 font-bold' : 'text-gray-500'}`}>Date</button>
-                      </div>
-                      
-                      {filterDateType === 'Month' && (
-                          <input type="month" className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
-                      )}
-                      
-                      {filterDateType === 'Date' && (
-                          <input type="date" className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-                      )}
-
-                      <button onClick={resetFilters} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-red-500 transition-colors" title="Reset Filters">
-                          <RefreshCcw className="w-4 h-4" />
-                      </button>
-                  </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-gray-100">
-                  <Filter className="w-4 h-4 text-gray-400 mr-1" />
-                  
-                  {isSuperAdmin && (
-                      <select className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500" value={filterCorporate} onChange={(e) => handleCorporateFilterChange(e.target.value)}>
-                          <option value="All">All Corporates</option>
-                          <option value="admin">Head Office</option>
-                          {corporates.map((c: any) => <option key={c.email} value={c.email}>{c.companyName}</option>)}
-                      </select>
-                  )}
-
-                  <select className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
-                      <option value="All">All Branches</option>
-                      {dashboardFilterBranches.map((b: any) => <option key={b.id} value={b.name}>{b.name}</option>)}
-                  </select>
-
-                  <select className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                      <option value="All">All Status</option>
-                      <option value="Scheduled">Scheduled</option>
-                      <option value="Order Accepted">Order Accepted</option>
-                      <option value="Driver Assigned">Driver Assigned</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="New">New Enquiry</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Converted">Converted</option>
-                      <option value="Closed">Closed</option>
-                  </select>
-              </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                      <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
-                          <tr>
-                              <th className="px-6 py-4">Order ID</th>
-                              <th className="px-6 py-4">Date</th>
-                              <th className="px-6 py-4">Customer</th>
-                              <th className="px-6 py-4">Follow-up Assign To</th>
-                              <th className="px-6 py-4">Follow-up Date & Time</th>
-                              <th className="px-6 py-4">Status</th>
-                              <th className="px-6 py-4 text-right">Actions</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                          {filteredOrders.length > 0 ? filteredOrders.map((order) => {
-                              const assignedStaff = getAssignedStaff(order.assignedTo);
-                              return (
-                              <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                  <td className="px-6 py-4">
-                                      <div className="font-bold text-gray-900">{order.id}</div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">
-                                      {order.date || order.createdAt.split(',')[0]}
-                                  </td>
-                                  <td className="px-6 py-4">
-                                      <div className="font-medium text-gray-900">{order.name}</div>
-                                      <div className="text-xs text-gray-500">{order.phone}</div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">
-                                      {assignedStaff ? (
-                                          <div className="flex items-center gap-2">
-                                              <img src={assignedStaff.avatar} alt="" className="w-6 h-6 rounded-full" />
-                                              <span>{assignedStaff.name}</span>
-                                          </div>
-                                      ) : 'Unassigned'}
-                                  </td>
-                                  <td className="px-6 py-4">
-                                      {order.nextFollowUp ? (
-                                          <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full w-fit">
-                                              <Clock className="w-3 h-3" />
-                                              {new Date(order.nextFollowUp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                          </span>
-                                      ) : '-'}
-                                  </td>
-                                  <td className="px-6 py-4">
-                                      <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
-                                          order.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200' :
-                                          order.status === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
-                                          order.status === 'Scheduled' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                          order.status === 'Order Accepted' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                          order.status === 'Driver Assigned' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                          'bg-gray-50 text-gray-700 border-gray-200'
-                                      }`}>
-                                          {order.status}
-                                      </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-right">
-                                      <div className="flex justify-end gap-2">
-                                          <button 
-                                              onClick={() => handleEditOrder(order)}
-                                              className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors font-medium flex items-center gap-1"
-                                          >
-                                              Follow-up
-                                          </button>
-                                          
-                                          {order.status !== 'Completed' && order.status !== 'Cancelled' && (
-                                              <>
-                                                  {(order.status === 'New' || order.status === 'In Progress') && (
-                                                      <button 
-                                                          onClick={() => handleStatusUpdate(order.id, 'Scheduled')}
-                                                          className="text-xs bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors font-medium"
-                                                      >
-                                                          Schedule
-                                                      </button>
-                                                  )}
-                                                  {(order.status === 'New' || order.status === 'In Progress' || order.status === 'Scheduled') && (
-                                                      <button 
-                                                          onClick={() => handleStatusUpdate(order.id, 'Booked')}
-                                                          className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors font-medium"
-                                                      >
-                                                          Book Now
-                                                      </button>
-                                                  )}
-                                                  
-                                                  <button 
-                                                      onClick={() => handleEditOrder(order)}
-                                                      className="text-gray-400 hover:text-blue-500 p-1.5 rounded-full hover:bg-blue-50 transition-colors"
-                                                      title="Edit Order"
-                                                  >
-                                                      <Edit2 className="w-4 h-4" />
-                                                  </button>
-                                              </>
-                                          )}
-                                      </div>
-                                  </td>
-                              </tr>
-                          );}) : (
-                              <tr>
-                                  <td colSpan={7} className="text-center py-10 text-gray-500">
-                                      No orders found matching your filters.
-                                  </td>
-                              </tr>
-                          )}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-      </div>
-
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
@@ -1229,7 +1073,7 @@ Book now with OK BOZ Transport!`;
                       </div>
                   )}
 
-                  <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                       {rentalPackages.map(pkg => (
                           <div key={pkg.id} className="flex justify-between items-center p-2.5 bg-white rounded-lg border border-gray-200 group transition-all hover:border-blue-300">
                               <div className="min-w-0">
@@ -1255,6 +1099,18 @@ Book now with OK BOZ Transport!`;
             <div className="p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
                <button onClick={() => setShowSettings(false)} className="px-8 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors">Done</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {mapError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" /> 
+          <div>
+            <p className="font-bold">Map Error: {mapError}</p>
+            {mapError.includes("API") && (
+                <a href="https://console.cloud.google.com/project/_/billing/enable" target="_blank" rel="noreferrer" className="text-xs underline hover:text-red-900">Configure Cloud Billing</a>
+            )}
           </div>
         </div>
       )}
@@ -1442,7 +1298,10 @@ Book now with OK BOZ Transport!`;
                                   ) : (
                                       <Autocomplete 
                                           placeholder="Search Pickup Address"
-                                          onAddressSelect={(addr) => setCustomerDetails(prev => ({ ...prev, pickup: addr }))}
+                                          onAddressSelect={(addr, coords) => {
+                                              setCustomerDetails(prev => ({ ...prev, pickup: addr }));
+                                              setPickupCoords(coords);
+                                          }}
                                           setNewPlace={(place) => setPickupCoords(place)}
                                           defaultValue={customerDetails.pickup}
                                       />
@@ -1451,20 +1310,42 @@ Book now with OK BOZ Transport!`;
 
                               {tripType === 'Local' && (
                                   <div className="space-y-4 animate-in slide-in-from-left-2 duration-200">
-                                      <div className="space-y-2">
-                                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Drop Location</label>
-                                          {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
-                                              <Autocomplete 
-                                                  placeholder="Search Destination Address"
-                                                  onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, drop: addr }))}
-                                                  setNewPlace={(place) => setDropCoords(place)}
-                                                  defaultValue={transportDetails.drop}
-                                              />
-                                          )}
+                                      <div className="space-y-4">
+                                          <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Drop Locations</label>
+                                            <button 
+                                                onClick={handleAddDrop}
+                                                className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all"
+                                            >
+                                                <Plus className="w-3 h-3" /> Add Drop Point
+                                            </button>
+                                          </div>
+                                          
+                                          {transportDetails.drops.map((drop, idx) => (
+                                              <div key={idx} className="flex items-start gap-2 group animate-in slide-in-from-right-2 duration-200">
+                                                <div className="flex-1">
+                                                    {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400 uppercase">MAP UNAVAILABLE</div> : (
+                                                        <Autocomplete 
+                                                            placeholder={`Search Drop Point ${idx + 1}`}
+                                                            onAddressSelect={(addr, coords) => handleDropChange(idx, addr, coords)}
+                                                            setNewPlace={(place) => handleDropChange(idx, drop.address, place)}
+                                                            defaultValue={drop.address}
+                                                        />
+                                                    )}
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleRemoveDrop(idx)}
+                                                    className="p-3 bg-gray-50 text-gray-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 border border-gray-100 transition-colors shrink-0"
+                                                    title="Remove Drop"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                          ))}
                                       </div>
                                       <div className="grid grid-cols-2 gap-4">
                                           <div className="space-y-1.5">
-                                              <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Estimated KM</label>
+                                              <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Estimated Total KM</label>
                                               <input type="number" placeholder="0.0" className="p-3 border border-gray-200 rounded-xl w-full text-sm font-black focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" value={transportDetails.estKm} onChange={e => setTransportDetails({...transportDetails, estKm: e.target.value})} />
                                       </div>
                                           <div className="space-y-1.5">
@@ -1501,7 +1382,10 @@ Book now with OK BOZ Transport!`;
                                           {!isMapReady ? <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-[10px] font-bold text-gray-400">MAP UNAVAILABLE</div> : (
                                               <Autocomplete 
                                                   placeholder="Search Destination City"
-                                                  onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, destination: addr }))}
+                                                  onAddressSelect={(addr, coords) => {
+                                                      setTransportDetails(prev => ({ ...prev, destination: addr }));
+                                                      setDestCoords(coords);
+                                                  }}
                                                   setNewPlace={(place) => setDestCoords(place)}
                                                   defaultValue={transportDetails.destination}
                                               />
@@ -1604,8 +1488,8 @@ Book now with OK BOZ Transport!`;
                   <div className="relative z-10">
                       <p className="text-slate-400 text-[10px] uppercase font-black tracking-[0.3em] mb-4">Estimated Booking Cost</p>
                       <div className="flex items-baseline gap-2 mb-8">
-                        <span className="text-2xl font-bold text-slate-500">₹</span>
-                        <h3 className="text-7xl font-black tracking-tighter leading-none group-hover:scale-105 transition-transform duration-500">{estimatedCost.toLocaleString()}</h3>
+                        <span className="text-2xl font-bold text-slate-500"></span>
+                        <h3 className="text-7xl font-black tracking-tighter leading-none group-hover:scale-105 transition-transform duration-500">₹{estimatedCost.toLocaleString()}</h3>
                       </div>
                       <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-6 flex items-start gap-2 font-bold italic leading-relaxed">
                           <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
@@ -1653,7 +1537,7 @@ Book now with OK BOZ Transport!`;
       </div>
 
       {isScheduleModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
               <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
                   <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                       <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Schedule Trip</h3>
