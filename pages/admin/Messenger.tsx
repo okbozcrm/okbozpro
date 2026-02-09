@@ -5,9 +5,10 @@ import {
   Check, CheckCheck, MessageSquare, ChevronLeft, 
   Building2, Shield, Cloud, Minus, Circle, 
   Paperclip, Mic, X, File, Image as ImageIcon, StopCircle, Download,
-  Users, Plus, Settings, Trash2, Bell, CheckSquare, Square
+  Users, Plus, Settings, Trash2, Bell, CheckSquare, Square,
+  PhoneOff, MicOff, Volume2, Clock as ClockIcon
 } from 'lucide-react';
-import { UserRole, Employee, CorporateAccount } from '../../types';
+import { UserRole, Employee, CorporateAccount, CallSignal } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
 import { sendSystemNotification } from '../../services/cloudService';
 
@@ -43,6 +44,7 @@ interface Contact {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
+  phone?: string; 
 }
 
 interface MessengerProps {
@@ -51,6 +53,7 @@ interface MessengerProps {
 
 const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const myName = sessionStorage.getItem('loggedInUserName') || (role === UserRole.ADMIN ? 'Admin' : 'Staff');
   const isSuperAdmin = role === UserRole.ADMIN;
   
   // --- State ---
@@ -62,9 +65,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
-
-  // Animation states
-  const [isMinimizing, setIsMinimizing] = useState(false);
 
   // Modal States
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -86,7 +86,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<number | null>(null);
+  const voiceTimerRef = useRef<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +99,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
     let allStaff: any[] = [];
     
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-    allStaff = [...allStaff, ...adminStaff.map((s: any) => ({...s, owner: 'admin'}))];
+    allStaff = [...adminStaff.map((s: any) => ({...s, owner: 'admin'}))];
 
     corps.forEach(c => {
         const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
@@ -116,6 +116,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 role: 'Franchise Admin',
                 type: 'Franchise',
                 corporateId: c.email,
+                phone: c.phone,
                 online: isOnline()
             });
         });
@@ -126,27 +127,28 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 role: s.role,
                 type: 'Employee',
                 corporateId: s.owner,
+                phone: s.phone,
                 online: isOnline()
             });
         });
     } else if (role === UserRole.CORPORATE) {
-        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', online: true });
+        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', phone: '9123456780', online: true });
         allStaff.filter(s => s.owner === sessionId).forEach(s => {
-            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: sessionId, online: isOnline() });
+            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: sessionId, phone: s.phone, online: isOnline() });
         });
     } else if (role === UserRole.EMPLOYEE) {
         const me = allStaff.find(s => s.id === sessionId) || MOCK_EMPLOYEES.find(e => e.id === sessionId);
         const myOwnerId = me?.owner || (me as any)?.corporateId || 'admin';
         
-        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', online: true });
+        loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', phone: '9123456780', online: true });
         if (myOwnerId !== 'admin') {
             const myCorp = corps.find(c => c.email === myOwnerId);
             if (myCorp) {
-                loadedContacts.push({ id: myCorp.email, name: myCorp.companyName, role: 'Franchise Admin', type: 'Franchise', corporateId: myCorp.email, online: isOnline() });
+                loadedContacts.push({ id: myCorp.email, name: myCorp.companyName, role: 'Franchise Admin', type: 'Franchise', corporateId: myCorp.email, phone: myCorp.phone, online: isOnline() });
             }
         }
         allStaff.filter(s => s.owner === myOwnerId && s.id !== sessionId).forEach(s => {
-            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: myOwnerId, online: isOnline() });
+            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: myOwnerId, phone: s.phone, online: isOnline() });
         });
     }
 
@@ -161,14 +163,12 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   // --- 2. Live Status & Delivery Sync ---
   useEffect(() => {
     const syncInterval = setInterval(() => {
-        // Toggle some contacts online/offline randomly to simulate real life
         setContacts(prev => prev.map(c => {
             if (c.id === 'admin') return c; 
             const shouldToggle = Math.random() > 0.95;
             return shouldToggle ? { ...c, online: !c.online } : c;
         }));
 
-        // Check for messages that need to be "Delivered" or "Read"
         setMessages(prev => {
             let hasChanged = false;
             const updated = prev.map(m => {
@@ -176,7 +176,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 const target = contacts.find(c => c.id === targetId);
                 const isGroup = m.receiverId.startsWith('GRP-');
 
-                // 1. Deliver pending outgoing messages if recipient is online
                 if (m.senderId === sessionId && !m.delivered) {
                     if (isGroup || target?.online) {
                         hasChanged = true;
@@ -184,7 +183,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                     }
                 }
 
-                // 2. Simulate read receipts for delivered messages if recipient is online
                 if (m.senderId === sessionId && m.delivered && !m.read) {
                     if (isGroup || (target?.online && Math.random() > 0.9)) {
                         hasChanged = true;
@@ -212,14 +210,11 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
           const saved = localStorage.getItem('internal_messages_data');
           if (saved) {
               const parsed = JSON.parse(saved);
-              // Simple check to avoid state loops if data is identical
               setMessages(parsed);
           }
       };
       
       loadMessages();
-
-      // Listen for changes from OTHER tabs/sessions
       const handleStorageChange = (e: StorageEvent) => {
           if (e.key === 'internal_messages_data') {
               loadMessages();
@@ -227,7 +222,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       };
 
       window.addEventListener('storage', handleStorageChange);
-      const interval = setInterval(loadMessages, 3000); // Polling as backup
+      const interval = setInterval(loadMessages, 3000); 
 
       return () => {
           window.removeEventListener('storage', handleStorageChange);
@@ -239,8 +234,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   useEffect(() => {
     if (activeChatId) {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-        
-        // When I open a chat, mark all messages FROM the other user to ME as read
         const unreadFromOthers = messages.some(m => 
             (m.senderId === activeChatId && m.receiverId === sessionId && !m.read) ||
             (activeChatId.startsWith('GRP-') && m.senderId !== sessionId && !m.read)
@@ -261,14 +254,12 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
   // --- 5. Action Logic ---
   const saveMessage = (newMsg: Message) => {
-      // CRITICAL: Fetch absolute latest from storage before saving to prevent overwriting other users' messages
       const latestMessages = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
       const updatedMessages = [...latestMessages, newMsg];
       
       localStorage.setItem('internal_messages_data', JSON.stringify(updatedMessages));
-      setMessages(updatedMessages); // Update local state for immediate feedback
+      setMessages(updatedMessages); 
       
-      // SEND SYSTEM NOTIFICATION TO RECIPIENT
       if (!newMsg.receiverId.startsWith('GRP-')) {
           const targetIsAdmin = newMsg.receiverId === 'admin';
           const targetIsFranchise = contacts.find(c => c.id === newMsg.receiverId)?.type === 'Franchise';
@@ -283,33 +274,13 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
               link: targetIsAdmin ? '/admin/chat' : targetIsFranchise ? '/admin/chat' : '/user/chat'
           });
       }
-
-      // Trigger a storage event manually so other components on THIS tab update too
       window.dispatchEvent(new Event('storage'));
-      
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
       e.preventDefault();
       if (!inputText.trim() || !activeChatId) return;
-
-      let myName = 'Me';
-      if(isSuperAdmin) myName = 'Admin';
-      else {
-          if (role === UserRole.CORPORATE) {
-             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-             const myCorp = corps.find((c:any) => c.email === sessionId);
-             if(myCorp) myName = myCorp.companyName;
-          } else {
-             const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-             const found = adminStaff.find((s:any) => s.id === sessionId);
-             if(found) myName = found.name;
-          }
-      }
-
-      const target = contacts.find(c => c.id === activeChatId);
-      const isOnline = target?.online || activeChatId.startsWith('GRP-');
 
       const newMsg: Message = {
           id: Date.now().toString(),
@@ -318,7 +289,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
           receiverId: activeChatId,
           content: inputText,
           timestamp: new Date().toISOString(),
-          delivered: !!isOnline,
+          delivered: false,
           read: false,
           type: 'text'
       };
@@ -327,13 +298,44 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
       setInputText('');
   };
 
+  // --- UPDATED Calling Handler: Uses Global Signaling ---
+  const handleCall = () => {
+    const contact = displayList.find(c => c.id === activeChatId);
+    if (!contact) return;
+
+    if (contact.online) {
+      // 1. Check if we are already calling
+      const existingSignal = localStorage.getItem('boz_call_signal');
+      if (existingSignal) {
+          alert("System is currently handling another call signal.");
+          return;
+      }
+
+      // 2. Create and set a global signal in localStorage
+      const newSignal: CallSignal = {
+          id: `CALL-${Date.now()}`,
+          callerId: sessionId,
+          callerName: myName,
+          recipientId: contact.id,
+          status: 'ringing',
+          timestamp: Date.now()
+      };
+
+      localStorage.setItem('boz_call_signal', JSON.stringify(newSignal));
+      // Storage event only fires in OTHER tabs, but our global manager in this tab also listens for state changes
+      window.dispatchEvent(new Event('storage'));
+    } else {
+      if (contact.phone) {
+        alert(`User is currently offline. Redirecting to mobile call for ${contact.name}...`);
+        window.location.href = `tel:${contact.phone}`;
+      } else {
+        alert("This user is offline and has no registered phone number.");
+      }
+    }
+  };
+
   const handleMinimize = () => {
-      setIsMinimizing(true);
-      setTimeout(() => {
-        setActiveChatId(null);
-        setShowChatOnMobile(false);
-        setIsMinimizing(false);
-      }, 300);
+      setShowChatOnMobile(false);
   };
 
   const handleResize = () => setIsMobileView(window.innerWidth < 768);
@@ -394,16 +396,15 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         reader.onload = () => {
             const base64 = reader.result as string;
             const isImage = file.type.startsWith('image/');
-            const target = contacts.find(c => c.id === activeChatId);
-            
             const newMsg: Message = {
                 id: Date.now().toString(),
                 senderId: sessionId,
+                senderName: myName,
                 receiverId: activeChatId,
                 content: base64,
                 fileName: file.name,
                 timestamp: new Date().toISOString(),
-                delivered: !!(target?.online || activeChatId.startsWith('GRP-')),
+                delivered: false,
                 read: false,
                 type: isImage ? 'image' : 'file'
             };
@@ -427,14 +428,14 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
             reader.onloadend = () => {
                 if (activeChatId) {
                     const base64 = reader.result as string;
-                    const target = contacts.find(c => c.id === activeChatId);
                     const newMsg: Message = {
                         id: Date.now().toString(),
                         senderId: sessionId,
+                        senderName: myName,
                         receiverId: activeChatId,
                         content: base64,
                         timestamp: new Date().toISOString(),
-                        delivered: !!(target?.online || activeChatId.startsWith('GRP-')),
+                        delivered: false,
                         read: false,
                         type: 'audio'
                     };
@@ -447,7 +448,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         mediaRecorder.start();
         setIsRecording(true);
         setRecordingDuration(0);
-        timerRef.current = window.setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
+        voiceTimerRef.current = window.setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
     } catch (err) { console.error(err); alert("Microphone access denied."); }
   };
 
@@ -460,7 +461,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
             mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+        if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
     }
   };
 
@@ -536,7 +537,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const activeContactProfile = displayList.find(c => c.id === activeChatId);
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="h-[calc(100vh-6rem)] flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
       <div className="flex flex-1 overflow-hidden relative">
         
         {/* LEFT PANE: CONTACT LIST */}
@@ -586,7 +587,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                 {displayList.map(contact => (
                     <div 
                         key={contact.id}
-                        onClick={() => { setActiveChatId(contact.id); setShowChatOnMobile(true); setIsMinimizing(false); }}
+                        onClick={() => { setActiveChatId(contact.id); setShowChatOnMobile(true); }}
                         className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${activeChatId === contact.id ? 'bg-emerald-50/50 border-l-4 border-l-emerald-500' : 'border-l-4 border-l-transparent'}`}
                     >
                         <div className="flex justify-between items-start mb-1">
@@ -643,7 +644,6 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         <div className={`
             flex-1 flex flex-col bg-[#e5ddd5] bg-opacity-30 absolute md:relative w-full h-full transition-all duration-300 ease-in-out transform origin-bottom-left
             ${isMobileView ? (showChatOnMobile ? 'translate-x-0' : 'translate-x-full') : 'translate-x-0'}
-            ${isMinimizing ? 'scale-0 opacity-0 translate-y-full -translate-x-1/2' : 'scale-100 opacity-100'}
         `}>
             {activeChatId && activeContactProfile ? (
                 <>
@@ -683,7 +683,13 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                             </div>
                         </div>
                         <div className="flex gap-2 text-gray-500">
-                            <button className="p-2 hover:bg-gray-100 rounded-full" title="Call"><Phone className="w-5 h-5" /></button>
+                            <button 
+                              onClick={handleCall}
+                              className={`p-2 rounded-full transition-all ${activeContactProfile.online ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`} 
+                              title={activeContactProfile.online ? "Start Global Call" : "Call Mobile (User Offline)"}
+                            >
+                              <Phone className="w-5 h-5" />
+                            </button>
                             <button 
                                 onClick={handleMinimize} 
                                 className="p-2 hover:bg-gray-100 rounded-full text-gray-600" 

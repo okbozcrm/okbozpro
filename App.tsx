@@ -12,10 +12,9 @@ import Settings from './pages/admin/Settings';
 import EmployeeSettings from './pages/admin/EmployeeSettings'; 
 import Expenses from './pages/admin/Expenses';
 import LiveTracking from './pages/admin/LiveTracking';
-// FIX: Changed import to a named import as VendorAttachment is not a default export
 import { VendorAttachment } from './pages/admin/VendorAttachment';
 import Corporate from './pages/admin/Corporate';
-import SubAdminManagement from './pages/admin/SubAdminManagement'; // Added
+import SubAdminManagement from './pages/admin/SubAdminManagement'; 
 import Documents from './pages/Documents';
 import Leads from './pages/admin/Leads';
 import Reports from './pages/admin/Reports'; 
@@ -33,7 +32,8 @@ import UserProfile from './pages/user/UserProfile';
 import TaskManagement from './pages/TaskManagement';
 import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
-import SOPDocuments from './pages/admin/SOPDocuments'; // NEW: Import SOPDocuments
+import SOPDocuments from './pages/admin/SOPDocuments'; 
+import CallOverlay from './components/CallOverlay'; // Import CallOverlay
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -97,6 +97,9 @@ const App: React.FC = () => {
       <BrandingProvider>
         <NotificationProvider>
           <HashRouter>
+            {/* Global Call Overlay */}
+            <CallOverlay />
+            
             {!isAuthenticated ? (
               <Routes>
                 <Route path="/" element={<LandingPage />} />
@@ -136,7 +139,7 @@ const App: React.FC = () => {
                         <Route path="/admin/data-export" element={<DataExport />} />
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
                         <Route path="/admin/gen-ai-tools" element={<GenAITools />} />
-                        <Route path="/admin/sop" element={<SOPDocuments />} /> {/* NEW: SOP Documents Route */}
+                        <Route path="/admin/sop" element={<SOPDocuments />} /> 
                         {userRole === UserRole.ADMIN && (
                           <>
                             <Route path="/admin/settings" element={<Settings />} />

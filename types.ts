@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
@@ -16,6 +15,15 @@ export enum AttendanceStatus {
   HOLIDAY = 'HOLIDAY',
   ALTERNATE_DAY = 'ALTERNATE_DAY',
   NOT_MARKED = 'NOT_MARKED'
+}
+
+export interface CallSignal {
+  id: string;
+  callerId: string;
+  callerName: string;
+  recipientId: string;
+  status: 'ringing' | 'connected' | 'busy' | 'declined' | 'ended';
+  timestamp: number;
 }
 
 export interface PunchRecord {
