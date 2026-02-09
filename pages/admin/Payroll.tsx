@@ -307,17 +307,17 @@ export const Payroll: React.FC = () => {
     alert(`Payout for ${emp.name} marked as Paid!`);
   };
 
-  // --- Year Navigation Handlers ---
-  const handlePrevYear = () => {
-    const [year, month] = selectedMonth.split('-');
-    const newYear = parseInt(year, 10) - 1;
-    setSelectedMonth(`${newYear}-${month}`);
+  // --- Month Navigation Handlers ---
+  const handlePrevMonth = () => {
+    const date = new Date(selectedMonth + '-01');
+    date.setMonth(date.getMonth() - 1);
+    setSelectedMonth(date.toISOString().slice(0, 7));
   };
 
-  const handleNextYear = () => {
-    const [year, month] = selectedMonth.split('-');
-    const newYear = parseInt(year, 10) + 1;
-    setSelectedMonth(`${newYear}-${month}`);
+  const handleNextMonth = () => {
+    const date = new Date(selectedMonth + '-01');
+    date.setMonth(date.getMonth() + 1);
+    setSelectedMonth(date.toISOString().slice(0, 7));
   };
 
   // --- SLIP GENERATION & SHARING HANDLERS ---
@@ -400,7 +400,7 @@ export const Payroll: React.FC = () => {
             </button>
             <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">
                 {['Salary', 'Advances', 'KM Claims (TA)', 'History'].map(t => (
-                    <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
+                    <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
                 ))}
             </div>
         </div>
@@ -419,11 +419,11 @@ export const Payroll: React.FC = () => {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
                 <div className="flex flex-wrap gap-2 items-center">
-                    <button onClick={handlePrevYear} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Previous Year">
+                    <button onClick={handlePrevMonth} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Previous Month">
                         <ChevronLeft className="w-4 h-4" />
                     </button>
                     <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-black" />
-                    <button onClick={handleNextYear} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Next Year">
+                    <button onClick={handleNextMonth} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200" title="Next Month">
                         <ChevronRight className="w-4 h-4" />
                     </button>
 
@@ -497,6 +497,7 @@ export const Payroll: React.FC = () => {
                 </table>
             </div>
         </div>
+      </div>
       )}
 
       {activeTab === 'Advances' && (
@@ -679,7 +680,7 @@ export const Payroll: React.FC = () => {
       {isMarkPaidModalOpen && currentEmployeeForPayout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
-            <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+            <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/50 shrink-0">
               <h3 className="text-2xl font-black text-gray-900 tracking-tighter">Mark Payout as Paid</h3>
               <button onClick={() => setIsMarkPaidModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-2xl transition-all text-gray-400 hover:text-gray-900"><X className="w-6 h-6"/></button>
             </div>
