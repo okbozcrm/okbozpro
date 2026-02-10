@@ -35,7 +35,8 @@ const MODULE_PERMISSIONS = [
 
 const StaffList: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = sessionId === 'admin';
+  const userRole = localStorage.getItem('user_role');
+  const isSuperAdmin = userRole === 'ADMIN';
 
   const [employees, setEmployees] = useState<DisplayEmployee[]>([]);
   const [corporates, setCorporates] = useState<any[]>([]);
@@ -92,7 +93,16 @@ const StaffList: React.FC = () => {
             allB = [...allB, ...cB.map((b: any) => ({...b, owner: c.email}))];
         });
     } else {
-        allB = JSON.parse(localStorage.getItem(`branches_data_${sessionId}`) || '[]');
+        const savedBranches = localStorage.getItem(`branches_data_${sessionId}`);
+        if (savedBranches) {
+            try {
+                // Ensure owner is set for each branch object for filtering consistency
+                allB = JSON.parse(savedBranches).map((b: any) => ({
+                    ...b,
+                    owner: b.owner || sessionId
+                }));
+            } catch(e) {}
+        }
     }
     setBranches(allB);
 
@@ -351,7 +361,7 @@ const StaffList: React.FC = () => {
                                     <div className="md:col-span-2 relative">
                                         <label className="text-[10px] font-black uppercase text-gray-400 ml-1 mb-1 block">Set Password *</label>
                                         <div className="relative">
-                                            <input type={showPassword ? "text" : "password"} name="password" required value={formData.password} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" placeholder="Minimum 6 chars" />
+                                            <input type={showPassword ? "text" : "password"} name="password" required value={formData.password} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold" placeholder="Minimum 6 chars" />
                                             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
                                                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                             </button>
