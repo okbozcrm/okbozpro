@@ -1,11 +1,12 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Settings, Loader2, ArrowRight, ArrowRightLeft, 
   MessageCircle, Copy, Mail, Car, User, Edit2,
   CheckCircle, Building2, Save, X, Phone, Truck, DollarSign,
   Calendar, MapPin, Plus, Trash2, Headset,
-  Clock, CheckCircle as CheckCircleIcon, Filter, Search, ChevronDown, UserCheck, XCircle, AlertCircle, History, PhoneOutgoing, PhoneIncoming, CalendarCheck, BookOpen, FileText, RefreshCcw
+  Clock, CheckCircle as CheckCircleIcon, Filter, Search, ChevronDown, UserCheck, XCircle, AlertCircle, History, PhoneOutgoing, PhoneIncoming, CalendarCheck, BookOpen, FileText, RefreshCcw, Mountain
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
 import { Enquiry, HistoryLog, UserRole } from '../../types';
@@ -15,6 +16,7 @@ import { sendSystemNotification, HARDCODED_MAPS_API_KEY } from '../../services/c
 type TripType = 'Local' | 'Rental' | 'Outstation';
 type OutstationSubType = 'RoundTrip' | 'OneWay';
 type VehicleType = 'Sedan' | 'SUV';
+// Added EnquiryCategory type to fix the "Cannot find name 'EnquiryCategory'" error
 type EnquiryCategory = 'Transport' | 'General';
 type OrderStatus = 'Scheduled' | 'Order Accepted' | 'Driver Assigned' | 'Completed' | 'Cancelled' | 'New' | 'In Progress' | 'Converted' | 'Closed' | 'Booked';
 
@@ -39,6 +41,7 @@ interface PricingRules {
   outstationExtraKmRate: number;
   outstationDriverAllowance: number;
   outstationNightAllowance: number;
+  outstationHillsAllowance: number; // Added field
 }
 
 const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
@@ -52,14 +55,16 @@ const DEFAULT_PRICING_SEDAN: PricingRules = {
   localBaseFare: 200, localBaseKm: 5, localPerKmRate: 20, localWaitingRate: 2,
   rentalExtraKmRate: 15, rentalExtraHrRate: 100,
   outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 13,
-  outstationDriverAllowance: 400, outstationNightAllowance: 300 
+  outstationDriverAllowance: 400, outstationNightAllowance: 300,
+  outstationHillsAllowance: 500 // Default value
 };
 
 const DEFAULT_PRICING_SUV: PricingRules = {
   localBaseFare: 300, localBaseKm: 5, localPerKmRate: 25, localWaitingRate: 3,
   rentalExtraKmRate: 18, rentalExtraHrRate: 150,
   outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 17,
-  outstationDriverAllowance: 500, outstationNightAllowance: 400 
+  outstationDriverAllowance: 500, outstationNightAllowance: 400,
+  outstationHillsAllowance: 700 // Default value
 };
 
 const getInitialEnquiries = (): Enquiry[] => {
@@ -89,9 +94,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [outstationSubType, setOutstationSubType] = useState<OutstationSubType>('RoundTrip');
   
   const [transportDetails, setTransportDetails] = useState({
-    drops: [{ address: '', coords: null }] as DropPoint[], // Array of drops for multi-drop
+    drops: [{ address: '', coords: null }] as DropPoint[], 
     estKm: '', waitingMins: '', packageId: '',
-    destination: '', days: '1', estTotalKm: '', nights: '0'
+    destination: '', days: '1', estTotalKm: '', nights: '0',
+    isHillsTrip: false // Added field
   });
 
   const [customerDetails, setCustomerDetails] = useState({
@@ -476,10 +482,22 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               total = (chargeKm * rules.outstationExtraKmRate) + driver;
               const nights = (parseFloat(transportDetails.nights) || 0) * rules.outstationNightAllowance;
               total += nights;
-              details = `Round Trip: ${days} days, ${km} km`;
+              
+              // NEW: Add Hills Allowance Calculation
+              if (transportDetails.isHillsTrip) {
+                  total += (rules.outstationHillsAllowance * days);
+              }
+
+              details = `Round Trip: ${days} days, ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
           } else {
               total = rules.outstationBaseRate + (km * rules.outstationExtraKmRate) + driver;
-              details = `One Way: ${km} km`;
+              
+              // NEW: Add Hills Allowance Calculation for One Way
+              if (transportDetails.isHillsTrip) {
+                  total += (rules.outstationHillsAllowance * days);
+              }
+
+              details = `One Way: ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
           }
       }
 
@@ -522,6 +540,7 @@ ${tripType === 'Outstation' ? `🌍 Destination: ${transportDetails.destination}
 📝 Details: ${details}
 ${tripType === 'Local' ? `⏳ Waiting Time: ${transportDetails.waitingMins} mins` : ''}
 ${tripType === 'Rental' ? `📦 Package: ${pkg?.name || 'Custom'}` : ''}
+${tripType === 'Outstation' && transportDetails.isHillsTrip ? `⛰️ Hills Allowance Included: ₹${rules.outstationHillsAllowance}/day` : ''}
 
 💰 *Base Fare: ₹${total.toFixed(0)}*
 (Includes ${tripType === 'Local' ? 'Base Fare + Km' : tripType === 'Rental' ? 'Package Rate' : 'Driver Allowance + Km'})
@@ -559,7 +578,7 @@ Book now with OK BOZ Transport!`;
               const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
               detailsText += `Package: ${pkg?.name}. Pickup: ${customerDetails.pickup}.`;
           }
-          if (tripType === 'Outstation') detailsText += `Dest: ${transportDetails.destination}. ${transportDetails.days} Days. Pickup: ${customerDetails.pickup}.`;
+          if (tripType === 'Outstation') detailsText += `Dest: ${transportDetails.destination}. ${transportDetails.days} Days. Pickup: ${customerDetails.pickup}.${transportDetails.isHillsTrip ? ' (HILLS TRIP)' : ''}`;
           detailsText += ` Estimate: ₹${estimatedCost}`;
       } else {
           detailsText = customerDetails.requirements;
@@ -670,7 +689,7 @@ Book now with OK BOZ Transport!`;
       alert(`${enquiryCategory === 'Transport' ? 'Order' : 'Enquiry'} ${status} Successfully!`);
       
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
+      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
       setGeneratedMessage('');
       setEstimatedCost(0);
       setIsScheduleModalOpen(false);
@@ -720,7 +739,7 @@ Book now with OK BOZ Transport!`;
 
   const handleCancelForm = () => {
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0' });
+      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
       setGeneratedMessage('');
       setEstimatedCost(0);
       setEditingOrderId(null);
@@ -803,6 +822,7 @@ Book now with OK BOZ Transport!`;
           days: order.transportData.days || '1',
           estTotalKm: order.transportData.estTotalKm || '',
           nights: order.transportData.nights || '0',
+          isHillsTrip: order.details.includes('HILLS TRIP') || false
         });
         setEstimatedCost(order.estimatedPrice || 0);
       }
@@ -1031,10 +1051,15 @@ Book now with OK BOZ Transport!`;
                   <div>
                     <label className="text-xs text-gray-500 block mb-1 font-bold">Driver Allowance (₹/day)</label>
                     <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
-                    </div>
+                  </div>
                   <div>
                     <label className="text-xs text-gray-500 block mb-1 font-bold">Night Allowance (₹/night)</label>
                     <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
+                  </div>
+                  {/* NEW FIELD: Hills Allowance */}
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1 font-bold">Hills Allowance (₹/day)</label>
+                    <input type="number" name="outstationHillsAllowance" value={pricing[settingsVehicleType].outstationHillsAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" />
                   </div>
                 </div>
 
@@ -1407,6 +1432,24 @@ Book now with OK BOZ Transport!`;
                                               </div>
                                           )}
                                       </div>
+                                      
+                                      {/* NEW: Hills Station Trip Toggle */}
+                                      <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                                          <div className={`p-2 rounded-xl ${transportDetails.isHillsTrip ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-gray-400 border border-gray-200'}`}>
+                                              <Mountain className="w-5 h-5" />
+                                          </div>
+                                          <div className="flex-1">
+                                              <p className="text-sm font-bold text-gray-800">Hills Station Trip</p>
+                                              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Add Hills Allowance (₹{pricing[vehicleType].outstationHillsAllowance}/day)</p>
+                                          </div>
+                                          <button 
+                                              type="button"
+                                              onClick={() => setTransportDetails(prev => ({...prev, isHillsTrip: !prev.isHillsTrip}))}
+                                              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${transportDetails.isHillsTrip ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                                          >
+                                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${transportDetails.isHillsTrip ? 'translate-x-6' : 'translate-x-1'}`} />
+                                          </button>
+                                      </div>
                                   </div>
                               )}
                               
@@ -1457,13 +1500,13 @@ Book now with OK BOZ Transport!`;
                                       <div className="grid grid-cols-2 gap-4">
                                           <button 
                                               onClick={handleOpenSchedule}
-                                              className="py-5 border-2 border-indigo-100 text-indigo-600 rounded-[2rem] font-black text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 transform active:scale-95 shadow-lg shadow-indigo-900/5"
+                                              className="py-5 border-2 border-indigo-100 text-indigo-600 rounded-[2rem] font-black text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 transform active:scale-90 shadow-lg shadow-indigo-900/5"
                                           >
                                               <Calendar className="w-5 h-5" /> {editingOrderId ? 'Update Schedule' : 'Schedule Trip'}
                                           </button>
                                           <button 
                                               onClick={handleBookNow}
-                                              className="py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-sm hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-2 transform active:scale-95"
+                                              className="py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-sm hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-2 transform active:scale-90"
                                           >
                                               <ArrowRight className="w-5 h-5" /> {editingOrderId ? 'Confirm Update' : 'Accept Order'}
                                           </button>
@@ -1522,12 +1565,12 @@ Book now with OK BOZ Transport!`;
                   <div className="grid grid-cols-2 gap-4">
                       <button 
                           onClick={() => window.open(`https://wa.me/${customerDetails.phone.replace(/\D/g, '')}?text=${encodeURIComponent(generatedMessage)}`, '_blank')}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-emerald-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-emerald-200 transition-all flex items-center justify-center gap-2 transform active:scale-90"
                       >
                           <MessageCircle className="w-5 h-5" /> Share on WhatsApp
                       </button>
                       <button 
-                          className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                          className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-2 transform active:scale-90"
                       >
                           <Mail className="w-4 h-4" /> Send via Email
                       </button>
@@ -1565,7 +1608,7 @@ Book now with OK BOZ Transport!`;
                       <div className="pt-4">
                         <button 
                             onClick={confirmSchedule}
-                            className="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-indigo-900/20 hover:bg-indigo-700 transition-all transform active:scale-95"
+                            className="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-indigo-900/20 hover:bg-indigo-700 transition-all transform active:scale-90"
                         >
                             Confirm Schedule
                         </button>
@@ -1577,3 +1620,5 @@ Book now with OK BOZ Transport!`;
     </div>
   );
 };
+
+export default CustomerCare;

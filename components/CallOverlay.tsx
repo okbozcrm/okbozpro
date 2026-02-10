@@ -3,40 +3,75 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Volume2, X, Check, AlertCircle } from 'lucide-react';
 import { CallSignal } from '../types';
 
+const RINGTONE_URL = 'https://assets.mixkit.co/sfx/preview/mixkit-phone-ringing-bell-593.mp3';
+const CALLING_TONE_URL = 'https://assets.mixkit.co/sfx/preview/mixkit-calling-signal-at-a-standard-phone-604.mp3';
+const BUSY_TONE_URL = 'https://assets.mixkit.co/sfx/preview/mixkit-phone-busy-signal-tone-606.mp3';
+
 const CallOverlay: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const userName = sessionStorage.getItem('loggedInUserName') || 'User';
-
   const [activeCall, setActiveCall] = useState<CallSignal | null>(null);
   const [callTimer, setCallTimer] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  
   const timerRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 1. Listen for signals
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+  };
+
+  const playAudio = (url: string, loop: boolean = true) => {
+    stopAudio();
+    const audio = new Audio(url);
+    audio.loop = loop;
+    audio.play().catch(e => console.warn("Audio autoplay blocked by browser policy until user interaction.", e));
+    audioRef.current = audio;
+  };
+
+  // 1. Listen for signals and manage audio
   useEffect(() => {
     const handleSignalChange = () => {
       const signalStr = localStorage.getItem('boz_call_signal');
       if (!signalStr) {
-        if (activeCall) endCallLocally();
+        if (activeCall) {
+          endCallLocally();
+          stopAudio();
+        }
         return;
       }
 
       const signal: CallSignal = JSON.parse(signalStr);
-
-      // Ignore signals not meant for us or from us (unless it's an update to our own call)
       const isRecipient = signal.recipientId === sessionId;
       const isCaller = signal.callerId === sessionId;
 
       if (!isRecipient && !isCaller) return;
 
-      // Handle Busy detection
-      if (isRecipient && signal.status === 'ringing' && activeCall && activeCall.status !== 'ended') {
-          // We are already in a call, send busy signal
+      // Busy detection
+      if (isRecipient && signal.status === 'ringing' && activeCall && activeCall.status !== 'ended' && activeCall.status !== 'busy') {
           updateSignal({ ...signal, status: 'busy' });
           return;
       }
 
-      setActiveCall(signal);
+      setActiveCall(prev => {
+          // Play sounds based on status transitions
+          if (signal.status === 'ringing') {
+              if (isRecipient && prev?.status !== 'ringing') {
+                  playAudio(RINGTONE_URL);
+              } else if (isCaller && prev?.status !== 'ringing') {
+                  playAudio(CALLING_TONE_URL);
+              }
+          } else if (signal.status === 'busy' || signal.status === 'declined') {
+              if (isCaller) playAudio(BUSY_TONE_URL, false);
+              else stopAudio();
+          } else {
+              stopAudio();
+          }
+          return signal;
+      });
 
       // Handle timer
       if (signal.status === 'connected') {
@@ -51,17 +86,22 @@ const CallOverlay: React.FC = () => {
           timerRef.current = null;
         }
         if (signal.status === 'ended' || signal.status === 'declined' || signal.status === 'busy') {
-            setTimeout(() => setActiveCall(null), 2000);
+            setTimeout(() => {
+              setActiveCall(null);
+              setCallTimer(0);
+            }, 3000);
         }
       }
     };
 
     window.addEventListener('storage', handleSignalChange);
-    // Initial check
     handleSignalChange();
 
-    return () => window.removeEventListener('storage', handleSignalChange);
-  }, [sessionId, activeCall]);
+    return () => {
+      window.removeEventListener('storage', handleSignalChange);
+      stopAudio();
+    };
+  }, [sessionId, activeCall?.status]);
 
   const updateSignal = (signal: CallSignal | null) => {
     if (signal) {
@@ -69,7 +109,6 @@ const CallOverlay: React.FC = () => {
     } else {
       localStorage.removeItem('boz_call_signal');
     }
-    // Storage event doesn't fire in the same tab, so we manually trigger it or update state
     window.dispatchEvent(new Event('storage'));
   };
 
@@ -80,6 +119,7 @@ const CallOverlay: React.FC = () => {
         clearInterval(timerRef.current);
         timerRef.current = null;
     }
+    stopAudio();
   };
 
   const handleAccept = () => {
@@ -90,7 +130,6 @@ const CallOverlay: React.FC = () => {
   const handleDecline = () => {
     if (!activeCall) return;
     updateSignal({ ...activeCall, status: 'declined' });
-    setTimeout(() => updateSignal(null), 500);
   };
 
   const handleEnd = () => {
@@ -114,8 +153,6 @@ const CallOverlay: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const displayName = isIncoming ? activeCall.callerName : (isOutgoing || isConnected ? (activeCall.callerId === sessionId ? 'Calling...' : activeCall.callerName) : 'User');
-
   return (
     <div className="fixed inset-0 z-[9999] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-between p-12 text-white animate-in fade-in duration-500">
       <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
@@ -126,20 +163,20 @@ const CallOverlay: React.FC = () => {
             <div className="absolute -inset-8 rounded-full bg-emerald-500/20 animate-ping" />
           )}
           <div className={`w-32 h-32 rounded-full border-4 ${isConnected ? 'border-emerald-500' : isBusy || isDeclined ? 'border-red-500' : 'border-emerald-500/50'} flex items-center justify-center text-5xl font-black bg-slate-800 shadow-2xl relative z-10 overflow-hidden`}>
-             <span className="animate-pulse">{activeCall.callerName.charAt(0)}</span>
+             <span className={isIncoming || isOutgoing ? "animate-pulse" : ""}>{activeCall.callerName.charAt(0)}</span>
           </div>
         </div>
         
         <div className="text-center">
           <h2 className="text-3xl font-black tracking-tight mb-2">
-            {isIncoming ? activeCall.callerName : (isOutgoing ? 'Ringing...' : isConnected ? activeCall.callerName : 'Call Ended')}
+            {isIncoming ? activeCall.callerName : (isOutgoing ? 'Ringing...' : isConnected ? activeCall.callerName : isBusy ? 'User Busy' : isDeclined ? 'Call Declined' : 'Call Ended')}
           </h2>
           <p className={`font-bold uppercase tracking-widest text-xs ${isBusy || isDeclined ? 'text-red-400' : 'text-emerald-400'}`}>
             {isIncoming ? 'Incoming Boz Call' : 
              isOutgoing ? `Calling ${activeCall.recipientId === 'admin' ? 'Head Office' : 'Staff'}...` : 
              isConnected ? `In Call • ${formatTime(callTimer)}` : 
-             isBusy ? 'User is Busy' :
-             isDeclined ? 'Call Declined' : 'Call Ended'}
+             isBusy ? 'Recipient is busy on another call' :
+             isDeclined ? 'Call was declined' : 'Call Ended'}
           </p>
         </div>
       </div>
@@ -174,7 +211,7 @@ const CallOverlay: React.FC = () => {
                   onClick={handleEnd}
                   className="p-8 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-2xl shadow-red-900/50 transition-all transform active:scale-90"
                 >
-                  {isOutgoing ? <X className="w-8 h-8" /> : <PhoneOff className="w-8 h-8" />}
+                  {isOutgoing || isBusy || isDeclined ? <X className="w-8 h-8" /> : <PhoneOff className="w-8 h-8" />}
                 </button>
 
                 <button 
