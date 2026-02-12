@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike, Loader2, MessageCircle, Mail, MapPin, Building, User, ReceiptIndianRupee, Calendar } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike, Loader2, MessageCircle, Mail, MapPin, Building, User, ReceiptIndianRupee, Calendar, Wallet } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
@@ -152,7 +152,6 @@ const UserSalary: React.FC = () => {
     let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
     
     attendance.forEach(day => {
-        // --- 1.0x Pay Rules ---
         if (day.status === AttendanceStatus.PRESENT) {
             payableDays += 1;
             counts.present++;
@@ -168,14 +167,10 @@ const UserSalary: React.FC = () => {
         } else if (day.status === AttendanceStatus.HOLIDAY) {
             payableDays += 1;
             counts.holiday++;
-        } 
-        // --- 0.5x Pay Rules ---
-        else if (day.status === AttendanceStatus.HALF_DAY) {
+        } else if (day.status === AttendanceStatus.HALF_DAY) {
             payableDays += 0.5;
             counts.half++;
-        } 
-        // --- 0.0x Pay Rules ---
-        else if (day.status === AttendanceStatus.ABSENT) {
+        } else if (day.status === AttendanceStatus.ABSENT) {
             counts.absent++;
         }
 
@@ -206,6 +201,7 @@ const UserSalary: React.FC = () => {
     return {
         month: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         netPay,
+        monthlyCtc,
         grossEarned: grossEarned + travelIncentive,
         workingDays: daysInMonth,
         paidDays: payableDays,
@@ -218,24 +214,6 @@ const UserSalary: React.FC = () => {
         deductions: paidAdvances > 0 ? [{ label: 'Salary Advance Rec.', amount: paidAdvances }] : []
     };
   }, [user, advanceHistory, kmClaims, refreshToggle, currentMonthPayrollEntry]);
-
-  const handleShareWhatsApp = () => {
-    if (!user || !salaryData) return;
-    let text = `*OK BOZ Salary Slip Summary*\n\n`;
-    text += `Employee: *${user.name}*\n`;
-    text += `Month: *${salaryData.month}*\n`;
-    text += `Payable Days: *${salaryData.paidDays}*\n`;
-    text += `Net Payout: *₹${salaryData.netPay.toLocaleString()}*\n`;
-    text += `Status: *${currentMonthPayrollEntry?.status || 'Pending'}*\n\n`;
-    text += `_Thank you for your hard work!_`;
-    window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
-  const handleShareEmail = () => {
-    if (!user || !salaryData) return;
-    const text = `Hi ${user.name},\n\nYour salary slip for ${salaryData.month} is ready. Net Payout: ₹${salaryData.netPay.toLocaleString()}.`;
-    window.location.href = `mailto:${user.email}?subject=Salary Slip ${salaryData.month}&body=${encodeURIComponent(text)}`;
-  };
 
   const generateSlipPDF = async () => {
     if (!slipRef.current || !user || !salaryData) return;
@@ -282,8 +260,8 @@ const UserSalary: React.FC = () => {
                     <p className="text-xl font-black">{salaryData.totalWorkTime}</p>
                 </div>
                 <div className="bg-white/10 p-4 rounded-2xl border border-white/10 backdrop-blur-md">
-                    <p className="text-[9px] font-black uppercase opacity-60 tracking-widest mb-1">Travel TA</p>
-                    <p className="text-xl font-black text-emerald-200">₹{salaryData.earnings[1].amount.toLocaleString()}</p>
+                    <p className="text-[9px] font-black uppercase opacity-60 tracking-widest mb-1">Monthly CTC</p>
+                    <p className="text-xl font-black text-emerald-200">₹{salaryData.monthlyCtc.toLocaleString()}</p>
                 </div>
             </div>
           </div>
@@ -315,27 +293,52 @@ const UserSalary: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-2 gap-8 mb-6">
                     <div className="space-y-4">
                         <div>
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Employee Details</p>
                             <p className="font-black text-gray-800">{user.name}</p>
                             <p className="text-xs text-gray-500 font-bold">{user.role}</p>
                             <p className="text-[10px] text-gray-400 font-mono mt-1">ID: {user.id}</p>
+                            <div className="mt-2 pt-2 border-t border-gray-50">
+                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Monthly CTC</p>
+                                <p className="text-sm font-black text-gray-800">₹{salaryData.monthlyCtc.toLocaleString()}</p>
+                            </div>
                         </div>
                     </div>
                     <div className="space-y-4 text-right">
                         <div>
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Attendance Detailed Summary</p>
-                            <div className="text-[10px] space-y-1 font-bold text-gray-600">
-                                <p className="flex justify-between">Present: <span className="text-gray-900">{salaryData.counts.present}</span></p>
-                                <p className="flex justify-between">Week Off: <span className="text-gray-900">{salaryData.counts.off}</span></p>
-                                <p className="flex justify-between">Holiday: <span className="text-gray-900">{salaryData.counts.holiday}</span></p>
-                                <p className="flex justify-between">Paid Leave: <span className="text-gray-900">{salaryData.counts.leave}</span></p>
-                                <p className="flex justify-between">Alternate Day: <span className="text-gray-900">{salaryData.counts.alternate}</span></p>
-                                <p className="flex justify-between border-t border-gray-100 pt-1">Half Day (50%): <span className="text-gray-900">{salaryData.counts.half}</span></p>
-                                <div className="h-px bg-indigo-100 my-1"></div>
-                                <p className="flex justify-between text-indigo-600 text-xs font-black">Payable Days: <span>{salaryData.paidDays}</span></p>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 text-right">Attendance Summary</p>
+                            <div className="text-[10px] space-y-1.5 font-bold text-gray-600">
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-400 uppercase font-bold">Present Days</span>
+                                    <span className="text-gray-900 font-black">{salaryData.counts.present + salaryData.counts.alternate}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-400 uppercase font-bold">Week Offs</span>
+                                    <span className="text-gray-900 font-black">{salaryData.counts.off}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-400 uppercase font-bold">Holidays / Paid Lve</span>
+                                    <span className="text-gray-900 font-black">{salaryData.counts.holiday + salaryData.counts.leave}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-400 uppercase font-bold">Half Days (0.5x)</span>
+                                    <span className="text-amber-600 font-black">{salaryData.counts.half}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
+                                    <span className="text-rose-500 uppercase font-bold">Absent Days</span>
+                                    <span className="text-rose-600 font-black">{salaryData.counts.absent}</span>
+                                </div>
+                                <div className="h-px bg-indigo-50 my-1"></div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-gray-400 uppercase font-bold">Total Month Days</span>
+                                    <span className="text-gray-900 font-black">{salaryData.workingDays}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 text-indigo-600 text-[11px]">
+                                    <span className="uppercase font-black">Net Payable Days</span>
+                                    <span className="font-black">{salaryData.paidDays}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -361,7 +364,7 @@ const UserSalary: React.FC = () => {
                         ))}
                     </div>
                     <div className="bg-emerald-600 p-6 flex justify-between items-center text-white">
-                        <span className="text-xs font-black uppercase tracking-[0.2em]">Net Take Home</span>
+                        <span className="text-xs font-black uppercase tracking-[0.2em]">Net Payout Received</span>
                         <span className="text-3xl font-black tracking-tighter">₹{salaryData.netPay.toLocaleString()}</span>
                     </div>
                 </div>
@@ -375,10 +378,6 @@ const UserSalary: React.FC = () => {
                 <button onClick={generateSlipPDF} disabled={isExportingSlip} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
                     {isExportingSlip ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF Slip
                 </button>
-                <div className="flex gap-2">
-                    <button onClick={handleShareWhatsApp} className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 hover:bg-emerald-100 transition-colors"><MessageCircle className="w-5 h-5"/></button>
-                    <button onClick={handleShareEmail} className="p-4 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 hover:bg-blue-100 transition-colors"><Mail className="w-5 h-5"/></button>
-                </div>
             </div>
         </div>
 
@@ -401,14 +400,12 @@ const UserSalary: React.FC = () => {
                                 req.status === 'Paid' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                 'bg-orange-50 text-orange-700 border-orange-200'
                             }`}>{req.status}</span>
-                            <p className="text-[9px] text-gray-400 mt-1 font-bold">{new Date(req.requestDate).toLocaleDateString()}</p>
                         </div>
                     </div>
                 ))}
             </div>
         </div>
       </div>
-      {/* ... advance modal remains unchanged ... */}
     </div>
   );
 };

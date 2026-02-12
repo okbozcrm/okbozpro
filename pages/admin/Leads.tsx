@@ -64,6 +64,7 @@ const Leads = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'Grid' | 'List'>('List');
   const [kpiRefDate, setKpiRefDate] = useState(new Date().toISOString().split('T')[0]);
+  const [activeKpi, setActiveKpi] = useState<string | null>(null);
   
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [outreachMessage, setOutreachMessage] = useState('');
@@ -161,13 +162,9 @@ const Leads = () => {
       }
   };
 
-  // Trigger auto-message logic based on outcome selection
   useEffect(() => {
     if (formData.outcome === 'No Answer' && !outreachMessage) {
         handleAiFillMessage(true);
-    }
-    if (formData.outcome === 'Not Interest') {
-        setOutreachMessage('');
     }
   }, [formData.outcome]);
 
@@ -310,20 +307,30 @@ const Leads = () => {
           const matchesSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                l.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                l.phone?.includes(searchTerm);
+          
+          let matchesKpi = true;
+          if (activeKpi === 'due') matchesKpi = l.nextCallDate === kpiRefDate;
+          else if (activeKpi === 'qualified') matchesKpi = l.status === 'Qualified';
+          else if (activeKpi === 'pipeline') matchesKpi = l.status !== 'Lost';
+
           const matchesStatus = statusFilter === 'All' || l.status === statusFilter;
           const matchesPriority = priorityFilter === 'All' || l.priority === priorityFilter;
-          return matchesSearch && matchesStatus && matchesPriority;
+          
+          return matchesSearch && matchesStatus && matchesPriority && matchesKpi;
       });
-  }, [leads, searchTerm, statusFilter, priorityFilter]);
+  }, [leads, searchTerm, statusFilter, priorityFilter, activeKpi, kpiRefDate]);
 
   const stats = useMemo(() => {
       const total = leads.length;
       const interested = leads.filter(l => l.status === 'Qualified').length;
-      // Follow-up refers to the selected kpiRefDate
       const dueCount = leads.filter(l => l.status !== 'Lost' && l.status !== 'Converted' && l.nextCallDate === kpiRefDate).length;
       const pipelineValue = leads.filter(l => l.status !== 'Lost').reduce((sum, l) => sum + (l.totalValue || 0), 0);
       return { total, interested, dueCount, pipelineValue };
   }, [leads, kpiRefDate]);
+
+  const toggleKpiFilter = (kpi: string) => {
+      setActiveKpi(current => current === kpi ? null : kpi);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -404,7 +411,10 @@ const Leads = () => {
 
       {/* 3. Colorful KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div 
+            onClick={() => toggleKpiFilter('active')}
+            className={`bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all cursor-pointer ${activeKpi === 'active' ? 'ring-4 ring-white ring-offset-4 ring-offset-indigo-500 scale-105' : ''}`}
+          >
               <div className="relative z-10 space-y-2">
                   <div className="p-3 bg-white/20 rounded-2xl w-fit"><Users className="w-6 h-6" /></div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Active Lead Base</p>
@@ -416,11 +426,14 @@ const Leads = () => {
               <Activity className="absolute -right-6 -bottom-6 w-32 h-32 opacity-[0.08] group-hover:scale-110 transition-transform duration-700" />
           </div>
 
-          <div className="bg-gradient-to-br from-rose-500 to-rose-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-rose-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div 
+            onClick={() => toggleKpiFilter('due')}
+            className={`bg-gradient-to-br from-rose-500 to-rose-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-rose-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all cursor-pointer ${activeKpi === 'due' ? 'ring-4 ring-white ring-offset-4 ring-offset-rose-500 scale-105' : ''}`}
+          >
               <div className="relative z-10 space-y-3">
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-white/20 rounded-2xl w-fit"><PhoneOutgoing className="w-6 h-6" /></div>
-                    <div className="bg-white/20 px-2 py-1 rounded-lg border border-white/20">
+                    <div className="bg-white/20 px-2 py-1 rounded-lg border border-white/20" onClick={(e) => e.stopPropagation()}>
                         <input 
                             type="date" 
                             value={kpiRefDate} 
@@ -438,7 +451,10 @@ const Leads = () => {
               <Calendar className="absolute -right-6 -bottom-6 w-32 h-32 opacity-[0.08] group-hover:scale-110 transition-transform duration-700" />
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-emerald-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div 
+            onClick={() => toggleKpiFilter('qualified')}
+            className={`bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-emerald-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all cursor-pointer ${activeKpi === 'qualified' ? 'ring-4 ring-white ring-offset-4 ring-offset-emerald-500 scale-105' : ''}`}
+          >
               <div className="relative z-10 space-y-2">
                   <div className="p-3 bg-white/20 rounded-2xl w-fit"><ThumbsUp className="w-6 h-6" /></div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Qualified Prospects</p>
@@ -450,7 +466,10 @@ const Leads = () => {
               <Building2 className="absolute -right-6 -bottom-6 w-32 h-32 opacity-[0.08] group-hover:scale-110 transition-transform duration-700" />
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-purple-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all">
+          <div 
+            onClick={() => toggleKpiFilter('pipeline')}
+            className={`bg-gradient-to-br from-purple-500 to-purple-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-purple-900/10 relative overflow-hidden group hover:scale-[1.02] transition-all cursor-pointer ${activeKpi === 'pipeline' ? 'ring-4 ring-white ring-offset-4 ring-offset-purple-500 scale-105' : ''}`}
+          >
               <div className="relative z-10 space-y-2">
                   <div className="p-3 bg-white/20 rounded-2xl w-fit"><Wallet className="w-6 h-6" /></div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Pipeline Valuation</p>
@@ -467,7 +486,11 @@ const Leads = () => {
       {viewMode === 'Grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in duration-700">
             {filteredLeads.map(lead => (
-                <div key={lead.id} className={`bg-white rounded-[3rem] border shadow-sm p-8 hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col h-full ${lead.status === 'Lost' ? 'border-rose-400 ring-4 ring-rose-50 grayscale-[0.3]' : 'border-gray-100'}`}>
+                <div 
+                    key={lead.id} 
+                    onClick={() => handleEdit(lead)}
+                    className={`bg-white rounded-[3rem] border shadow-sm p-8 hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col h-full cursor-pointer ${lead.status === 'Lost' ? 'border-rose-400 ring-4 ring-rose-50 grayscale-[0.3]' : 'border-gray-100'}`}
+                >
                 {lead.status === 'Lost' && <div className="absolute top-0 right-0 bg-rose-500 text-white px-6 py-2 rounded-bl-[2rem] text-[10px] font-black uppercase tracking-[0.2em] z-10 shadow-lg">Closed • Discarded</div>}
                 <div className="flex justify-between items-start mb-8">
                     <div className="flex items-center gap-5">
@@ -488,9 +511,9 @@ const Leads = () => {
                     <div className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${lead.nextCallDate === kpiRefDate ? 'text-rose-600' : 'text-gray-400'}`}>
                         <Calendar className="w-3.5 h-3.5" /> {lead.nextCallDate || 'N/A'}
                     </div>
-                    <button onClick={() => handleEdit(lead)} className="text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline flex items-center gap-1.5 group/btn">
+                    <div className="text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 group/btn">
                         Manage <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
-                    </button>
+                    </div>
                 </div>
                 </div>
             ))}
@@ -512,7 +535,11 @@ const Leads = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                           {filteredLeads.map(lead => (
-                              <tr key={lead.id} className={`hover:bg-gray-50/50 transition-all ${lead.status === 'Lost' ? 'bg-rose-50/20' : ''}`}>
+                              <tr 
+                                key={lead.id} 
+                                onClick={() => handleEdit(lead)}
+                                className={`hover:bg-gray-50/50 transition-all cursor-pointer ${lead.status === 'Lost' ? 'bg-rose-50/20' : ''}`}
+                              >
                                   <td className="px-10 py-8">
                                       <div className="flex items-center gap-4">
                                           <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-white text-sm shadow-lg ${lead.status === 'Lost' ? 'bg-rose-400' : lead.priority === 'Hot' ? 'bg-rose-500' : 'bg-indigo-600'}`}>{lead.name.charAt(0)}</div>
@@ -522,7 +549,7 @@ const Leads = () => {
                                           </div>
                                       </div>
                                   </td>
-                                  <td className="px-10 py-8 font-mono text-gray-600 font-bold">
+                                  <td className="px-10 py-8 font-mono text-gray-600 font-bold" onClick={(e) => e.stopPropagation()}>
                                       <ContactDisplay type="phone" value={lead.phone || ''} />
                                   </td>
                                   <td className="px-10 py-8 text-gray-600 font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-300" /> {lead.location}</td>
@@ -543,8 +570,18 @@ const Leads = () => {
                                   </td>
                                   <td className="px-10 py-8 text-right">
                                       <div className="flex justify-end gap-3">
-                                          <button onClick={() => handleEdit(lead)} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 hover:bg-indigo-100 transition-all"><Edit2 className="w-5 h-5"/></button>
-                                          <button onClick={() => setLeads(prev => prev.filter(l => l.id !== lead.id))} className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 hover:bg-rose-100 transition-all"><Trash2 className="w-5 h-5"/></button>
+                                          <button 
+                                              onClick={(e) => { e.stopPropagation(); handleEdit(lead); }} 
+                                              className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 hover:bg-indigo-100 transition-all"
+                                          >
+                                              <Edit2 className="w-5 h-5"/>
+                                          </button>
+                                          <button 
+                                              onClick={(e) => { e.stopPropagation(); if (window.confirm("Remove this lead?")) setLeads(prev => prev.filter(l => l.id !== lead.id)); }} 
+                                              className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 hover:bg-rose-100 transition-all"
+                                          >
+                                              <Trash2 className="w-5 h-5"/>
+                                          </button>
                                       </div>
                                   </td>
                               </tr>
