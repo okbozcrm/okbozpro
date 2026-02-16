@@ -499,21 +499,8 @@ const AutoDialer: React.FC = () => {
         </div>
       </div>
 
-      {/* Dashboard Section */}
+      {/* Dashboard Section - Swapped order to put Action Center on right */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden cursor-pointer group hover:scale-[1.02] transition-all" onClick={() => { handleResetFilters(); setFilterDateType('Today'); }}>
-              <div className="relative z-10">
-                  <h3 className="font-bold flex items-center gap-2 text-indigo-100 mb-3 uppercase tracking-widest text-[10px]"><Calendar className="w-4 h-4" /> Today's Action Center</h3>
-                  <div className="flex justify-between items-end">
-                      <div><p className="text-5xl font-black">{stats.todaysFocusTotal}</p><p className="text-sm text-indigo-200 font-bold">Total Priority Items</p></div>
-                      <div className="text-right space-y-1">
-                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400"></div> {stats.pendingLeads} New Leads</p>
-                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400"></div> {stats.dueFollowUps} Callbacks</p>
-                      </div>
-                  </div>
-              </div>
-              <div className="absolute -right-4 -bottom-4 opacity-[0.08] group-hover:scale-110 transition-transform duration-700"><BarChart3 className="w-32 h-32 text-white" /></div>
-          </div>
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center h-32">
               <div className="flex-1 h-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={5} dataKey="value">{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>
               <div className="flex-1 text-xs space-y-1">
@@ -527,12 +514,66 @@ const AutoDialer: React.FC = () => {
               <div className="w-full bg-gray-100 rounded-full h-2"><div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${stats.progress}%` }}></div></div>
               <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider"><span>{stats.completed} Handled</span><span>{stats.total} Lead Base</span></div>
           </div>
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden cursor-pointer group hover:scale-[1.02] transition-all" onClick={() => { handleResetFilters(); setFilterDateType('Today'); }}>
+              <div className="relative z-10">
+                  <h3 className="font-bold flex items-center gap-2 text-indigo-100 mb-3 uppercase tracking-widest text-[10px]"><Calendar className="w-4 h-4" /> Today's Action Center</h3>
+                  <div className="flex justify-between items-end">
+                      <div><p className="text-5xl font-black">{stats.todaysFocusTotal}</p><p className="text-sm text-indigo-200 font-bold">Total Priority Items</p></div>
+                      <div className="text-right space-y-1">
+                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400"></div> {stats.pendingLeads} New Leads</p>
+                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400"></div> {stats.dueFollowUps} Callbacks</p>
+                      </div>
+                  </div>
+              </div>
+              <div className="absolute -right-4 -bottom-4 opacity-[0.08] group-hover:scale-110 transition-transform duration-700"><BarChart3 className="w-32 h-32 text-white" /></div>
+          </div>
       </div>
 
-      {/* Workspace */}
+      {/* Workspace - Swapped order to put List on left */}
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
-          {/* Active Caller Card */}
+          {/* Left: List View */}
+          <div className="lg:w-2/3 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-3 items-center">
+                    <div className="relative flex-1 min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" /><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+                    <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className={`p-2 rounded-lg border transition-all flex items-center gap-2 text-sm font-medium ${showAdvancedFilters ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}><Filter className="w-4 h-4" /></button>
+                    <button onClick={handleExport} className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-gray-100 text-gray-600"><Download className="w-4 h-4" /></button>
+                    <button onClick={handleClearAll} className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+              </div>
+
+              {showAdvancedFilters && (
+                  <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-4 animate-in slide-in-from-top-2">
+                      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">Status: All</option><option value="Pending">Pending</option><option value="Interested">Interested</option><option value="Callback">Callback</option></select>
+                      <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">City: All</option>{cities.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                      <button onClick={handleResetFilters} className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Reset Filters</button>
+                  </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-white text-gray-400 text-[11px] font-black uppercase tracking-widest border-b border-gray-200 sticky top-0 z-10">
+                          <tr><th className="px-6 py-4 w-12 text-center">#</th><th className="px-6 py-4">Lead Details</th><th className="px-6 py-4">Current Status</th><th className="px-6 py-4">Schedule</th><th className="px-6 py-4 text-right">Actions</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                          {filteredContacts.map((contact, idx) => {
+                              const isSelected = activeContact?.id === contact.id;
+                              const isDue = contact.nextFollowUp && contact.nextFollowUp.split('T')[0] <= new Date().toISOString().split('T')[0];
+                              return (
+                                  <tr key={contact.id} className={`hover:bg-gray-50 transition-all cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : ''} ${isDue ? 'bg-yellow-50/40' : ''}`} onClick={() => selectContact(contact.id)}>
+                                      <td className="px-6 py-4 text-center text-gray-400 text-[10px] font-bold">{isSelected ? <Play className="w-3.5 h-3.5 text-indigo-600 fill-current mx-auto animate-pulse"/> : idx + 1}</td>
+                                      <td className="px-6 py-4"><div className={`font-bold text-sm ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>{contact.name}</div><div className="text-[10px] text-gray-500 font-medium">{contact.city} • {contact.phone}</div></td>
+                                      <td className="px-6 py-4"><span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${contact.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : contact.status === 'Callback' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-gray-50 text-gray-500'}`}>{contact.status}</span></td>
+                                      <td className="px-6 py-4 text-xs">{contact.nextFollowUp ? <span className={`flex items-center gap-1.5 font-black ${isDue ? 'text-rose-600' : 'text-gray-500'}`}><Calendar className="w-3 h-3" /> {new Date(contact.nextFollowUp).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span> : '-'}</td>
+                                      <td className="px-6 py-4 text-right"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); handleEditContact(contact); }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Edit2 className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); handleDeleteContact(contact.id); }} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></div></td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+
+          {/* Right: Active Caller Card */}
           <div className="lg:w-1/3 flex flex-col min-h-0">
               <div className="bg-white rounded-2xl border border-gray-200 shadow-lg flex-1 flex flex-col overflow-hidden relative">
                   <div className="h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
@@ -622,47 +663,6 @@ const AutoDialer: React.FC = () => {
                   ) : (
                       <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-gray-400"><FileSpreadsheet className="w-16 h-16 mb-4 opacity-50" /><h3 className="text-lg font-bold text-gray-600 mb-2">List Empty</h3><p className="text-sm">Import CSV or add manually to start.</p></div>
                   )}
-              </div>
-          </div>
-
-          {/* Right: List View */}
-          <div className="lg:w-2/3 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-3 items-center">
-                    <div className="relative flex-1 min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" /><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
-                    <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className={`p-2 rounded-lg border transition-all flex items-center gap-2 text-sm font-medium ${showAdvancedFilters ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}><Filter className="w-4 h-4" /></button>
-                    <button onClick={handleExport} className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-gray-100 text-gray-600"><Download className="w-4 h-4" /></button>
-                    <button onClick={handleClearAll} className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
-
-              {showAdvancedFilters && (
-                  <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-4 animate-in slide-in-from-top-2">
-                      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">Status: All</option><option value="Pending">Pending</option><option value="Interested">Interested</option><option value="Callback">Callback</option></select>
-                      <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">City: All</option>{cities.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                      <button onClick={handleResetFilters} className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Reset Filters</button>
-                  </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                      <thead className="bg-white text-gray-400 text-[11px] font-black uppercase tracking-widest border-b border-gray-200 sticky top-0 z-10">
-                          <tr><th className="px-6 py-4 w-12 text-center">#</th><th className="px-6 py-4">Lead Details</th><th className="px-6 py-4">Current Status</th><th className="px-6 py-4">Schedule</th><th className="px-6 py-4 text-right">Actions</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                          {filteredContacts.map((contact, idx) => {
-                              const isSelected = activeContact?.id === contact.id;
-                              const isDue = contact.nextFollowUp && contact.nextFollowUp.split('T')[0] <= new Date().toISOString().split('T')[0];
-                              return (
-                                  <tr key={contact.id} className={`hover:bg-gray-50 transition-all cursor-pointer group ${isSelected ? 'bg-indigo-50/50' : ''} ${isDue ? 'bg-yellow-50/40' : ''}`} onClick={() => selectContact(contact.id)}>
-                                      <td className="px-6 py-4 text-center text-gray-400 text-[10px] font-bold">{isSelected ? <Play className="w-3.5 h-3.5 text-indigo-600 fill-current mx-auto animate-pulse"/> : idx + 1}</td>
-                                      <td className="px-6 py-4"><div className={`font-bold text-sm ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>{contact.name}</div><div className="text-[10px] text-gray-500 font-medium">{contact.city} • {contact.phone}</div></td>
-                                      <td className="px-6 py-4"><span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${contact.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : contact.status === 'Callback' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-gray-50 text-gray-500'}`}>{contact.status}</span></td>
-                                      <td className="px-6 py-4 text-xs">{contact.nextFollowUp ? <span className={`flex items-center gap-1.5 font-black ${isDue ? 'text-rose-600' : 'text-gray-500'}`}><Calendar className="w-3 h-3" /> {new Date(contact.nextFollowUp).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span> : '-'}</td>
-                                      <td className="px-6 py-4 text-right"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); handleEditContact(contact); }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Edit2 className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); handleDeleteContact(contact.id); }} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></div></td>
-                                  </tr>
-                              );
-                          })}
-                      </tbody>
-                  </table>
               </div>
           </div>
       </div>

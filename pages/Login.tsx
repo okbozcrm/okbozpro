@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck, Download } from 'lucide-react';
@@ -189,6 +188,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4 font-sans bg-gray-900 relative"
+      style={{ background: `linear-gradient(135deg, ${primaryColor}, #064e3b)` }}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex overflow-hidden min-h-[600px] relative z-10">
         
