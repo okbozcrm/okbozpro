@@ -353,7 +353,6 @@ const AutoDialer: React.FC = () => {
       setFilterMonth(new Date().toISOString().slice(0, 7));
   };
 
-  // --- FIX: Added missing handleFileUpload function ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -403,7 +402,6 @@ const AutoDialer: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // --- FIX: Added missing handleExport function ---
   const handleExport = () => {
     if (filteredContacts.length === 0) return;
     const headers = ["Name", "Phone", "Email", "City", "Status", "Last Called", "Follow Up"];
@@ -419,7 +417,18 @@ const AutoDialer: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // --- FIX: Added missing handleClearAll function ---
+  const handleDownloadSample = () => {
+    const headers = ["Name", "Phone", "Email", "City"];
+    const sampleRow = ["John Doe", "9876543210", "john@example.com", "Coimbatore"];
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), sampleRow.join(",")].join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", "autodialer_sample.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleClearAll = () => {
     if (window.confirm("Clear all contacts for this account?")) {
         setContacts(prev => isSuperAdmin ? prev.filter(c => c.ownerId !== 'admin') : prev.filter(c => c.ownerId !== sessionId));
@@ -428,7 +437,6 @@ const AutoDialer: React.FC = () => {
     }
   };
 
-  // --- FIX: Added missing selectContact function ---
   const selectContact = (id: string) => {
     const idx = contacts.findIndex(c => c.id === id);
     if (idx !== -1) {
@@ -437,7 +445,6 @@ const AutoDialer: React.FC = () => {
     }
   };
 
-  // --- FIX: Added missing handleEditContact function ---
   const handleEditContact = (contact: CallContact) => {
     setEditFormData({
         id: contact.id,
@@ -449,7 +456,6 @@ const AutoDialer: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
-  // --- FIX: Added missing handleDeleteContact function ---
   const handleDeleteContact = (id: string) => {
     if (window.confirm("Delete this contact?")) {
         setContacts(prev => prev.filter(c => c.id !== id));
@@ -459,7 +465,6 @@ const AutoDialer: React.FC = () => {
     }
   };
 
-  // --- FIX: Added missing handleUpdateContact function ---
   const handleUpdateContact = (e: React.FormEvent) => {
       e.preventDefault();
       setContacts(prev => prev.map(c => c.id === editFormData.id ? { ...c, ...editFormData } : c));
@@ -480,6 +485,9 @@ const AutoDialer: React.FC = () => {
         <div className="flex gap-2">
             <button onClick={() => setIsTemplateModalOpen(true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors">
                 <Settings className="w-4 h-4" /> Manage Templates
+            </button>
+            <button onClick={handleDownloadSample} className="bg-white border border-gray-300 text-gray-500 px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm" title="Download Sample CSV">
+                <FileSpreadsheet className="w-4 h-4" /> Sample
             </button>
             <button onClick={() => setIsAddModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-all transform active:scale-95">
                 <UserPlus className="w-4 h-4" /> Add Lead
@@ -627,7 +635,7 @@ const AutoDialer: React.FC = () => {
               </div>
 
               {showAdvancedFilters && (
-                  <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-4 animate-in slide-in-from-top-2">
+                  <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-4 animate-in slide-in-from-top-2">
                       <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">Status: All</option><option value="Pending">Pending</option><option value="Interested">Interested</option><option value="Callback">Callback</option></select>
                       <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">City: All</option>{cities.map(c => <option key={c} value={c}>{c}</option>)}</select>
                       <button onClick={handleResetFilters} className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Reset Filters</button>
@@ -801,13 +809,13 @@ const AutoDialer: React.FC = () => {
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="Email (Optional)" value={manualContact.email} onChange={e => setManualContact({...manualContact, email: e.target.value})} />
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="City" value={manualContact.city} onChange={e => setManualContact({...manualContact, city: e.target.value})} />
                  </div>
-                 <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 transition-all transform active:scale-95">Add to Campaign</button>
+                 <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all transform active:scale-95">Add to Campaign</button>
               </form>
            </div>
         </div>
       )}
 
-      {/* --- FIX: Added Edit Contact Modal --- */}
+      {/* Edit Contact Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
@@ -822,7 +830,7 @@ const AutoDialer: React.FC = () => {
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="Email (Optional)" value={editFormData.email} onChange={e => setEditFormData({...editFormData, email: e.target.value})} />
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="City" value={editFormData.city} onChange={e => setEditFormData({...editFormData, city: e.target.value})} />
                  </div>
-                 <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-900/10 hover:bg-emerald-700 transition-all transform active:scale-95">Update Details</button>
+                 <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-900/20 hover:bg-emerald-700 transition-all transform active:scale-95">Update Details</button>
               </form>
            </div>
         </div>
