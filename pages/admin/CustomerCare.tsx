@@ -58,7 +58,7 @@ const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
 const DEFAULT_PRICING_SEDAN: PricingRules = {
   localBaseFare: 200, localBaseKm: 5, localPerKmRate: 20, localWaitingRate: 2,
   rentalExtraKmRate: 15, rentalExtraHrRate: 100,
-  outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 13,
+  outstationMinKmPerDay: 250, outstationBaseRate: 0, outstationExtraKmRate: 13,
   outstationDriverAllowance: 400, outstationNightAllowance: 300,
   outstationHillsAllowance: 500
 };
@@ -139,7 +139,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
-  // FIX: Defined isEmployee to resolve 'Cannot find name' error
   const isEmployee = role === UserRole.EMPLOYEE;
 
   const [assignment, setAssignment] = useState({
@@ -297,11 +296,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       const rules = pricing[vehicleType];
       let breakup: FareItem[] = [];
       let details = '';
+      let msg = '';
 
       if (enquiryCategory === 'General') {
           total = 0;
           breakup = [];
           details = customerDetails.requirements || "General Enquiry.";
+          msg = `Hello ${customerDetails.name || 'Sir/Madam'},\nThank you for contacting OK BOZ. \n\nRegarding your enquiry:\n"${customerDetails.requirements || 'General Requirement'}"\n\nWe have received your request and our team will get back to you shortly.\n\nRegards,\nOK BOZ Support Team`;
       } else if (tripType === 'Local') {
           const base = rules.localBaseFare;
           const km = parseFloat(transportDetails.estKm) || 0;
@@ -317,46 +318,94 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           
           const validDrops = transportDetails.drops.filter(d => d.address);
           details = `Local Trip: ${km}km (${validDrops.length} Drops)`;
+
+          msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Local Trip* estimate from OK BOZ! 🚕\n\n` +
+                `🚘 Vehicle: ${vehicleType}\n` +
+                `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
+                `${transportDetails.drops.filter(d => d.address).map((d, i) => `📍 Drop ${i+1}: ${d.address}`).join('\n')}\n\n` +
+                `*Fare Breakdown:*\n` +
+                `• Base Fare: ₹${base} (Upto ${rules.localBaseKm} KM)\n` +
+                `• Extra KM: ₹${extraKmCost} (${extraKmVal.toFixed(1)} KM @ ₹${rules.localPerKmRate})\n` +
+                `• Waiting: ₹${waitCost} (${transportDetails.waitingMins} Mins @ ₹${rules.localWaitingRate}/min)\n`;
       } else if (tripType === 'Rental') {
           const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
           if (pkg) {
               total = vehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv;
               breakup.push({ label: 'Package Rate', value: total, description: pkg.name, type: 'base' });
               details = `Rental: ${pkg.name}`;
+
+              msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Rental Package* estimate from OK BOZ! 🚕\n\n` +
+                    `🚘 Vehicle: ${vehicleType}\n` +
+                    `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
+                    `📦 Package: ${pkg.name}\n\n` +
+                    `*Fare Breakdown:*\n` +
+                    `• Package Price: ₹${total}\n`;
           }
       } else {
           const days = parseFloat(transportDetails.days) || 1;
           const km = parseFloat(transportDetails.estTotalKm) || 0;
           const driverAllowance = rules.outstationDriverAllowance * days;
+          const perKmRate = rules.outstationExtraKmRate;
+          const minKmPerDay = rules.outstationMinKmPerDay;
+          const hillsAllowanceRate = rules.outstationHillsAllowance;
+          const nightAllowanceRate = rules.outstationNightAllowance;
           
           if (outstationSubType === 'RoundTrip') {
-              const minKm = days * rules.outstationMinKmPerDay;
+              const minKm = days * minKmPerDay;
               const chargeKm = Math.max(km, minKm);
-              const kmCharges = chargeKm * rules.outstationExtraKmRate;
-              const nightAllowance = (parseFloat(transportDetails.nights) || 0) * rules.outstationNightAllowance;
-              const hillsAllowance = transportDetails.isHillsTrip ? (rules.outstationHillsAllowance * days) : 0;
+              const kmCharges = chargeKm * perKmRate;
+              const nightAllowance = (parseFloat(transportDetails.nights) || 0) * nightAllowanceRate;
+              const hillsAllowance = transportDetails.isHillsTrip ? (hillsAllowanceRate * days) : 0;
               
               total = kmCharges + driverAllowance + nightAllowance + hillsAllowance;
               
-              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${chargeKm.toFixed(1)} KM @ ₹${rules.outstationExtraKmRate}/KM (Min ${minKm} KM)`, type: 'base' });
+              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${chargeKm.toFixed(1)} KM @ ₹${perKmRate}/KM (Min ${minKm} KM)`, type: 'base' });
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
-              if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${rules.outstationNightAllowance}/night`, type: 'allowance' });
-              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${rules.outstationHillsAllowance}/day`, type: 'allowance' });
+              if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${nightAllowanceRate}/night`, type: 'allowance' });
+              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
               
               details = `Round Trip: ${days} days, ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
+
+              msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation Round-Trip* estimate from OK BOZ! 🚕\n\n` +
+                    `🚘 Vehicle: ${vehicleType}\n` +
+                    `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
+                    `🌍 Destination: ${transportDetails.destination}\n\n` +
+                    `*Trip Parameters:*\n` +
+                    `• Days: ${days}\n` +
+                    `• Approx KM: ${km} KM\n` +
+                    `• Min KM/Day: ${minKmPerDay} KM\n` +
+                    `• Per KM Rate: ₹${perKmRate}\n\n` +
+                    `*Fare Breakdown:*\n` +
+                    `• KM Charges: ₹${kmCharges} (${chargeKm.toFixed(1)} KM)\n` +
+                    `• Driver Allw.: ₹${driverAllowance} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
+                    (nightAllowance > 0 ? `• Night Allw.: ₹${nightAllowance} (${transportDetails.nights} Nights)\n` : '') +
+                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           } else {
               const baseFare = rules.outstationBaseRate;
-              const kmCharges = km * rules.outstationExtraKmRate;
-              const hillsAllowance = transportDetails.isHillsTrip ? (rules.outstationHillsAllowance * days) : 0;
+              const kmCharges = km * perKmRate;
+              const hillsAllowance = transportDetails.isHillsTrip ? (hillsAllowanceRate * days) : 0;
               
               total = baseFare + kmCharges + driverAllowance + hillsAllowance;
               
               if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, type: 'base' });
-              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${km.toFixed(1)} KM @ ₹${rules.outstationExtraKmRate}/KM`, type: 'base' });
+              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${km.toFixed(1)} KM @ ₹${perKmRate}/KM`, type: 'base' });
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
-              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${rules.outstationHillsAllowance}/day`, type: 'allowance' });
+              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
 
               details = `One Way: ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
+
+              msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation One-Way* estimate from OK BOZ! 🚕\n\n` +
+                    `🚘 Vehicle: ${vehicleType}\n` +
+                    `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
+                    `🌍 Destination: ${transportDetails.destination}\n\n` +
+                    `*Trip Parameters:*\n` +
+                    `• Approx KM: ${km} KM\n` +
+                    `• Per KM Rate: ₹${perKmRate}\n\n` +
+                    `*Fare Breakdown:*\n` +
+                    (baseFare > 0 ? `• Base Fare: ₹${baseFare}\n` : '') +
+                    `• KM Charges: ₹${kmCharges} (${km.toFixed(1)} KM)\n` +
+                    `• Driver Allw.: ₹${driverAllowance} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
+                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           }
       }
 
@@ -364,18 +413,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           const gst = Math.round(total * 0.05); // 5% GST
           breakup.push({ label: 'GST (5%)', value: gst, type: 'tax' });
           total += gst;
+          msg += `• GST (5%): ₹${gst}\n\n`;
+          msg += `💰 *Total Estimate: ₹${total.toFixed(0)}*\n`;
+          msg += `(Tolls & Parking Charges Extra as per actuals.)\n\nBook now with OK BOZ!`;
       }
 
       setEstimatedCost(total);
       setFareBreakup(breakup);
-
-      // Generated Message Logic (Unchanged but uses updated breakup for consistency)
-      let msg = '';
-      if (enquiryCategory === 'General') {
-          msg = `Hello ${customerDetails.name || 'Sir/Madam'},\nThank you for contacting OK BOZ. \n\nRegarding your enquiry:\n"${customerDetails.requirements || 'General Requirement'}"\n\nWe have received your request and our team will get back to you shortly.\n\nRegards,\nOK BOZ Support Team`;
-      } else {
-          msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your ${tripType} estimate from OK BOZ! 🚕\n\n*${tripType} Trip Estimate*\n🚘 Vehicle: ${vehicleType}\n📍 Pickup: ${customerDetails.pickup || 'TBD'}\n${tripType === 'Local' ? transportDetails.drops.filter(d => d.address).map((d, i) => `📍 Drop ${i+1}: ${d.address}`).join('\n') : ''}${tripType === 'Outstation' ? `🌍 Destination: ${transportDetails.destination}` : ''}\n📝 Details: ${details}\n💰 *Total Estimate: ₹${total.toFixed(0)}*\n(Includes GST and base calculations. Tolls & Parking Extra.)\n\nBook now with OK BOZ!`;
-      }
       setGeneratedMessage(msg);
   }, [estimatedCost, customerDetails, transportDetails, tripType, vehicleType, pricing, rentalPackages, enquiryCategory, outstationSubType]);
 
@@ -437,10 +481,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // FIX: Defined handleBookNow to resolve 'Cannot find name' error
   const handleBookNow = () => saveOrder('Booked');
 
-  // FIX: Defined confirmSchedule to resolve 'Cannot find name' error
   const confirmSchedule = () => {
     if (!scheduleData.date || !scheduleData.time) {
       alert("Please select date and time");
@@ -450,7 +492,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     setIsScheduleModalOpen(false);
   };
 
-  // FIX: Defined resetFilters to resolve 'Cannot find name' error
   const resetFilters = () => {
     setFilterStatus('All');
     setFilterSearch('');
@@ -461,7 +502,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     setFilterDate(new Date().toISOString().split('T')[0]);
   };
 
-  // FIX: Defined filteredOrders useMemo to resolve 'Cannot find name' error
   const filteredOrders = useMemo(() => {
       return enquiries.filter(order => {
           const matchesSearch = order.name.toLowerCase().includes(filterSearch.toLowerCase()) || 
@@ -482,7 +522,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       });
   }, [enquiries, filterSearch, filterStatus, filterCorporate, filterBranch, filterDateType, filterDate, filterMonth, isSuperAdmin]);
 
-  // FIX: Defined getAssignedStaff helper to resolve 'Cannot find name' error
   const getAssignedStaff = (id?: string) => {
       if (!id) return null;
       return allStaff.find(s => s.id === id);
@@ -497,19 +536,129 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl"><h3 className="font-bold text-gray-800 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Fare Configuration</h3><button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button></div>
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="bg-white border border-gray-300 rounded-lg p-1 flex w-fit mb-6"><button onClick={() => setSettingsVehicleType('Sedan')} className={`px-4 py-1 text-xs font-bold rounded ${settingsVehicleType === 'Sedan' ? 'bg-emerald-500 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Sedan</button><button onClick={() => setSettingsVehicleType('SUV')} className={`px-4 py-1 text-xs font-bold rounded ${settingsVehicleType === 'SUV' ? 'bg-emerald-500 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>SUV</button></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                 <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200"><h4 className="text-sm font-bold text-emerald-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Local Rules</h4><div><label className="text-xs text-gray-500 block mb-1 font-bold">Base Fare (₹)</label><input type="number" name="localBaseFare" value={pricing[settingsVehicleType].localBaseFare} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="text-xs text-gray-500 block mb-1 font-bold">Base Km</label><input type="number" name="localBaseKm" value={pricing[settingsVehicleType].localBaseKm} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="text-xs text-gray-500 block mb-1 font-bold">Extra Km Rate</label><input type="number" name="localPerKmRate" value={pricing[settingsVehicleType].localPerKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div></div>
-                 <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200"><h4 className="text-sm font-bold text-orange-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Outstation Rules</h4><div><label className="text-xs text-gray-500 block mb-1 font-bold">Min Km / Day</label><input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="text-xs text-gray-500 block mb-1 font-bold">Per Km Rate</label><input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="text-xs text-gray-500 block mb-1 font-bold">Driver Allw.</label><input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-2 border rounded-lg text-sm" /></div></div>
-                 <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200"><h4 className="text-sm font-bold text-blue-600 uppercase tracking-wide border-b border-gray-200 pb-2 mb-2">Rental Packages</h4><div className="space-y-1">{rentalPackages.map(pkg => (<div key={pkg.id} className="flex justify-between items-center p-2 bg-white rounded-lg border text-xs font-bold"><span>{pkg.name}</span><span>₹{settingsVehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv}</span></div>))}</div></div>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Fare Configuration</h3>
+                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-8 overflow-y-auto flex-1">
+              <div className="bg-gray-100 p-1 rounded-lg flex w-fit mb-8">
+                <button onClick={() => setSettingsVehicleType('Sedan')} className={`px-6 py-2 text-xs font-black uppercase rounded-md transition-all ${settingsVehicleType === 'Sedan' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-200'}`}>Sedan</button>
+                <button onClick={() => setSettingsVehicleType('SUV')} className={`px-6 py-2 text-xs font-black uppercase rounded-md transition-all ${settingsVehicleType === 'SUV' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-200'}`}>SUV</button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                 {/* LOCAL RULES COLUMN */}
+                 <div className="space-y-6">
+                    <h4 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.2em] border-b-2 border-emerald-100 pb-2">Local Rules ({settingsVehicleType})</h4>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Fare (₹)</label>
+                            <input type="number" name="localBaseFare" value={pricing[settingsVehicleType].localBaseFare} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Km Included</label>
+                            <input type="number" name="localBaseKm" value={pricing[settingsVehicleType].localBaseKm} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Km Rate (₹/km)</label>
+                            <input type="number" name="localPerKmRate" value={pricing[settingsVehicleType].localPerKmRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Waiting Charge (₹/min)</label>
+                            <input type="number" name="localWaitingRate" value={pricing[settingsVehicleType].localWaitingRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* OUTSTATION RULES COLUMN */}
+                 <div className="space-y-6">
+                    <h4 className="text-[11px] font-black text-orange-600 uppercase tracking-[0.2em] border-b-2 border-orange-100 pb-2">Outstation Rules ({settingsVehicleType})</h4>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Min Km / Day</label>
+                                <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Per Km Rate (₹/km)</label>
+                                <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Rate (One Way)</label>
+                            <input type="number" name="outstationBaseRate" value={pricing[settingsVehicleType].outstationBaseRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Driver Allowance (₹/day)</label>
+                            <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Night Allowance (₹/night)</label>
+                            <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Hills Allowance (₹/day)</label>
+                            <input type="number" name="outstationHillsAllowance" value={pricing[settingsVehicleType].outstationHillsAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* RENTAL PACKAGES COLUMN */}
+                 <div className="space-y-6">
+                    <div className="flex justify-between items-center border-b-2 border-blue-100 pb-2">
+                        <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">Rental Packages ({settingsVehicleType})</h4>
+                        <button onClick={() => setShowAddPackage(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 shadow-sm"><Plus className="w-3 h-3" /> New</button>
+                    </div>
+                    <div className="space-y-3">
+                        {rentalPackages.map(pkg => (
+                            <div key={pkg.id} className="flex justify-between items-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm group hover:border-blue-200 transition-all">
+                                <div>
+                                    <p className="text-sm font-black text-gray-800">{pkg.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{pkg.hours}Hr / {pkg.km}km</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="font-mono font-black text-gray-900 text-base">₹{settingsVehicleType === 'Sedan' ? pkg.priceSedan : pkg.priceSuv}</span>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleEditPackage(pkg)} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg"><Edit2 className="w-3.5 h-3.5" /></button>
+                                        <button onClick={(e) => removePackage(pkg.id, e)} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
               </div>
             </div>
-            <div className="p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end"><button onClick={() => setShowSettings(false)} className="px-8 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors">Done</button></div>
+            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+                <button onClick={() => setShowSettings(false)} className="px-10 py-3 bg-slate-900 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-slate-900/20">Done</button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* ADD PACKAGE MODAL (NESTED) */}
+      {showAddPackage && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200">
+                  <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                      <h4 className="font-black text-gray-800 uppercase tracking-widest text-xs">{editingPackageId ? 'Edit Package' : 'New Rental Package'}</h4>
+                      <button onClick={handleCancelEditPackage}><X className="w-5 h-5 text-gray-400"/></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div><label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Package Name</label><input className="w-full p-2.5 border rounded-lg text-sm" value={newPackage.name} onChange={e => setNewPackage({...newPackage, name: e.target.value})} placeholder="e.g. 4 Hours / 40 KM" /></div>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div><label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Hours</label><input type="number" className="w-full p-2.5 border rounded-lg text-sm" value={newPackage.hours} onChange={e => setNewPackage({...newPackage, hours: e.target.value})} /></div>
+                          <div><label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">KM Limit</label><input type="number" className="w-full p-2.5 border rounded-lg text-sm" value={newPackage.km} onChange={e => setNewPackage({...newPackage, km: e.target.value})} /></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div><label className="text-[10px] font-black text-emerald-600 uppercase mb-1 block">Sedan Price</label><input type="number" className="w-full p-2.5 border border-emerald-100 bg-emerald-50/30 rounded-lg text-sm font-bold" value={newPackage.priceSedan} onChange={e => setNewPackage({...newPackage, priceSedan: e.target.value})} /></div>
+                          <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1 block">SUV Price</label><input type="number" className="w-full p-2.5 border border-blue-100 bg-blue-50/30 rounded-lg text-sm font-bold" value={newPackage.priceSuv} onChange={e => setNewPackage({...newPackage, priceSuv: e.target.value})} /></div>
+                      </div>
+                      <button onClick={handleAddPackage} className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-900/20">{editingPackageId ? 'Update Package' : 'Save Package'}</button>
+                  </div>
+              </div>
+          </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
