@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, X, Save,
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
   TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car, RefreshCcw, Filter,
-  Building2, Percent, Download, Upload, FileSpreadsheet, Send, Eye, FileText, Printer, Loader2, AlertTriangle, Phone
+  Building2, Percent, Download, Upload, FileSpreadsheet, Send, Eye, FileText, Printer, Loader2, AlertTriangle, Phone, Gauge, CreditCard
 } from 'lucide-react';
 import { UserRole, CorporateAccount } from '../../types';
 import html2canvas from 'html2canvas';
@@ -28,6 +27,8 @@ interface Trip {
   userMobile: string;
   pickupLocation?: string; 
   dropLocation?: string;   
+  totalKm: number;
+  paymentType: string; // Added paymentType field
   driverName?: string;
   driverMobile?: string;
   tripPrice: number;
@@ -56,14 +57,14 @@ const formatCurrency = (amount: number) => {
 // Helper function to convert JSON to CSV
 const convertToCSV = (data: Trip[]) => {
     const headers = [
-        "Trip ID", "Date", "Customer Name", "Customer Mobile", "Pickup", "Drop", "Driver Name", 
+        "Trip ID", "Date", "Customer Name", "Customer Mobile", "Pickup", "Drop", "Total KM", "Payment Type", "Driver Name", 
         "Driver Mobile", "Booking Type", "Order Type", "Vehicle", "Category", 
         "Status", "Trip Price", "Tax", "Waiting Charge", "Discount", 
         "Cancel Charge", "Admin Comm.", "Total Price", "Branch", "Owner"
     ];
     
     const rows = data.map(t => [
-        t.tripId, t.date, t.userName, t.userMobile, t.pickupLocation || '', t.dropLocation || '', t.driverName || '', 
+        t.tripId, t.date, t.userName, t.userMobile, t.pickupLocation || '', t.dropLocation || '', t.totalKm, t.paymentType, t.driverName || '', 
         t.driverMobile || '', t.bookingType, t.orderType, t.transportType, t.tripCategory, 
         t.bookingStatus, t.tripPrice, t.tax, t.waitingCharge, t.discount, 
         t.cancellationCharge, t.adminCommission, t.totalPrice, t.branch, t.ownerName || ''
@@ -140,6 +141,8 @@ export const TripBooking: React.FC = () => {
     userMobile: '',
     pickupLocation: '',
     dropLocation: '',
+    totalKm: 0,
+    paymentType: 'Cash/UPI', // Default payment type
     driverName: '',
     driverMobile: '',
     tripPrice: 0,
@@ -251,24 +254,37 @@ export const TripBooking: React.FC = () => {
     return () => window.removeEventListener('storage', loadData);
   }, [corporateId, isSuperAdmin]);
 
+  // --- Filtered Trips Memo moved up to fix 'used before declaration' error ---
+  const filteredTrips = useMemo(() => {
+    return trips.filter(t => {
+      const matchesSearch = t.tripId.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (t.pickupLocation && t.pickupLocation.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            (t.dropLocation && t.dropLocation.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesStatus = statusFilter === 'All' || t.bookingStatus === statusFilter;
+      const matchesOrigin = originFilter === 'All' || t.bookingType === originFilter;
+      const matchesFleet = fleetFilter === 'All' || t.transportType === fleetFilter;
+      const matchesCategory = categoryFilter === 'All' || t.tripCategory === categoryFilter;
+      const matchesCorporate = isSuperAdmin ? (corporateFilter === 'All' || t.ownerId === corporateFilter) : true;
+      const matchesBranch = branchFilter === 'All' || t.branch === branchFilter;
+      const matchesComm = !minCommission || t.adminCommission >= Number(minCommission);
+      const matchesTax = !minTax || t.tax >= Number(minTax);
+
+      return matchesSearch && matchesStatus && matchesOrigin && matchesFleet && matchesCategory && matchesCorporate && matchesBranch && matchesComm && matchesTax;
+    });
+  }, [trips, searchTerm, statusFilter, originFilter, fleetFilter, categoryFilter, corporateFilter, branchFilter, minCommission, minTax, isSuperAdmin]);
+
+  // --- Stats Memo moved after filteredTrips ---
   const stats = useMemo(() => {
-    const completed = trips.filter(t => t.bookingStatus === 'Completed');
-    const cancelled = trips.filter(t => t.bookingStatus === 'Cancelled');
-    const totalRevenue = completed.reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
-    const totalCommission = completed.reduce((sum, t) => sum + (Number(t.adminCommission) || 0), 0);
-    const totalTax = completed.reduce((sum, t) => sum + (Number(t.tax) || 0), 0);
-    const totalCancelledCharges = cancelled.reduce((sum, t) => sum + (Number(t.totalPrice) || 0), 0);
-    
     return {
-      total: trips.length,
-      completed: completed.length,
-      cancelled: cancelled.length,
-      revenue: totalRevenue,
-      commission: totalCommission,
-      tax: totalTax,
-      cancelRevenue: totalCancelledCharges
+      total: filteredTrips.length,
+      completed: filteredTrips.filter(t => t.bookingStatus === 'Completed').length,
+      cancelled: filteredTrips.filter(t => t.bookingStatus === 'Cancelled').length,
+      tax: filteredTrips.reduce((sum, t) => sum + (t.tax || 0), 0),
+      commission: filteredTrips.reduce((sum, t) => sum + (t.adminCommission || 0), 0),
+      revenue: filteredTrips.reduce((sum, t) => sum + (t.totalPrice || 0), 0)
     };
-  }, [trips]);
+  }, [filteredTrips]);
 
   const financials = useMemo(() => {
     const isCancelled = formData.bookingStatus === 'Cancelled';
@@ -343,6 +359,8 @@ export const TripBooking: React.FC = () => {
       ...formData,
       id: editingId || `T-${Date.now()}`,
       tripPrice: Number(formData.tripPrice),
+      totalKm: Number(formData.totalKm),
+      paymentType: formData.paymentType,
       taxPercentage: financials.isCancelled ? 0 : Number(formData.taxPercentage),
       tax: financials.taxAmt,
       waitingCharge: financials.isCancelled ? 0 : Number(formData.waitingCharge),
@@ -395,6 +413,8 @@ export const TripBooking: React.FC = () => {
       userMobile: trip.userMobile,
       pickupLocation: trip.pickupLocation || '',
       dropLocation: trip.dropLocation || '',
+      totalKm: trip.totalKm || 0,
+      paymentType: trip.paymentType || 'Cash/UPI',
       driverName: trip.driverName || '',
       driverMobile: trip.driverMobile || '',
       tripPrice: trip.tripPrice,
@@ -432,23 +452,6 @@ export const TripBooking: React.FC = () => {
       setMinTax('');
   };
 
-  const filteredTrips = trips.filter(t => {
-      const matchesSearch = t.tripId.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            t.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (t.pickupLocation && t.pickupLocation.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                            (t.dropLocation && t.dropLocation.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesStatus = statusFilter === 'All' || t.bookingStatus === statusFilter;
-      const matchesOrigin = originFilter === 'All' || t.bookingType === originFilter;
-      const matchesFleet = fleetFilter === 'All' || t.transportType === fleetFilter;
-      const matchesCategory = categoryFilter === 'All' || t.tripCategory === categoryFilter;
-      const matchesCorporate = isSuperAdmin ? (corporateFilter === 'All' || t.ownerId === corporateFilter) : true;
-      const matchesBranch = branchFilter === 'All' || t.branch === branchFilter;
-      const matchesComm = !minCommission || t.adminCommission >= Number(minCommission);
-      const matchesTax = !minTax || t.tax >= Number(minTax);
-
-      return matchesSearch && matchesStatus && matchesOrigin && matchesFleet && matchesCategory && matchesCorporate && matchesBranch && matchesComm && matchesTax;
-  });
-
   // --- Import/Export Handlers ---
   const handleExportData = () => {
       if (trips.length === 0) {
@@ -474,6 +477,8 @@ export const TripBooking: React.FC = () => {
           userMobile: '9876543210',
           pickupLocation: 'Coimbatore Airport',
           dropLocation: 'RS Puram',
+          totalKm: 15.5,
+          paymentType: 'Cash/UPI',
           driverName: 'Driver A',
           driverMobile: '9123456780',
           tripPrice: 1000,
@@ -499,7 +504,7 @@ export const TripBooking: React.FC = () => {
       reader.onload = (event) => {
           const text = event.target?.result as string;
           const lines = text.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          // skip header
           
           const newTrips: any[] = [];
           
@@ -516,21 +521,23 @@ export const TripBooking: React.FC = () => {
                        userMobile: values[3],
                        pickupLocation: values[4],
                        dropLocation: values[5],
-                       driverName: values[6],
-                       driverMobile: values[7],
-                       bookingType: values[8],
-                       orderType: values[9],
-                       transportType: values[10],
-                       tripCategory: values[11],
-                       bookingStatus: values[12],
-                       tripPrice: Number(values[13]) || 0,
-                       tax: Number(values[14]) || 0,
-                       waitingCharge: Number(values[15]) || 0,
-                       discount: Number(values[16]) || 0,
-                       cancellationCharge: Number(values[17]) || 0,
-                       adminCommission: Number(values[18]) || 0,
-                       totalPrice: Number(values[19]) || 0,
-                       branch: values[20] || 'Main Branch',
+                       totalKm: Number(values[6]) || 0,
+                       paymentType: values[7] || 'Cash/UPI',
+                       driverName: values[8],
+                       driverMobile: values[9],
+                       bookingType: values[10],
+                       orderType: values[11],
+                       transportType: values[12],
+                       tripCategory: values[13],
+                       bookingStatus: values[14],
+                       tripPrice: Number(values[15]) || 0,
+                       tax: Number(values[16]) || 0,
+                       waitingCharge: Number(values[17]) || 0,
+                       discount: Number(values[18]) || 0,
+                       cancellationCharge: Number(values[19]) || 0,
+                       adminCommission: Number(values[20]) || 0,
+                       totalPrice: Number(values[21]) || 0,
+                       branch: values[22] || 'Main Branch',
                        ownerId: isSuperAdmin ? 'admin' : corporateId, 
                        ownerName: isSuperAdmin ? 'Head Office' : 'Imported'
                    };
@@ -825,9 +832,10 @@ export const TripBooking: React.FC = () => {
                           <div className="flex justify-between items-start mb-12 pb-8 border-b border-gray-100">
                               <div>
                                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">www.okboz.com</p>
-                                  <h2 className="text-3xl font-black text-indigo-600 tracking-tighter uppercase">OK BOZ SUPER APP</h2>
-                                  <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">{selectedTripForInvoice.ownerName}</p>
-                                  <p className="text-[10px] text-gray-400 mt-2">Professional Fleet Solutions</p>
+                                  <h2 className="text-3xl font-black text-indigo-600 tracking-tighter uppercase leading-none">OK BOZ SUPER APP</h2>
+                                  <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-1">operated by Jkrish private limited.</p>
+                                  <p className="text-sm font-black text-gray-800 mt-3">GST : 33AAFCJ1772N1ZB</p>
+                                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-2">Provider: {selectedTripForInvoice.ownerName}</p>
                               </div>
                               <div className="text-right">
                                   <div className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded mb-4 border border-emerald-100">Paid</div>
@@ -851,13 +859,16 @@ export const TripBooking: React.FC = () => {
                                         {selectedTripForInvoice.dropLocation && (
                                             <p className="text-xs text-gray-600 flex items-start gap-1"><MapPin className="w-3 h-3 mt-0.5 text-rose-500" /> <b>Drop:</b> {selectedTripForInvoice.dropLocation}</p>
                                         )}
+                                        {/* Added Total KM to Invoice Display */}
+                                        <p className="text-xs text-indigo-600 flex items-start gap-1 font-bold"><Gauge className="w-3 h-3 mt-0.5" /> <b>Total KM:</b> {selectedTripForInvoice.totalKm} KM</p>
                                     </div>
                                   )}
                               </div>
                               <div className="text-right">
                                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Trip Summary</p>
                                   <p className="text-sm font-bold text-gray-800">{selectedTripForInvoice.tripCategory}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{selectedTripForInvoice.transportType} • {selectedTripForInvoice.bookingType}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{selectedTripForInvoice.transportType} • {selectedTripForInvoice.bookingType} • {selectedTripForInvoice.totalKm} KM</p>
+                                  <p className="text-xs text-gray-700 font-bold mt-1 flex items-center justify-end gap-1"><CreditCard className="w-3 h-3" /> {selectedTripForInvoice.paymentType}</p>
                                   {selectedTripForInvoice.driverName && (
                                       <div className="mt-4 pt-4 border-t border-gray-100 space-y-1 text-right">
                                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Driver Assignment</p>
@@ -902,7 +913,7 @@ export const TripBooking: React.FC = () => {
                                   </tbody>
                                   <tfoot className="bg-indigo-600 text-white font-black border-t-2 border-indigo-700">
                                       <tr>
-                                          <td className="px-6 py-5 uppercase tracking-widest">Total Amount Payable</td>
+                                          <td className="px-6 py-5 uppercase tracking-widest">Total Amount Payable ({selectedTripForInvoice.paymentType})</td>
                                           <td className="px-6 py-5 text-right text-2xl tracking-tighter">{formatCurrency(selectedTripForInvoice.totalPrice)}</td>
                                       </tr>
                                   </tfoot>
@@ -968,7 +979,7 @@ export const TripBooking: React.FC = () => {
                                           <div className="relative">
                                             <select name="ownerId" value={formData.ownerId} onChange={handleInputChange} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-4 focus:ring-emerald-500/10 font-black text-gray-800 shadow-inner appearance-none transition-all text-sm">
                                                 <option value="admin">Head Office</option>
-                                                {corporates.map(c => <option key={c.email} value={c.email}>{c.companyName}</option>)}
+                                                {corporates.map(c => <option key={c.id} value={c.email}>{c.companyName}</option>)}
                                             </select>
                                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                           </div>
@@ -1108,6 +1119,15 @@ export const TripBooking: React.FC = () => {
                                       </div>
                                   </div>
 
+                                  {/* Total Distance Input */}
+                                  <div className="space-y-2">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Total Distance (KM) *</label>
+                                      <div className="relative">
+                                          <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                          <input type="number" name="totalKm" value={formData.totalKm} onChange={handleInputChange} className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-black text-gray-800 shadow-inner text-sm" placeholder="0.0" />
+                                      </div>
+                                  </div>
+
                                   <div className="pt-8 border-t border-gray-100 space-y-6">
                                       <div className="space-y-2">
                                           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Driver Assignment</label>
@@ -1132,6 +1152,25 @@ export const TripBooking: React.FC = () => {
                                   </h4>
                                   
                                   <div className="space-y-6 flex-1">
+                                      {/* Payment Type Selection */}
+                                      <div className="space-y-2">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Payment Type *</label>
+                                          <div className="relative">
+                                              <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                              <select 
+                                                name="paymentType" 
+                                                value={formData.paymentType} 
+                                                onChange={handleInputChange} 
+                                                className="w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-purple-500/10 font-black text-gray-800 shadow-sm appearance-none transition-all text-sm"
+                                              >
+                                                  <option value="Cash/UPI">Cash/UPI</option>
+                                                  <option value="Online payment">Online payment</option>
+                                                  <option value="OK BOZ Wallet">OK BOZ Wallet</option>
+                                              </select>
+                                              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                          </div>
+                                      </div>
+
                                       <div className="space-y-2">
                                           <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Base Trip Price (₹) *</label>
                                           <input type="number" name="tripPrice" value={formData.tripPrice} onChange={handleInputChange} className="w-full p-5 bg-white border-2 border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-purple-500/10 font-black text-gray-900 shadow-xl shadow-indigo-900/5 text-lg" />
@@ -1162,7 +1201,7 @@ export const TripBooking: React.FC = () => {
                                                   </div>
                                                   <div className="space-y-2">
                                                       <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Discount</label>
-                                                      <input type="number" name="discount" value={formData.discount} onChange={handleInputChange} className="w-full p-3 bg-white border border-gray-100 rounded-xl outline-none font-black text-gray-800 shadow-sm text-sm" />
+                                                      <input type="number" name="discount" value={formData.discount} onChange={handleInputChange} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-gray-800 shadow-sm text-sm" />
                                                   </div>
                                               </div>
                                           </>
@@ -1195,7 +1234,7 @@ export const TripBooking: React.FC = () => {
 
                   <div className="p-8 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-4 shrink-0 rounded-b-2xl">
                       <button onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all shadow-sm">Cancel</button>
-                      <button onClick={handleSave} className="px-14 py-4 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-[0.3em] shadow-xl shadow-emerald-900/30 transition-all transform active:scale-95 flex items-center gap-2">
+                      <button onClick={handleSave} className="px-14 py-4 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-[0.3em] shadow-xl shadow-emerald-900/20 transition-all transform active:scale-95 flex items-center gap-2">
                           <Save className="w-5 h-5" /> Save Trip
                       </button>
                   </div>
