@@ -35,7 +35,8 @@ interface CustomTemplate {
   id: string;
   name: string;
   type: 'WhatsApp' | 'Email';
-  content: string;
+  contents: string[];
+  triggerOutcome?: 'Interested' | 'Callback' | 'No Answer' | 'Not Interested' | 'None';
 }
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
@@ -126,10 +127,20 @@ const AutoDialer: React.FC = () => {
   // -- Dynamic Templates State --
   const [templates, setTemplates] = useState<CustomTemplate[]>(() => {
     const saved = localStorage.getItem('dialer_custom_templates');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', name: 'No Answer (WA)', type: 'WhatsApp', content: 'Hi [Name], we tried calling you from OK BOZ regarding your enquiry. Please let us know when you are free.' },
-      { id: '2', name: 'Intro Message (WA)', type: 'WhatsApp', content: 'Hello [Name], greetings from OK BOZ! We have a special offer for your business.' },
-      { id: '3', name: 'Follow up (Email)', type: 'Email', content: 'Hi [Name], following up on our recent interaction...' }
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            return parsed.map((t: any) => ({
+                ...t,
+                contents: t.contents || [t.content || ''],
+                triggerOutcome: t.triggerOutcome || 'None'
+            }));
+        } catch (e) {}
+    }
+    return [
+      { id: '1', name: 'No Answer (WA)', type: 'WhatsApp', contents: ['Hi [Name], we tried calling you from OK BOZ regarding your enquiry. Please let us know when you are free.'], triggerOutcome: 'No Answer' },
+      { id: '2', name: 'Intro Message (WA)', type: 'WhatsApp', contents: ['Hello [Name], greetings from OK BOZ! We have a special offer for your business.'], triggerOutcome: 'None' },
+      { id: '3', name: 'Follow up (Email)', type: 'Email', contents: ['Hi [Name], following up on our recent interaction...'], triggerOutcome: 'Callback' }
     ];
   });
   
@@ -158,7 +169,7 @@ const AutoDialer: React.FC = () => {
   // Forms
   const [manualContact, setManualContact] = useState({ name: '', phone: '', email: '', city: '', ownerId: '' });
   const [editFormData, setEditFormData] = useState({ id: '', name: '', phone: '', email: '', city: '' });
-  const [templateForm, setTemplateForm] = useState<Partial<CustomTemplate>>({ name: '', type: 'WhatsApp', content: '' });
+  const [templateForm, setTemplateForm] = useState<Partial<CustomTemplate>>({ name: '', type: 'WhatsApp', contents: [''], triggerOutcome: 'None' });
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [callbackDate, setCallbackDate] = useState('');
   const [callbackTime, setCallbackTime] = useState('');
@@ -349,7 +360,10 @@ const AutoDialer: React.FC = () => {
 
   const handleSaveTemplate = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!templateForm.name || !templateForm.content) return;
+      if (!templateForm.name || !templateForm.contents || templateForm.contents.some(c => !c.trim())) {
+          alert("Please provide a name and at least one message content.");
+          return;
+      }
 
       if (editingTemplateId) {
           setTemplates(prev => prev.map(t => t.id === editingTemplateId ? { ...t, ...templateForm as CustomTemplate } : t));
@@ -359,17 +373,18 @@ const AutoDialer: React.FC = () => {
               id: `T-${Date.now()}`,
               name: templateForm.name!,
               type: templateForm.type as 'WhatsApp' | 'Email',
-              content: templateForm.content!
+              contents: templateForm.contents!,
+              triggerOutcome: templateForm.triggerOutcome || 'None'
           };
           setTemplates(prev => [...prev, newT]);
       }
-      setTemplateForm({ name: '', type: 'WhatsApp', content: '' });
+      setTemplateForm({ name: '', type: 'WhatsApp', contents: [''], triggerOutcome: 'None' });
   };
 
-  const handleSendFromTemplate = (template: CustomTemplate) => {
+  const handleSendFromTemplate = (template: CustomTemplate, contentIndex: number = 0) => {
     if (!activeContact) return;
     
-    let text = template.content;
+    let text = template.contents[contentIndex] || template.contents[0];
     text = text.replace(/\[Name\]/g, activeContact.name);
 
     if (template.type === 'WhatsApp') {
@@ -457,6 +472,12 @@ const AutoDialer: React.FC = () => {
            else setIsSessionActive(false);
            return prev;
        });
+    }
+
+    // Auto-trigger messaging templates
+    const autoTemplate = templates.find(t => t.triggerOutcome === status);
+    if (autoTemplate) {
+        handleSendFromTemplate(autoTemplate);
     }
   };
 
@@ -890,7 +911,12 @@ const AutoDialer: React.FC = () => {
                                               <button onClick={() => setTemplates(prev => prev.filter(x => x.id !== t.id))} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-white"><Trash2 className="w-3.5 h-3.5"/></button>
                                           </div>
                                       </div>
-                                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">"{t.content}"</p>
+                                      <div className="flex items-center gap-2 mb-2">
+                                          <span className="text-[9px] font-black text-gray-400 uppercase">Trigger:</span>
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${t.triggerOutcome === 'None' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-100 text-indigo-700'}`}>{t.triggerOutcome}</span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">"{t.contents?.[0] || t.content}"</p>
+                                      {t.contents && t.contents.length > 1 && <div className="mt-1 text-[9px] font-bold text-indigo-500">+{t.contents.length - 1} more variants</div>}
                                   </div>
                               ))}
                           </div>
@@ -927,22 +953,67 @@ const AutoDialer: React.FC = () => {
                                   </div>
                               </div>
                               <div>
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Auto-Trigger on Outcome</label>
+                                  <select 
+                                    className="w-full p-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white transition-all"
+                                    value={templateForm.triggerOutcome}
+                                    onChange={e => setTemplateForm({...templateForm, triggerOutcome: e.target.value as any})}
+                                  >
+                                      <option value="None">None (Manual Only)</option>
+                                      <option value="Interested">Interested</option>
+                                      <option value="Callback">Callback</option>
+                                      <option value="No Answer">No Answer</option>
+                                      <option value="Not Interested">Not Interested</option>
+                                  </select>
+                              </div>
+                              <div>
                                   <div className="flex justify-between items-center mb-1.5 ml-1">
-                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Message Content</label>
+                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Message Variants</label>
+                                      <button 
+                                        type="button"
+                                        onClick={() => setTemplateForm({...templateForm, contents: [...(templateForm.contents || []), '']})}
+                                        className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                                      >
+                                          <Plus className="w-3 h-3" /> Add Variant
+                                      </button>
+                                  </div>
+                                  <div className="space-y-3">
+                                      {(templateForm.contents || ['']).map((content, idx) => (
+                                          <div key={idx} className="relative group">
+                                              <textarea 
+                                                className="w-full p-4 border border-gray-200 rounded-2xl text-sm font-medium h-32 outline-none focus:ring-2 focus:ring-indigo-500 resize-none shadow-inner bg-gray-50 focus:bg-white transition-all" 
+                                                placeholder={`Message variant ${idx + 1}...`}
+                                                value={content}
+                                                onChange={e => {
+                                                    const newContents = [...(templateForm.contents || [''])];
+                                                    newContents[idx] = e.target.value;
+                                                    setTemplateForm({...templateForm, contents: newContents});
+                                                }}
+                                              />
+                                              {idx > 0 && (
+                                                  <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newContents = templateForm.contents!.filter((_, i) => i !== idx);
+                                                        setTemplateForm({...templateForm, contents: newContents});
+                                                    }}
+                                                    className="absolute top-2 right-2 p-1.5 bg-white text-gray-400 hover:text-red-600 rounded-lg shadow-sm border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                      <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                              )}
+                                          </div>
+                                      ))}
+                                  </div>
+                                  <div className="mt-2 ml-1">
                                       <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Use [Name] to personalize</span>
                                   </div>
-                                  <textarea 
-                                    className="w-full p-4 border border-gray-200 rounded-2xl text-sm font-medium h-48 outline-none focus:ring-2 focus:ring-indigo-500 resize-none shadow-inner bg-gray-50 focus:bg-white transition-all" 
-                                    placeholder="Hello [Name], thank you for contacting OK BOZ..."
-                                    value={templateForm.content}
-                                    onChange={e => setTemplateForm({...templateForm, content: e.target.value})}
-                                  />
                               </div>
                               <div className="flex gap-4 pt-2">
                                   {editingTemplateId && (
                                       <button 
                                         type="button" 
-                                        onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', type: 'WhatsApp', content: '' }); }}
+                                        onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', type: 'WhatsApp', contents: [''], triggerOutcome: 'None' }); }}
                                         className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50"
                                       >
                                           Cancel
