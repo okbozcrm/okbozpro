@@ -3,9 +3,10 @@ import {
   Phone, Upload, Download, Play, Pause, SkipForward, 
   CheckCircle, XCircle, Clock, AlertCircle, FileSpreadsheet, 
   Trash2, RefreshCcw, Search, MessageSquare, Save, UserPlus, X,
-  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2, History, Plus, ChevronRight, ExternalLink, Users
+  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2, History, Plus, ChevronRight, ExternalLink, Users, Cloud
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { syncToCloud, restoreFromCloud } from '../../services/cloudService';
 
 interface CallHistoryLog {
   timestamp: string;
@@ -152,6 +153,7 @@ const AutoDialer: React.FC = () => {
   const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Forms
   const [manualContact, setManualContact] = useState({ name: '', phone: '', email: '', city: '', ownerId: '' });
@@ -167,55 +169,76 @@ const AutoDialer: React.FC = () => {
 
   // -- Persistence --
   useEffect(() => {
+    const initCloud = async () => {
+        setIsSyncing(true);
+        await restoreFromCloud();
+        setIsSyncing(false);
+        // Trigger local reload
+        window.dispatchEvent(new Event('storage'));
+    };
+    initCloud();
+  }, []);
+
+  useEffect(() => {
     if (contacts.length === 0) return;
     
-    if (isSuperAdmin) {
-        // Admin saves to multiple keys based on ownerId
-        const hoContacts = contacts.filter(c => c.ownerId === 'admin');
-        const cleanHO = hoContacts.map(({ownerId, franchiseName, ...rest}) => rest);
-        localStorage.setItem('auto_dialer_data', JSON.stringify(cleanHO));
+    const saveData = async () => {
+        if (isSuperAdmin) {
+            // Admin saves to multiple keys based on ownerId
+            const hoContacts = contacts.filter(c => c.ownerId === 'admin');
+            const cleanHO = hoContacts.map(({ownerId, franchiseName, ...rest}) => rest);
+            localStorage.setItem('auto_dialer_data', JSON.stringify(cleanHO));
+            
+            // Also update corporate keys if admin modified them
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            corps.forEach((corp: any) => {
+                const corpContacts = contacts.filter(c => c.ownerId === corp.email);
+                if (corpContacts.length > 0 || localStorage.getItem(`auto_dialer_data_${corp.email}`)) {
+                    const cleanCorp = corpContacts.map(({ownerId, franchiseName, ...rest}) => rest);
+                    localStorage.setItem(`auto_dialer_data_${corp.email}`, JSON.stringify(cleanCorp));
+                }
+            });
+        } else if (isCorporate) {
+            const key = `auto_dialer_data_${sessionId}`;
+            const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
+            localStorage.setItem(key, JSON.stringify(clean));
+        } else if (isEmployee) {
+            const targetOwnerId = employeeCorporateId || 'admin';
+            const key = targetOwnerId === 'admin' ? 'auto_dialer_data' : `auto_dialer_data_${targetOwnerId}`;
+            
+            // Employees only update their own leads within the corporate list
+            const saved = localStorage.getItem(key);
+            let masterList: any[] = saved ? JSON.parse(saved) : [];
+            
+            contacts.forEach(updatedContact => {
+                const idx = masterList.findIndex(m => m.id === updatedContact.id);
+                const { ownerId, franchiseName, ...cleanContact } = updatedContact;
+                if (idx !== -1) {
+                    masterList[idx] = cleanContact;
+                } else {
+                    masterList.unshift(cleanContact);
+                }
+            });
+            
+            localStorage.setItem(key, JSON.stringify(masterList));
+        } else {
+            const key = `auto_dialer_data_${sessionId}`;
+            const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
+            localStorage.setItem(key, JSON.stringify(clean));
+        }
         
-        // Also update corporate keys if admin modified them
-        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((corp: any) => {
-            const corpContacts = contacts.filter(c => c.ownerId === corp.email);
-            if (corpContacts.length > 0 || localStorage.getItem(`auto_dialer_data_${corp.email}`)) {
-                const cleanCorp = corpContacts.map(({ownerId, franchiseName, ...rest}) => rest);
-                localStorage.setItem(`auto_dialer_data_${corp.email}`, JSON.stringify(cleanCorp));
-            }
-        });
-    } else if (isCorporate) {
-        const key = `auto_dialer_data_${sessionId}`;
-        const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
-        localStorage.setItem(key, JSON.stringify(clean));
-    } else if (isEmployee) {
-        const targetOwnerId = employeeCorporateId || 'admin';
-        const key = targetOwnerId === 'admin' ? 'auto_dialer_data' : `auto_dialer_data_${targetOwnerId}`;
-        
-        // Employees only update their own leads within the corporate list
-        const saved = localStorage.getItem(key);
-        let masterList: any[] = saved ? JSON.parse(saved) : [];
-        
-        contacts.forEach(updatedContact => {
-            const idx = masterList.findIndex(m => m.id === updatedContact.id);
-            const { ownerId, franchiseName, ...cleanContact } = updatedContact;
-            if (idx !== -1) {
-                masterList[idx] = cleanContact;
-            } else {
-                masterList.unshift(cleanContact);
-            }
-        });
-        
-        localStorage.setItem(key, JSON.stringify(masterList));
-    } else {
-        const key = `auto_dialer_data_${sessionId}`;
-        const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
-        localStorage.setItem(key, JSON.stringify(clean));
-    }
+        // Sync to Firebase
+        setIsSyncing(true);
+        await syncToCloud();
+        setIsSyncing(false);
+    };
+
+    saveData();
   }, [contacts, isSuperAdmin, isCorporate, isEmployee, sessionId, employeeCorporateId]);
 
   useEffect(() => {
     localStorage.setItem('dialer_custom_templates', JSON.stringify(templates));
+    syncToCloud();
   }, [templates]);
 
   // -- Derived State & Analytics --
@@ -587,6 +610,18 @@ const AutoDialer: React.FC = () => {
           <p className="text-gray-500">Auto-dial, follow-up management, and instant messaging.</p>
         </div>
         <div className="flex gap-2">
+            <button 
+                onClick={async () => {
+                    setIsSyncing(true);
+                    await restoreFromCloud();
+                    setIsSyncing(false);
+                    window.dispatchEvent(new Event('storage'));
+                }}
+                className={`bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors ${isSyncing ? 'animate-pulse opacity-70' : ''}`}
+                disabled={isSyncing}
+            >
+                <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} /> {isSyncing ? 'Syncing...' : 'Sync Cloud'}
+            </button>
             {isSuperAdmin && (
                 <select 
                     value={importOwnerId} 
