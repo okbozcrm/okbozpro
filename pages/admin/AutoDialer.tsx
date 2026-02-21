@@ -3,7 +3,7 @@ import {
   Phone, Upload, Download, Play, Pause, SkipForward, 
   CheckCircle, XCircle, Clock, AlertCircle, FileSpreadsheet, 
   Trash2, RefreshCcw, Search, MessageSquare, Save, UserPlus, X,
-  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2, History, Plus, ChevronRight, ExternalLink
+  Settings, Mail, Calendar, MapPin, PieChart as PieIcon, BarChart3, Edit2, RotateCcw, Filter, Building2, History, Plus, ChevronRight, ExternalLink, Users
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -26,6 +26,8 @@ interface CallContact {
   history?: CallHistoryLog[];
   ownerId?: string; // For data scoping
   franchiseName?: string; // For display
+  addedBy?: string; // Employee ID/Email
+  addedByName?: string; // Employee Name
 }
 
 interface CustomTemplate {
@@ -40,7 +42,14 @@ const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
 const AutoDialer: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = sessionId === 'admin';
+  const userRole = localStorage.getItem('user_role') || 'ADMIN';
+  const employeeCorporateId = localStorage.getItem('logged_in_employee_corporate_id');
+  const loggedInUserEmail = localStorage.getItem('logged_in_employee_email') || sessionId;
+  const loggedInUserName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || (sessionId === 'admin' ? 'Super Admin' : 'Admin');
+  
+  const isSuperAdmin = sessionId === 'admin' && userRole === 'ADMIN';
+  const isCorporate = userRole === 'CORPORATE';
+  const isEmployee = userRole === 'EMPLOYEE';
   
   // -- State --
   const [contacts, setContacts] = useState<CallContact[]>([]);
@@ -54,6 +63,7 @@ const AutoDialer: React.FC = () => {
           setCorporates(corps);
 
           if (isSuperAdmin) {
+              // Admin: Load everything
               const adminData = localStorage.getItem('auto_dialer_data');
               if (adminData) {
                   try {
@@ -68,7 +78,34 @@ const AutoDialer: React.FC = () => {
                       } catch (e) {}
                   }
               });
+          } else if (isCorporate) {
+              // Corporate: Load their own leads, but filtered to what they added themselves
+              const key = `auto_dialer_data_${sessionId}`;
+              const saved = localStorage.getItem(key);
+              if (saved) {
+                  try {
+                      const rawContacts = JSON.parse(saved);
+                      allContacts = rawContacts
+                        .filter((c: any) => c.addedBy === loggedInUserEmail)
+                        .map((c: any) => ({...c, ownerId: sessionId, franchiseName: 'My Branch'}));
+                  } catch (e) {}
+              }
+          } else if (isEmployee) {
+              // Employee: Load leads for their corporate, but filtered to what they added or are assigned to
+              const targetOwnerId = employeeCorporateId || 'admin';
+              const key = targetOwnerId === 'admin' ? 'auto_dialer_data' : `auto_dialer_data_${targetOwnerId}`;
+              const saved = localStorage.getItem(key);
+              if (saved) {
+                  try {
+                      const rawContacts = JSON.parse(saved);
+                      // Filter: only see leads they added
+                      allContacts = rawContacts
+                        .filter((c: any) => c.addedBy === loggedInUserEmail)
+                        .map((c: any) => ({...c, ownerId: targetOwnerId, franchiseName: 'My Branch'}));
+                  } catch (e) {}
+              }
           } else {
+              // Fallback for other roles (like SUB_ADMIN)
               const key = `auto_dialer_data_${sessionId}`;
               const saved = localStorage.getItem(key);
               if (saved) {
@@ -98,12 +135,14 @@ const AutoDialer: React.FC = () => {
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [importOwnerId, setImportOwnerId] = useState('admin');
   
   // Filters
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCity, setFilterCity] = useState('All');
   const [filterCorporate, setFilterCorporate] = useState('All');
+  const [filterEmployee, setFilterEmployee] = useState('All');
   const [filterDateType, setFilterDateType] = useState<'All' | 'Today' | 'Month'>('All');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
 
@@ -115,7 +154,7 @@ const AutoDialer: React.FC = () => {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   
   // Forms
-  const [manualContact, setManualContact] = useState({ name: '', phone: '', email: '', city: '' });
+  const [manualContact, setManualContact] = useState({ name: '', phone: '', email: '', city: '', ownerId: '' });
   const [editFormData, setEditFormData] = useState({ id: '', name: '', phone: '', email: '', city: '' });
   const [templateForm, setTemplateForm] = useState<Partial<CustomTemplate>>({ name: '', type: 'WhatsApp', content: '' });
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -129,16 +168,51 @@ const AutoDialer: React.FC = () => {
   // -- Persistence --
   useEffect(() => {
     if (contacts.length === 0) return;
+    
     if (isSuperAdmin) {
+        // Admin saves to multiple keys based on ownerId
         const hoContacts = contacts.filter(c => c.ownerId === 'admin');
-        const clean = hoContacts.map(({ownerId, franchiseName, ...rest}) => rest);
-        localStorage.setItem('auto_dialer_data', JSON.stringify(clean));
+        const cleanHO = hoContacts.map(({ownerId, franchiseName, ...rest}) => rest);
+        localStorage.setItem('auto_dialer_data', JSON.stringify(cleanHO));
+        
+        // Also update corporate keys if admin modified them
+        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corps.forEach((corp: any) => {
+            const corpContacts = contacts.filter(c => c.ownerId === corp.email);
+            if (corpContacts.length > 0 || localStorage.getItem(`auto_dialer_data_${corp.email}`)) {
+                const cleanCorp = corpContacts.map(({ownerId, franchiseName, ...rest}) => rest);
+                localStorage.setItem(`auto_dialer_data_${corp.email}`, JSON.stringify(cleanCorp));
+            }
+        });
+    } else if (isCorporate) {
+        const key = `auto_dialer_data_${sessionId}`;
+        const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
+        localStorage.setItem(key, JSON.stringify(clean));
+    } else if (isEmployee) {
+        const targetOwnerId = employeeCorporateId || 'admin';
+        const key = targetOwnerId === 'admin' ? 'auto_dialer_data' : `auto_dialer_data_${targetOwnerId}`;
+        
+        // Employees only update their own leads within the corporate list
+        const saved = localStorage.getItem(key);
+        let masterList: any[] = saved ? JSON.parse(saved) : [];
+        
+        contacts.forEach(updatedContact => {
+            const idx = masterList.findIndex(m => m.id === updatedContact.id);
+            const { ownerId, franchiseName, ...cleanContact } = updatedContact;
+            if (idx !== -1) {
+                masterList[idx] = cleanContact;
+            } else {
+                masterList.unshift(cleanContact);
+            }
+        });
+        
+        localStorage.setItem(key, JSON.stringify(masterList));
     } else {
         const key = `auto_dialer_data_${sessionId}`;
         const clean = contacts.map(({ownerId, franchiseName, ...rest}) => rest);
         localStorage.setItem(key, JSON.stringify(clean));
     }
-  }, [contacts, isSuperAdmin, sessionId]);
+  }, [contacts, isSuperAdmin, isCorporate, isEmployee, sessionId, employeeCorporateId]);
 
   useEffect(() => {
     localStorage.setItem('dialer_custom_templates', JSON.stringify(templates));
@@ -147,6 +221,14 @@ const AutoDialer: React.FC = () => {
   // -- Derived State & Analytics --
   const activeContact = contacts[activeIndex];
   const cities = useMemo(() => Array.from(new Set(contacts.map(c => c.city || 'Unknown').filter(Boolean))), [contacts]);
+  
+  const employeesList = useMemo(() => {
+    const list = contacts
+      .filter(c => c.addedBy && c.addedByName)
+      .map(c => ({ email: c.addedBy!, name: c.addedByName! }));
+    // Unique by email
+    return Array.from(new Map(list.map(item => [item.email, item])).values());
+  }, [contacts]);
 
   const stats = useMemo(() => {
     const total = contacts.length;
@@ -188,6 +270,7 @@ const AutoDialer: React.FC = () => {
       const matchesStatus = filterStatus === 'All' || c.status === filterStatus;
       const matchesCity = filterCity === 'All' || (c.city || 'Unknown') === filterCity;
       const matchesCorporate = filterCorporate === 'All' || c.ownerId === filterCorporate;
+      const matchesEmployee = filterEmployee === 'All' || c.addedBy === filterEmployee;
       
       let matchesDate = true;
       if (filterDateType === 'Today') {
@@ -200,9 +283,9 @@ const AutoDialer: React.FC = () => {
           else matchesDate = false;
       }
 
-      return matchesSearch && matchesStatus && matchesCity && matchesCorporate && matchesDate;
+      return matchesSearch && matchesStatus && matchesCity && matchesCorporate && matchesDate && matchesEmployee;
     });
-  }, [contacts, searchTerm, filterStatus, filterCity, filterCorporate, filterDateType, filterMonth]);
+  }, [contacts, searchTerm, filterStatus, filterCity, filterCorporate, filterEmployee, filterDateType, filterMonth]);
 
   // -- Handlers --
 
@@ -211,6 +294,14 @@ const AutoDialer: React.FC = () => {
     if (!manualContact.name || !manualContact.phone) {
         alert("Please enter Name and Phone Number");
         return;
+    }
+
+    const targetOwnerId = manualContact.ownerId || (isSuperAdmin ? 'admin' : (isEmployee ? (employeeCorporateId || 'admin') : sessionId));
+    let franchiseName = 'My Branch';
+    if (targetOwnerId === 'admin') franchiseName = 'Head Office';
+    else {
+        const corp = corporates.find(c => c.email === targetOwnerId);
+        if (corp) franchiseName = corp.companyName;
     }
 
     const newContact: CallContact = {
@@ -222,12 +313,14 @@ const AutoDialer: React.FC = () => {
         status: 'Pending',
         note: '',
         history: [],
-        ownerId: isSuperAdmin ? 'admin' : sessionId,
-        franchiseName: isSuperAdmin ? 'Head Office' : 'My Branch'
+        ownerId: targetOwnerId,
+        franchiseName: franchiseName,
+        addedBy: loggedInUserEmail,
+        addedByName: loggedInUserName
     };
 
     setContacts(prev => [newContact, ...prev]);
-    setManualContact({ name: '', phone: '', email: '', city: '' });
+    setManualContact({ name: '', phone: '', email: '', city: '', ownerId: '' });
     setIsAddModalOpen(false);
   };
 
@@ -349,6 +442,7 @@ const AutoDialer: React.FC = () => {
       setFilterStatus('All');
       setFilterCity('All');
       setFilterCorporate('All');
+      setFilterEmployee('All');
       setFilterDateType('All');
       setFilterMonth(new Date().toISOString().slice(0, 7));
   };
@@ -378,6 +472,14 @@ const AutoDialer: React.FC = () => {
         });
 
         if (data.name && data.phone) {
+          const targetOwnerId = isSuperAdmin ? importOwnerId : (isEmployee ? (employeeCorporateId || 'admin') : sessionId);
+          let franchiseName = 'My Branch';
+          if (targetOwnerId === 'admin') franchiseName = 'Head Office';
+          else {
+              const corp = corporates.find(c => c.email === targetOwnerId);
+              if (corp) franchiseName = corp.companyName;
+          }
+
           newContacts.push({
             id: `C-IMP-${Date.now()}-${i}`,
             name: data.name,
@@ -387,8 +489,10 @@ const AutoDialer: React.FC = () => {
             status: 'Pending',
             note: '',
             history: [],
-            ownerId: isSuperAdmin ? 'admin' : sessionId,
-            franchiseName: isSuperAdmin ? 'Head Office' : 'My Branch'
+            ownerId: targetOwnerId,
+            franchiseName: franchiseName,
+            addedBy: loggedInUserEmail,
+            addedByName: loggedInUserName
           });
         }
       }
@@ -483,6 +587,16 @@ const AutoDialer: React.FC = () => {
           <p className="text-gray-500">Auto-dial, follow-up management, and instant messaging.</p>
         </div>
         <div className="flex gap-2">
+            {isSuperAdmin && (
+                <select 
+                    value={importOwnerId} 
+                    onChange={(e) => setImportOwnerId(e.target.value)}
+                    className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg font-medium text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                    <option value="admin">Import to: Head Office</option>
+                    {corporates.map((c: any) => (<option key={c.email} value={c.email}>Import to: {c.companyName}</option>))}
+                </select>
+            )}
             <button onClick={() => setIsTemplateModalOpen(true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors">
                 <Settings className="w-4 h-4" /> Manage Templates
             </button>
@@ -520,8 +634,8 @@ const AutoDialer: React.FC = () => {
                   <div className="flex justify-between items-end">
                       <div><p className="text-5xl font-black">{stats.todaysFocusTotal}</p><p className="text-sm text-indigo-200 font-bold">Total Priority Items</p></div>
                       <div className="text-right space-y-1">
-                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400"></div> {stats.pendingLeads} New Leads</p>
-                          <p className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400"></div> {stats.dueFollowUps} Callbacks</p>
+                          <div className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400"></div> {stats.pendingLeads} New Leads</div>
+                          <div className="text-sm font-bold text-white/90 flex items-center justify-end gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400"></div> {stats.dueFollowUps} Callbacks</div>
                       </div>
                   </div>
               </div>
@@ -541,10 +655,25 @@ const AutoDialer: React.FC = () => {
                     <button onClick={handleClearAll} className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
               </div>
 
-              {showAdvancedFilters && (
+               {showAdvancedFilters && (
                   <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-4 animate-in slide-in-from-top-2">
                       <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">Status: All</option><option value="Pending">Pending</option><option value="Interested">Interested</option><option value="Callback">Callback</option></select>
                       <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none"><option value="All">City: All</option>{cities.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                      {isSuperAdmin && (
+                        <>
+                            <select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterEmployee('All'); }} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none">
+                                <option value="All">Corporate: All</option>
+                                <option value="admin">Head Office</option>
+                                {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
+                            </select>
+                            <select value={filterEmployee} onChange={(e) => setFilterEmployee(e.target.value)} className="px-3 py-2 border rounded-lg text-xs font-bold outline-none">
+                                <option value="All">Employee: All</option>
+                                {employeesList.map(emp => (
+                                    <option key={emp.email} value={emp.email}>{emp.name}</option>
+                                ))}
+                            </select>
+                        </>
+                      )}
                       <button onClick={handleResetFilters} className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">Reset Filters</button>
                   </div>
               )}
@@ -552,7 +681,7 @@ const AutoDialer: React.FC = () => {
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-white text-gray-400 text-[11px] font-black uppercase tracking-widest border-b border-gray-200 sticky top-0 z-10">
-                          <tr><th className="px-6 py-4 w-12 text-center">#</th><th className="px-6 py-4">Lead Details</th><th className="px-6 py-4">Current Status</th><th className="px-6 py-4">Schedule</th><th className="px-6 py-4 text-right">Actions</th></tr>
+                          <tr><th className="px-6 py-4 w-12 text-center">#</th><th className="px-6 py-4">Lead Details</th><th className="px-6 py-4">Current Status</th><th className="px-6 py-4">Schedule</th><th className="px-6 py-4">Added By</th><th className="px-6 py-4 text-right">Actions</th></tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                           {filteredContacts.map((contact, idx) => {
@@ -564,6 +693,10 @@ const AutoDialer: React.FC = () => {
                                       <td className="px-6 py-4"><div className={`font-bold text-sm ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>{contact.name}</div><div className="text-[10px] text-gray-500 font-medium">{contact.city} • {contact.phone}</div></td>
                                       <td className="px-6 py-4"><span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border shadow-sm ${contact.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : contact.status === 'Callback' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-gray-50 text-gray-500'}`}>{contact.status}</span></td>
                                       <td className="px-6 py-4 text-xs">{contact.nextFollowUp ? <span className={`flex items-center gap-1.5 font-black ${isDue ? 'text-rose-600' : 'text-gray-500'}`}><Calendar className="w-3 h-3" /> {new Date(contact.nextFollowUp).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span> : '-'}</td>
+                                      <td className="px-6 py-4">
+                                          <div className="text-[10px] font-bold text-gray-600">{contact.addedByName || 'System'}</div>
+                                          <div className="text-[9px] text-gray-400">{contact.addedBy || 'admin'}</div>
+                                      </td>
                                       <td className="px-6 py-4 text-right"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e) => { e.stopPropagation(); handleEditContact(contact); }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Edit2 className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); handleDeleteContact(contact.id); }} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></div></td>
                                   </tr>
                               );
@@ -587,16 +720,15 @@ const AutoDialer: React.FC = () => {
                                   <p className="text-lg text-gray-500 font-mono mt-1">{activeContact.phone}</p>
                                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 font-medium">
                                       <MapPin className="w-3 h-3" /> {activeContact.city || 'Unknown City'}
-                                      {isSuperAdmin && <span className="flex items-center gap-1 text-indigo-500 font-bold"><Building2 className="w-3 h-3" /> {activeContact.franchiseName}</span>}
+                                      <div className="flex flex-col gap-1 mt-1">
+                                          {isSuperAdmin && <span className="flex items-center gap-1 text-indigo-500 font-bold"><Building2 className="w-3 h-3" /> {activeContact.franchiseName}</span>}
+                                          <span className="flex items-center gap-1 text-gray-500 font-bold"><Users className="w-3 h-3" /> Added by: {activeContact.addedByName || 'System'}</span>
+                                      </div>
                                   </div>
                               </div>
                               <div className={`w-3 h-3 rounded-full shadow-sm shrink-0 ${activeContact.status === 'Pending' ? 'bg-orange-400' : 'bg-green-500'}`}></div>
                           </div>
 
-                          <button onClick={handleCall} className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-1 mb-6 group shrink-0">
-                              <Phone className="w-8 h-8 fill-current group-hover:scale-110 transition-transform" />
-                              <span className="text-lg font-bold tracking-wide">DIAL NOW</span>
-                          </button>
 
                           <div className="mb-6 space-y-3">
                               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3" /> Previous History</p>
@@ -634,6 +766,32 @@ const AutoDialer: React.FC = () => {
                               >
                                   <MessageSquare className="w-4 h-4" /> Send Dynamic Template
                               </button>
+
+                              <div className="grid grid-cols-2 gap-3 mt-3">
+                                  <button 
+                                    onClick={() => {
+                                        if (!activeContact) return;
+                                        const cleanPhone = activeContact.phone.replace(/\D/g, '');
+                                        window.open(`https://wa.me/${cleanPhone}`, '_blank');
+                                    }}
+                                    className="py-2.5 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs hover:bg-green-700 transition-all"
+                                  >
+                                      <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                        if (!activeContact) return;
+                                        if (!activeContact.email) {
+                                            alert("No email address found.");
+                                            return;
+                                        }
+                                        window.location.href = `mailto:${activeContact.email}`;
+                                    }}
+                                    className="py-2.5 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs hover:bg-blue-700 transition-all"
+                                  >
+                                      <Mail className="w-3.5 h-3.5" /> Email
+                                  </button>
+                              </div>
                               
                               {showTemplatePicker && (
                                   <div className="absolute bottom-full left-0 w-full mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 animate-in fade-in slide-in-from-bottom-2 overflow-hidden">
@@ -804,6 +962,19 @@ const AutoDialer: React.FC = () => {
               </div>
               <form onSubmit={handleManualAdd} className="p-8 space-y-5">
                  <div className="space-y-4">
+                    {isSuperAdmin && (
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Assign to Corporate</label>
+                            <select 
+                                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
+                                value={manualContact.ownerId}
+                                onChange={e => setManualContact({...manualContact, ownerId: e.target.value})}
+                            >
+                                <option value="admin">Head Office</option>
+                                {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
+                            </select>
+                        </div>
+                    )}
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="Full Name" value={manualContact.name} onChange={e => setManualContact({...manualContact, name: e.target.value})} required />
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="Mobile Number" value={manualContact.phone} onChange={e => setManualContact({...manualContact, phone: e.target.value})} required />
                     <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800" placeholder="Email (Optional)" value={manualContact.email} onChange={e => setManualContact({...manualContact, email: e.target.value})} />
