@@ -448,7 +448,15 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
                         </div>
                         <div className="space-y-1.5">
                             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Rate (₹/km)</label>
-                            <input type="number" name="ratePerKm" required value={formData.ratePerKm} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500" />
+                            <input 
+                                type="number" 
+                                name="ratePerKm" 
+                                required 
+                                value={formData.ratePerKm} 
+                                onChange={handleInputChange} 
+                                readOnly={isEmployee}
+                                className={`w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 ${isEmployee ? 'cursor-not-allowed opacity-60' : ''}`} 
+                            />
                         </div>
                       </div>
 
