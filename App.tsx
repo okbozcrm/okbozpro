@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import AdminDashboard from './src/routes/AdminDashboard';
+import FranchiseDashboard from './src/routes/FranchiseDashboard';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -62,7 +64,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    let timeoutId: any;
+    let timeoutId: NodeJS.Timeout | undefined;
     const runSync = async () => {
         if (HARDCODED_FIREBASE_CONFIG.apiKey || localStorage.getItem('firebase_config')) {
             await syncToCloud();
@@ -116,6 +118,7 @@ const App: React.FC = () => {
                     {(userRole === UserRole.ADMIN || userRole === UserRole.CORPORATE || userRole === UserRole.SUB_ADMIN) && (
                       <>
                         <Route path="/admin" element={<Dashboard />} />
+                        <Route path="/admin/price-management" element={<AdminDashboard />} />
                         <Route path="/admin/reports" element={<Reports />} />
                         <Route path="/admin/marketing" element={userRole === UserRole.ADMIN || userRole === UserRole.SUB_ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
                         <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
@@ -153,6 +156,7 @@ const App: React.FC = () => {
                     {userRole === UserRole.EMPLOYEE && (
                       <>
                         <Route path="/user" element={<UserAttendance />} />
+                        <Route path="/user/price-management" element={<FranchiseDashboard />} />
                         <Route path="/user/tasks" element={<TaskManagement role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/customer-care" element={<CustomerCare role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/vendors" element={<VendorAttachment />} />

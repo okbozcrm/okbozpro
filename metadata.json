@@ -1,6 +1,6 @@
 {
-  "name": "OK BOZ SUPER APP",
-  "description": "A comprehensive staff management system featuring attendance tracking, payroll management, and branch administration. Includes both Admin and User panels with AI-powered HR assistance.",
+  "name": "Franchise Price Management",
+  "description": "A system for managing product prices across multiple franchises, allowing admin to set defaults and franchises to customize their own pricing.",
   "requestFramePermissions": [
     "camera",
     "geolocation",

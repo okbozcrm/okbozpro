@@ -549,12 +549,21 @@ const TravelAllowanceSettings = () => {
                 onChange={(e) => setRate(e.target.value)} 
                 className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
                 placeholder="e.g. 10"
+                disabled={!isSuperAdmin}
             />
             <p className="text-xs text-gray-500 mt-2">This rate will be auto-filled when employees submit KM claims.</p>
           </div>
-          <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors">
-              Save Rate
-          </button>
+          {!isSuperAdmin && (
+            <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <p>Travel allowance rate is fixed by the administrator and cannot be edited.</p>
+            </div>
+          )}
+          {isSuperAdmin && (
+            <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors">
+                Save Rate
+            </button>
+          )}
       </div>
     </div>
   );
