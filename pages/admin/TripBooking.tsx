@@ -3,47 +3,14 @@ import {
   Plus, Search, X, Save,
   Edit2, Trash2, 
   Calendar as CalendarIcon, MapPin, User, Calculator, Map as MapIcon, ChevronDown,
-  TrendingUp, CheckCircle, XCircle, DollarSign, Activity, Car, RefreshCcw, Filter,
-  Building2, Percent, Download, Upload, FileSpreadsheet, Send, Eye, FileText, Printer, Loader2, AlertTriangle, Phone, Gauge, CreditCard
+  TrendingUp, CheckCircle, XCircle, DollarSign, Activity, RefreshCcw,
+  Building2, Percent, Download, Upload, FileSpreadsheet, FileText, Loader2, AlertTriangle, Phone, Gauge, CreditCard
 } from 'lucide-react';
-import { UserRole, CorporateAccount } from '../../types';
+import { UserRole, CorporateAccount, Trip, Branch } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Autocomplete from '../../components/Autocomplete';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
-
-interface Trip {
-  id: string;
-  tripId: string;
-  date: string;
-  branch: string;
-  bookingType: string;
-  orderType: string;
-  transportType: string;
-  tripCategory: string;
-  bookingStatus: string;
-  cancelBy?: string;
-  userName: string;
-  userMobile: string;
-  pickupLocation?: string; 
-  dropLocation?: string;   
-  totalKm: number;
-  paymentType: string; // Added paymentType field
-  driverName?: string;
-  driverMobile?: string;
-  tripPrice: number;
-  taxPercentage: number;
-  tax: number;
-  waitingCharge: number;
-  discount: number;
-  cancellationCharge: number;
-  adminCommissionPercentage: number;
-  adminCommission: number;
-  totalPrice: number;
-  remarks?: string;
-  ownerId?: string;
-  ownerName?: string;
-}
 
 const formatCurrency = (amount: number) => {
   return amount.toLocaleString('en-IN', {
@@ -98,7 +65,7 @@ export const TripBooking: React.FC = () => {
   const isSuperAdmin = role === UserRole.ADMIN;
   
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [allBranches, setAllBranches] = useState<any[]>([]); 
+  const [allBranches, setAllBranches] = useState<Branch[]>([]); 
   const [corporates, setCorporates] = useState<CorporateAccount[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -158,6 +125,7 @@ export const TripBooking: React.FC = () => {
 
   // Load Google Maps Script
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((window as any).gm_authFailure_detected) {
       setMapError("Billing Not Enabled: Please enable billing on your Google Cloud Project.");
       return;
@@ -168,8 +136,11 @@ export const TripBooking: React.FC = () => {
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const originalAuthFailure = (window as any).gm_authFailure;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).gm_authFailure = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).gm_authFailure_detected = true;
       setMapError("Billing Not Enabled: Map functionality requires an active billing account on Google Cloud.");
       if (originalAuthFailure) originalAuthFailure();
@@ -178,6 +149,7 @@ export const TripBooking: React.FC = () => {
     const scriptId = 'google-maps-script-trips';
     let script = document.getElementById(scriptId) as HTMLScriptElement;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
       setIsMapReady(true);
       return;
@@ -190,6 +162,7 @@ export const TripBooking: React.FC = () => {
       script.async = true;
       script.defer = true;
       script.onload = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
           setIsMapReady(true);
         } else {
@@ -200,10 +173,12 @@ export const TripBooking: React.FC = () => {
       document.head.appendChild(script);
     } else {
         script.addEventListener('load', () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
             setIsMapReady(true);
           }
         });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
             setIsMapReady(true);
         }
@@ -211,39 +186,39 @@ export const TripBooking: React.FC = () => {
   }, []);
 
   const loadData = () => {
-    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     setCorporates(corps);
 
-    let branches: any[] = [];
+    let branches: Branch[] = [];
     if (isSuperAdmin) {
-        const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        branches = [...adminB.map((b: any) => ({...b, owner: 'admin'}))];
-        corps.forEach((c: any) => {
-            const cb = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            branches = [...branches, ...cb.map((b: any) => ({...b, owner: c.email}))];
+        const adminB: Branch[] = JSON.parse(localStorage.getItem('branches_data') || '[]');
+        branches = [...adminB.map((b) => ({...b, owner: 'admin'}))];
+        corps.forEach((c) => {
+            const cb: Branch[] = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
+            branches = [...branches, ...cb.map((b) => ({...b, owner: c.email}))];
         });
     } else {
         const key = `branches_data_${corporateId}`;
         const saved = localStorage.getItem(key);
-        if (saved) branches = JSON.parse(saved).map((b: any) => ({...b, owner: corporateId}));
+        if (saved) branches = JSON.parse(saved).map((b: Branch) => ({...b, owner: corporateId}));
     }
     setAllBranches(branches);
 
     let allTrips: Trip[] = [];
     if (isSuperAdmin) {
-        const adminData = JSON.parse(localStorage.getItem('trips_data') || '[]');
-        allTrips = [...adminData.map((t: any) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
-        corps.forEach((c: any) => {
+        const adminData: Trip[] = JSON.parse(localStorage.getItem('trips_data') || '[]');
+        allTrips = [...adminData.map((t) => ({...t, ownerId: 'admin', ownerName: 'Head Office'}))];
+        corps.forEach((c) => {
             const cData = localStorage.getItem(`trips_data_${c.email}`);
             if (cData) {
-                const parsed = JSON.parse(cData);
-                allTrips = [...allTrips, ...parsed.map((t: any) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
+                const parsed: Trip[] = JSON.parse(cData);
+                allTrips = [...allTrips, ...parsed.map((t) => ({...t, ownerId: c.email, ownerName: c.companyName}))];
             }
         });
     } else {
         const key = `trips_data_${corporateId}`;
         const saved = localStorage.getItem(key);
-        if (saved) allTrips = JSON.parse(saved).map((t: any) => ({...t, ownerId: corporateId, ownerName: 'My Branch'}));
+        if (saved) allTrips = JSON.parse(saved).map((t: Trip) => ({...t, ownerId: corporateId, ownerName: 'My Branch'}));
     }
     setTrips(allTrips.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   };
@@ -375,16 +350,17 @@ export const TripBooking: React.FC = () => {
 
     const targetId = formData.ownerId;
     const storageKey = targetId === 'admin' ? 'trips_data' : `trips_data_${targetId}`;
-    const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    let updatedStorage: any[];
+    const currentStorage: Trip[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    let updatedStorage: Trip[];
 
     if (editingId) {
-        updatedStorage = currentStorage.map((t: any) => t.id === editingId ? tripData : t);
+        updatedStorage = currentStorage.map((t) => t.id === editingId ? tripData : t);
     } else {
         updatedStorage = [tripData, ...currentStorage];
     }
 
-    const cleanForStorage = updatedStorage.map(({ownerId, ownerName, ...rest}: any) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const cleanForStorage = updatedStorage.map(({ownerId, ownerName, ...rest}) => rest);
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
 
     saveToGoogleSheet(tripData);
@@ -432,8 +408,8 @@ export const TripBooking: React.FC = () => {
     if (window.confirm("Delete this trip?")) {
       const targetId = record.ownerId || 'admin';
       const key = targetId === 'admin' ? 'trips_data' : `trips_data_${targetId}`;
-      const current = JSON.parse(localStorage.getItem(key) || '[]');
-      const filtered = current.filter((t: any) => t.id !== id);
+      const current: Trip[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const filtered = current.filter((t) => t.id !== id);
       localStorage.setItem(key, JSON.stringify(filtered));
       window.dispatchEvent(new Event('cloud-sync-immediate'));
       loadData();
@@ -506,14 +482,14 @@ export const TripBooking: React.FC = () => {
           const lines = text.split('\n');
           // skip header
           
-          const newTrips: any[] = [];
+          const newTrips: Trip[] = [];
           
           for (let i = 1; i < lines.length; i++) {
               if (!lines[i].trim()) continue;
               const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
               
               if (values.length >= 18) { 
-                   const trip: any = {
+                   const trip: Trip = {
                        id: `T-IMP-${Date.now()}-${i}`,
                        tripId: values[0] || `TRP-${Date.now()}`,
                        date: values[1],
@@ -539,7 +515,11 @@ export const TripBooking: React.FC = () => {
                        totalPrice: Number(values[21]) || 0,
                        branch: values[22] || 'Main Branch',
                        ownerId: isSuperAdmin ? 'admin' : corporateId, 
-                       ownerName: isSuperAdmin ? 'Head Office' : 'Imported'
+                       ownerName: isSuperAdmin ? 'Head Office' : 'Imported',
+                       // Default values for missing fields to satisfy Trip interface
+                       taxPercentage: 0,
+                       adminCommissionPercentage: 0,
+                       remarks: ''
                    };
                    newTrips.push(trip);
               }

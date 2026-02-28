@@ -17,8 +17,12 @@ const FranchiseDashboard: React.FC = () => {
         throw new Error(data.message || 'Failed to fetch price.');
       }
       setPrice(data.price);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -43,8 +47,12 @@ const FranchiseDashboard: React.FC = () => {
         throw new Error(data.message || 'Failed to update price.');
       }
       setMessage(data.message);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }

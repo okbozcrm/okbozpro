@@ -29,7 +29,7 @@ export const BrandingProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (saved) {
       try {
         setBranding({ ...defaultBranding, ...JSON.parse(saved) });
-      } catch (e) {
+      } catch {
         console.error("Failed to parse branding settings");
       }
     }

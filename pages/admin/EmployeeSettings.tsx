@@ -22,7 +22,7 @@ type SettingCategory =
   | 'Request A Feature'
   | 'Travel Allowance';
 
-const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: any, desc?: string }) => (
+const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: React.ElementType, desc?: string }) => (
   <div className="mb-6 border-b border-gray-100 pb-4">
     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
       <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
@@ -34,7 +34,7 @@ const SectionHeader = ({ title, icon: Icon, desc }: { title: string, icon: any, 
   </div>
 );
 
-const ToggleSwitch = ({ label, checked, onChange, icon: Icon, sublabel }: { label: string, checked: boolean, onChange: () => void, icon?: any, sublabel?: string }) => (
+const ToggleSwitch = ({ label, checked, onChange, icon: Icon, sublabel }: { label: string, checked: boolean, onChange: () => void, icon?: React.ElementType, sublabel?: string }) => (
   <div className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 group hover:border-emerald-200 transition-all">
     <div className="flex gap-3">
         {Icon && (
@@ -519,21 +519,17 @@ const PayoutDateSettings = () => {
 const TravelAllowanceSettings = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
-  const RATE_KEY = isSuperAdmin ? 'company_ta_rate' : `company_ta_rate_${sessionId}`;
+  // Always use the global key for reading if not super admin, to ensure they see the admin-set rate.
+  // If super admin, they edit the global key.
+  const RATE_KEY = 'company_ta_rate'; 
 
   const [rate, setRate] = useState<string>(() => {
     return localStorage.getItem(RATE_KEY) || '10';
   });
 
   const handleSave = () => {
+    if (!isSuperAdmin) return; // Safety check
     localStorage.setItem(RATE_KEY, rate);
-    // If super admin, maybe sync? Usually strict scoping handles it.
-    if (!isSuperAdmin) {
-       // Just local scope for franchise
-    } else {
-       // Global default
-       localStorage.setItem('company_ta_rate', rate);
-    }
     alert("Travel Allowance rate saved!");
   };
 
@@ -547,7 +543,7 @@ const TravelAllowanceSettings = () => {
                 type="number" 
                 value={rate} 
                 onChange={(e) => setRate(e.target.value)} 
-                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800 disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="e.g. 10"
                 disabled={!isSuperAdmin}
             />
@@ -607,12 +603,53 @@ const FeatureRequest = () => (
   </div>
 );
 
+const PermissionSettings = () => {
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const PERMISSION_KEY = isSuperAdmin ? 'company_permission_limit' : `company_permission_limit_${sessionId}`;
+
+  const [limit, setLimit] = useState<string>(() => {
+    return localStorage.getItem(PERMISSION_KEY) || '2';
+  });
+
+  const handleSave = () => {
+    localStorage.setItem(PERMISSION_KEY, limit);
+    if (isSuperAdmin) {
+       localStorage.setItem('company_permission_limit', limit);
+    }
+    alert("Permission limit saved!");
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <SectionHeader title="Permission Settings" icon={Clock} desc="Configure monthly permission limits for employees." />
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 max-w-lg">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Permission Limit</label>
+            <input 
+                type="number" 
+                value={limit} 
+                onChange={(e) => setLimit(e.target.value)} 
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
+                placeholder="e.g. 2"
+                min="0"
+            />
+            <p className="text-xs text-gray-500 mt-2">Maximum number of permissions allowed per employee per month.</p>
+          </div>
+          <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors">
+              Save Limit
+          </button>
+      </div>
+    </div>
+  );
+};
+
 const EmployeeSettings: React.FC = () => {
-  const [activeSetting, setActiveSetting] = useState<SettingCategory>('Departments & Roles');
+  const [activeSetting, setActiveSetting] = useState<SettingCategory | 'Permission Settings'>('Departments & Roles');
   const menuItems = [
     { heading: 'MY COMPANY', items: [ { id: 'My Company Report', icon: FileText }, { id: 'My Team (Admins)', icon: CheckCircle }, { id: 'Departments & Roles', icon: Building2 }, { id: 'Custom Fields', icon: Settings2 }, { id: 'Inactive Employees', icon: UserX } ] },
     { heading: 'ATTENDANCE SETTINGS', items: [ { id: 'Shifts & Breaks', icon: Clock }, { id: 'Attendance Modes', icon: Smartphone } ] },
-    { heading: 'LEAVES AND HOLIDAYS', items: [ { id: 'Custom Paid Leaves', icon: Plane }, { id: 'Holiday List', icon: Calendar } ] },
+    { heading: 'LEAVES AND HOLIDAYS', items: [ { id: 'Custom Paid Leaves', icon: Plane }, { id: 'Holiday List', icon: Calendar }, { id: 'Permission Settings', icon: Clock } ] },
     { heading: 'AUTOMATION', items: [ { id: 'Auto Live Track', icon: Zap } ] },
     { heading: 'SALARY SETTINGS', items: [ { id: 'Payout Date', icon: CalendarCheck }, { id: 'Travel Allowance', icon: Bike } ] },
     { heading: 'ALERT & NOTIFICATION', items: [ { id: 'App Notifications', icon: Bell } ] },
@@ -631,6 +668,7 @@ const EmployeeSettings: React.FC = () => {
       case 'Attendance Modes': return <AttendanceModes />;
       case 'Custom Paid Leaves': return <CustomPaidLeaves />;
       case 'Holiday List': return <HolidayList />;
+      case 'Permission Settings': return <PermissionSettings />;
       case 'Auto Live Track': return <AutoLiveTrack />;
       case 'App Notifications': return <AppNotifications />;
       case 'CMS & Content': return <CMSSettings />;

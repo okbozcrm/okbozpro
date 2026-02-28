@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Volume2, X, Check, AlertCircle } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, X, AlertCircle } from 'lucide-react';
 import { CallSignal } from '../types';
 
 const RINGTONE_URL = 'https://assets.mixkit.co/sfx/preview/mixkit-phone-ringing-bell-593.mp3';
@@ -24,7 +24,7 @@ const CallOverlay: React.FC = () => {
     }
   };
 
-  const playAudio = (url: string, loop: boolean = true) => {
+  const playAudio = (url: string, loop = true) => {
     stopAudio();
     const audio = new Audio(url);
     audio.loop = loop;
@@ -145,7 +145,6 @@ const CallOverlay: React.FC = () => {
   const isConnected = activeCall.status === 'connected';
   const isBusy = activeCall.status === 'busy';
   const isDeclined = activeCall.status === 'declined';
-  const isEnded = activeCall.status === 'ended';
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);

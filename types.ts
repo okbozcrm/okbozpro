@@ -118,6 +118,7 @@ export interface LeaveRequest {
   status: 'Pending' | 'Approved' | 'Rejected';
   reason: string;
   appliedOn: string;
+  duration?: string;
 }
 
 export interface TravelAllowanceRequest {
@@ -314,12 +315,46 @@ export interface PartnerPayoutRecord {
 }
 
 
+export interface Trip {
+  id: string;
+  tripId: string;
+  date: string;
+  branch: string;
+  bookingType: string;
+  orderType: string;
+  transportType: string;
+  tripCategory: string;
+  bookingStatus: string;
+  cancelBy?: string;
+  userName: string;
+  userMobile: string;
+  pickupLocation?: string; 
+  dropLocation?: string;   
+  totalKm: number;
+  paymentType: string;
+  driverName?: string;
+  driverMobile?: string;
+  tripPrice: number;
+  taxPercentage: number;
+  tax: number;
+  waitingCharge: number;
+  discount: number;
+  cancellationCharge: number;
+  adminCommissionPercentage: number;
+  adminCommission: number;
+  totalPrice: number;
+  remarks?: string;
+  ownerId?: string;
+  ownerName?: string;
+}
+
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     google: any; 
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;

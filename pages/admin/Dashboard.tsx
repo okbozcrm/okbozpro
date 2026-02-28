@@ -1,16 +1,13 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { 
-  Users, UserCheck, UserX, MapPin, ArrowRight, Building2, Car, TrendingUp, 
-  DollarSign, Clock, BarChart3, Calendar, Truck, CheckCircle, Headset, 
-  Bike, AlertCircle, Check, X, Wallet, Calculator, Zap, RefreshCcw,
+  Users, ArrowRight, Building2, TrendingUp, 
+  BarChart3, CheckCircle, 
+  Bike, AlertCircle, Check, X, Wallet, Zap, RefreshCcw,
   FileText, Map, Plane, Loader2
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, Enquiry, Branch, CorporateAccount, TravelAllowanceRequest, SalaryAdvanceRequest, UserRole, LeaveRequest } from '../../types';
-import { useTheme } from '../../context/ThemeContext';
+import { Employee, Enquiry, Branch, CorporateAccount, TravelAllowanceRequest, SalaryAdvanceRequest, UserRole, LeaveRequest } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
 
 interface ExtendedEmployee extends Employee {
@@ -23,19 +20,6 @@ interface ExtendedEnquiry extends Enquiry {
     assignedBranch?: string;
 }
 
-interface Trip {
-    id: string;
-    tripId: string;
-    date: string;
-    branch: string;
-    bookingStatus: string;
-    totalPrice: number;
-    userName: string;
-    transportType: string;
-    ownerId?: string;
-    ownerName?: string;
-}
-
 interface DashboardAction {
     id: string;
     type: 'TA_CLAIM' | 'SALARY_ADVANCE' | 'LEAVE_REQUEST';
@@ -45,17 +29,15 @@ interface DashboardAction {
     date: string;
     details: string;
     corporateId: string;
-    originalData: any;
+    originalData: TravelAllowanceRequest | SalaryAdvanceRequest | LeaveRequest;
 }
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { theme } = useTheme();
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
   // --- State ---
-  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const [enquiries, setEnquiries] = useState<ExtendedEnquiry[]>([]);
@@ -68,39 +50,38 @@ const Dashboard = () => {
   // --- Data Loading Logic ---
   const loadAllData = useCallback(() => {
     // 1. Corporates
-    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-    setCorporates(corps);
+    const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     
     // 2. Franchise Name
     if (isSuperAdmin) setFranchiseName('Head Office Panel');
     else {
-        const myCorp = corps.find((c: any) => c.email === sessionId);
+        const myCorp = corps.find((c) => c.email === sessionId);
         setFranchiseName(myCorp ? myCorp.companyName : 'Franchise Panel');
     }
 
     // 3. Branches
-    let loadedBranches: any[] = [];
+    let loadedBranches: Branch[] = [];
     if (isSuperAdmin) {
         const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        loadedBranches = [...adminBranches.map((b: any) => ({...b, corporateId: 'admin'}))];
-        corps.forEach((c: any) => {
+        loadedBranches = [...adminBranches.map((b: Branch) => ({...b, corporateId: 'admin'}))];
+        corps.forEach((c) => {
             const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            loadedBranches = [...loadedBranches, ...cBranches.map((b: any) => ({...b, corporateId: c.email}))];
+            loadedBranches = [...loadedBranches, ...cBranches.map((b: Branch) => ({...b, corporateId: c.email}))];
         });
     } else {
         const key = `branches_data_${sessionId}`;
         const saved = localStorage.getItem(key);
-        if (saved) loadedBranches = JSON.parse(saved).map((b: any) => ({...b, corporateId: sessionId}));
+        if (saved) loadedBranches = JSON.parse(saved).map((b: Branch) => ({...b, corporateId: sessionId}));
     }
     setBranches(loadedBranches);
 
     // 4. Employees
     let allEmployees: ExtendedEmployee[] = [];
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-    allEmployees = [...adminStaff.map((e:any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))];
-    corps.forEach((corp: any) => {
+    allEmployees = [...adminStaff.map((e: Employee) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}))];
+    corps.forEach((corp) => {
         const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
-        allEmployees = [...allEmployees, ...corpStaff.map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
+        allEmployees = [...allEmployees, ...corpStaff.map((e: Employee) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
     });
     const scopedEmployees = isSuperAdmin ? allEmployees : allEmployees.filter(e => e.corporateId === sessionId);
     setEmployees(scopedEmployees);
@@ -111,7 +92,7 @@ const Dashboard = () => {
     setEnquiries(scopedEnqs);
 
     // 6. Action Center Items
-    let actions: DashboardAction[] = [];
+    const actions: DashboardAction[] = [];
     
     // TA Claims
     const taRequests: TravelAllowanceRequest[] = JSON.parse(localStorage.getItem('global_travel_requests') || '[]');
@@ -204,16 +185,16 @@ const Dashboard = () => {
           let notificationTitle = '';
           let notificationMessage = '';
           let notificationLink = '';
-          let updatedItems: any[] = [];
-          let targetItem: any = null;
+          let updatedItems: (TravelAllowanceRequest | SalaryAdvanceRequest | LeaveRequest)[] = [];
+          let targetItem: TravelAllowanceRequest | SalaryAdvanceRequest | LeaveRequest | undefined;
 
           if (type === 'TA_CLAIM') {
               key = 'global_travel_requests';
               notificationType = 'system';
               notificationLink = '/user/km-claims';
-              const all = JSON.parse(localStorage.getItem(key) || '[]');
-              updatedItems = all.map((r: any) => r.id === actionId ? { ...r, status: newStatus } : r);
-              targetItem = all.find((r: any) => r.id === actionId);
+              const all: TravelAllowanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map(r => r.id === actionId ? { ...r, status: newStatus } : r);
+              targetItem = all.find(r => r.id === actionId);
               if (targetItem) {
                   notificationTitle = `KM Claim ${newStatus}`;
                   notificationMessage = `Your travel allowance request for ${targetItem.date} was ${newStatus.toLowerCase()}.`;
@@ -222,13 +203,13 @@ const Dashboard = () => {
               key = 'salary_advances';
               notificationType = 'system';
               notificationLink = '/user/salary';
-              const all = JSON.parse(localStorage.getItem(key) || '[]');
-              updatedItems = all.map((r: any) => r.id === actionId ? { 
+              const all: SalaryAdvanceRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map(r => r.id === actionId ? { 
                 ...r, 
                 status: newStatus, 
                 amountApproved: newStatus === 'Approved' ? r.amountRequested : 0 
               } : r);
-              targetItem = all.find((r: any) => r.id === actionId);
+              targetItem = all.find(r => r.id === actionId);
               if (targetItem) {
                   notificationTitle = `Salary Advance ${newStatus}`;
                   notificationMessage = `Your advance request for ₹${targetItem.amountRequested} was ${newStatus.toLowerCase()}.`;
@@ -237,10 +218,10 @@ const Dashboard = () => {
               key = 'global_leave_requests';
               notificationType = 'leave_approval';
               notificationLink = '/user/apply-leave';
-              const all = JSON.parse(localStorage.getItem(key) || '[]');
-              updatedItems = all.map((r: any) => r.id === actionId ? { ...r, status: newStatus } : r);
-              targetItem = all.find((r: any) => r.id === actionId);
-              if (targetItem) {
+              const all: LeaveRequest[] = JSON.parse(localStorage.getItem(key) || '[]');
+              updatedItems = all.map(r => r.id === actionId ? { ...r, status: newStatus } : r);
+              targetItem = all.find(r => r.id === actionId);
+              if (targetItem && 'type' in targetItem) {
                   notificationTitle = `Leave Request ${newStatus}`;
                   notificationMessage = `Your ${targetItem.type} for ${targetItem.from} has been ${newStatus.toLowerCase()}.`;
               }
@@ -441,7 +422,7 @@ const Dashboard = () => {
                               
                               <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 mb-4">
                                   <p className="text-xs text-gray-500 line-clamp-2 italic font-medium leading-relaxed">
-                                      "{action.details}"
+                                      &quot;{action.details}&quot;
                                   </p>
                               </div>
 

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Maximize, Crosshair, Loader2, AlertTriangle, Building, Trash2, Settings, Building2, Pencil, X, QrCode, Download, ExternalLink, Filter } from 'lucide-react';
-import { Branch } from '../../types';
+import { MapPin, Maximize, Crosshair, Loader2, AlertTriangle, Building, Trash2, Settings, Building2, Pencil, QrCode, Download, ExternalLink, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Autocomplete from '../../components/Autocomplete';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
@@ -17,6 +16,7 @@ const BranchForm: React.FC = () => {
   
   // Determine Session Context
   const userRole = localStorage.getItem('user_role');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isSuperAdminUser = userRole === 'ADMIN';
   const isCorporateUser = userRole === 'CORPORATE';
 
@@ -28,6 +28,7 @@ const BranchForm: React.FC = () => {
   const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
 
   // --- Corporate Selection State (Super Admin Only) ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [corporates, setCorporates] = useState<any[]>([]);
   const [selectedOwner, setSelectedOwner] = useState<string>('admin'); // Default to admin/head office
   const [filterOwner, setFilterOwner] = useState<string>('All'); // For Admin List View
@@ -36,7 +37,7 @@ const BranchForm: React.FC = () => {
     if (isSuperAdmin) {
        const savedCorps = localStorage.getItem('corporate_accounts');
        if (savedCorps) {
-          try { setCorporates(JSON.parse(savedCorps)); } catch(e) {}
+          try { setCorporates(JSON.parse(savedCorps)); } catch { /* ignore */ }
        }
        setSelectedOwner('admin');
     } else {
@@ -46,9 +47,11 @@ const BranchForm: React.FC = () => {
   }, [isSuperAdmin]);
 
   // Branch List State - Aggregated for Admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [branches, setBranches] = useState<any[]>(() => {
     if (isSuperAdmin) {
         // --- SUPER ADMIN AGGREGATION ---
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let allBranches: any[] = [];
         
         // 1. Admin Data (Head Office)
@@ -56,20 +59,23 @@ const BranchForm: React.FC = () => {
         if (adminData) {
             try { 
                 const parsed = JSON.parse(adminData);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 allBranches = [...allBranches, ...parsed.map((b: any) => ({...b, owner: 'admin', ownerName: 'Head Office'}))];
-            } catch (e) {}
+            } catch { /* ignore */ }
         }
 
         // 2. Corporate Data
         const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         corporates.forEach((corp: any) => {
             const cData = localStorage.getItem(`branches_data_${corp.email}`);
             if (cData) {
                 try {
                     const parsed = JSON.parse(cData);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const tagged = parsed.map((b: any) => ({...b, owner: corp.email, ownerName: corp.companyName}));
                     allBranches = [...allBranches, ...tagged];
-                } catch (e) {}
+                } catch { /* ignore */ }
             }
         });
         return allBranches;
@@ -87,13 +93,16 @@ const BranchForm: React.FC = () => {
         // Save Head Office Branches
         const adminBranches = branches.filter(b => b.owner === 'admin');
         // Strip metadata before saving
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const cleanAdmin = adminBranches.map(({owner, ownerName, ...rest}) => rest);
         localStorage.setItem('branches_data', JSON.stringify(cleanAdmin));
 
         // Save Corporate Branches (Iterate corporates to find their branches in state)
         const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         corps.forEach((c: any) => {
              const cBranches = branches.filter(b => b.owner === c.email);
+             // eslint-disable-next-line @typescript-eslint/no-unused-vars
              const cleanC = cBranches.map(({owner, ownerName, ...rest}) => rest);
              localStorage.setItem(`branches_data_${c.email}`, JSON.stringify(cleanC));
         });
@@ -106,7 +115,9 @@ const BranchForm: React.FC = () => {
   
   // Map State
   const mapRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [mapInstance, setMapInstance] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [markerInstance, setMarkerInstance] = useState<any>(null);
   /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
   const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
@@ -208,11 +219,13 @@ const BranchForm: React.FC = () => {
           draggable: true,
           animation: window.google.maps.Animation.DROP,
         });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         marker.addListener("dragend", (e: any) => {
           const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
           setLocation(newPos);
           map.panTo(newPos);
         });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         map.addListener("click", (e: any) => {
           const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
           marker.setPosition(newPos);
@@ -222,6 +235,7 @@ const BranchForm: React.FC = () => {
         setMapInstance(map);
         setMarkerInstance(marker);
       } catch (e) {
+        console.error("Map init error:", e);
         setMapError("Error initializing map interface. Check Settings.");
       }
     }
@@ -235,6 +249,7 @@ const BranchForm: React.FC = () => {
     setLoadingAddress(true);
     try {
       const geocoder = new window.google.maps.Geocoder();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       geocoder.geocode({ location }, (results: any, status: any) => {
         setLoadingAddress(false);
         if (status === "OK" && results[0]) {
@@ -246,6 +261,7 @@ const BranchForm: React.FC = () => {
         }
       });
     } catch (e) {
+      console.error("Geocoding error:", e);
       setLoadingAddress(false);
       alert("Error accessing Geocoding service.");
     }
@@ -276,6 +292,7 @@ const BranchForm: React.FC = () => {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEditBranch = (branch: any) => {
     setEditingId(branch.id);
     setBranchName(branch.name);
@@ -319,7 +336,7 @@ const BranchForm: React.FC = () => {
     }
 
     // Determine Owner & Name for Admin Context
-    let ownerId = isSuperAdmin ? selectedOwner : currentSession;
+    const ownerId = isSuperAdmin ? selectedOwner : currentSession;
     let ownerDisplayName = 'Head Office';
     
     if (ownerId !== 'admin') {
@@ -539,7 +556,7 @@ const BranchForm: React.FC = () => {
                             <strong>Action Required:</strong>
                             <ul className="list-disc list-inside mt-1">
                                 <li>Enable Billing on Google Cloud Project</li>
-                                <li>Ensure 'Maps JavaScript API', 'Places API', & 'Geocoding API' are enabled</li>
+                                <li>Ensure &apos;Maps JavaScript API&apos;, &apos;Places API&apos;, &amp; &apos;Geocoding API&apos; are enabled</li>
                             </ul>
                         </div>
                         <a 

@@ -1,6 +1,6 @@
 import React from "react";
 
-interface TableProps extends React.HTMLAttributes<HTMLTableElement> {}
+type TableProps = React.HTMLAttributes<HTMLTableElement>
 
 const Table: React.FC<TableProps> = ({ className, ...props }) => (
   <div className="w-full overflow-auto">
@@ -11,19 +11,19 @@ const Table: React.FC<TableProps> = ({ className, ...props }) => (
   </div>
 );
 
-interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {}
+type TableHeaderProps = React.HTMLAttributes<HTMLTableSectionElement>
 
 const TableHeader: React.FC<TableHeaderProps> = ({ className, ...props }) => (
   <thead className={`[&_tr]:border-b ${className || ""}`} {...props} />
 );
 
-interface TableBodyProps extends React.HTMLAttributes<HTMLTableSectionElement> {}
+type TableBodyProps = React.HTMLAttributes<HTMLTableSectionElement>
 
 const TableBody: React.FC<TableBodyProps> = ({ className, ...props }) => (
   <tbody className={`[&_tr:last-child]:border-0 ${className || ""}`} {...props} />
 );
 
-interface TableFooterProps extends React.HTMLAttributes<HTMLTableSectionElement> {}
+type TableFooterProps = React.HTMLAttributes<HTMLTableSectionElement>
 
 const TableFooter: React.FC<TableFooterProps> = ({ className, ...props }) => (
   <tfoot
@@ -32,7 +32,7 @@ const TableFooter: React.FC<TableFooterProps> = ({ className, ...props }) => (
   />
 );
 
-interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {}
+type TableRowProps = React.HTMLAttributes<HTMLTableRowElement>
 
 const TableRow: React.FC<TableRowProps> = ({ className, ...props }) => (
   <tr
@@ -41,7 +41,7 @@ const TableRow: React.FC<TableRowProps> = ({ className, ...props }) => (
   />
 );
 
-interface TableHeadProps extends React.HTMLAttributes<HTMLTableCellElement> {}
+type TableHeadProps = React.HTMLAttributes<HTMLTableCellElement>
 
 const TableHead: React.FC<TableHeadProps> = ({ className, ...props }) => (
   <th
@@ -50,7 +50,7 @@ const TableHead: React.FC<TableHeadProps> = ({ className, ...props }) => (
   />
 );
 
-interface TableCellProps extends React.HTMLAttributes<HTMLTableCellElement> {}
+type TableCellProps = React.HTMLAttributes<HTMLTableCellElement>
 
 const TableCell: React.FC<TableCellProps> = ({ className, ...props }) => (
   <td
@@ -59,7 +59,7 @@ const TableCell: React.FC<TableCellProps> = ({ className, ...props }) => (
   />
 );
 
-interface TableCaptionProps extends React.HTMLAttributes<HTMLTableCaptionElement> {}
+type TableCaptionProps = React.HTMLAttributes<HTMLTableCaptionElement>
 
 const TableCaption: React.FC<TableCaptionProps> = ({ className, ...props }) => (
   <caption className={`mt-4 text-sm text-gray-500 ${className || ""}`} {...props} />

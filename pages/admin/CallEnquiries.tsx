@@ -1,14 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  PhoneIncoming, PhoneOutgoing, ArrowRight, Search, Clock, User, Car, 
-  Edit2, X, Save, UserPlus, History, Filter, Download, Truck, Calculator, 
-  MessageCircle, Mail, Copy, MapPin, Calendar as CalendarIcon, RefreshCcw, 
-  Sparkles, Wand2, Loader2, Building2, CheckCircle, ChevronDown, ChevronUp,
-  Plus, MoreHorizontal, FileText, Phone
+  PhoneIncoming, ArrowRight, Search, Clock, User, 
+  Edit2, X, History, CheckCircle,
+  FileText, Sparkles, Loader2
 } from 'lucide-react';
 import { MOCK_EMPLOYEES } from '../../constants';
-import { Employee, Enquiry, HistoryLog } from '../../types';
+import { Employee, Enquiry } from '../../types';
 import { generateGeminiResponse } from '../../services/geminiService';
 
 interface HistoryItem {
@@ -25,13 +23,6 @@ interface HistoryItem {
   loggedBy?: string; 
 }
 
-const RENTAL_PACKAGES = [
-  { id: '1hr', name: '1 Hr / 10 km', hours: 1, km: 10, price: 200 },
-  { id: '2hr', name: '2 Hr / 20 km', hours: 2, km: 20, price: 400 },
-  { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, price: 800 },
-  { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, price: 1600 },
-];
-
 const getExistingVendors = () => {
   const globalData = localStorage.getItem('vendor_data');
   return globalData ? JSON.parse(globalData) : [];
@@ -42,7 +33,8 @@ const CallEnquiries: React.FC = () => {
   const isSuperAdmin = sessionId === 'admin';
 
   // --- Data Loading ---
-  const [allEmployees, setAllEmployees] = useState<Employee[]>(() => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [allEmployees] = useState<Employee[]>(() => {
     if (isSuperAdmin) {
        let all: Employee[] = [];
        const saved = localStorage.getItem('staff_data');
@@ -51,11 +43,14 @@ const CallEnquiries: React.FC = () => {
 
        try {
          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
          corps.forEach((c: any) => {
             const s = localStorage.getItem(`staff_data_${c.email}`);
             if (s) all = [...all, ...JSON.parse(s)];
          });
-       } catch (e) {}
+       } catch (e) {
+         console.error("Error loading corporate staff data", e);
+       }
        return all;
     } else {
        const key = `staff_data_${sessionId}`;
@@ -64,18 +59,23 @@ const CallEnquiries: React.FC = () => {
     }
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [corporates] = useState<any[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-    } catch (e) { return []; }
+    } catch (e) { 
+      console.error("Error loading corporate accounts", e);
+      return []; 
+    }
   });
 
   const STORAGE_KEY = 'global_enquiries_data';
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
+  const [enquiries] = useState<Enquiry[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [vendors] = useState<any[]>(getExistingVendors());
 
   // Distinct Storage Key for "Call Enquiries" History
@@ -130,18 +130,7 @@ const CallEnquiries: React.FC = () => {
     assignedTo: ''
   });
   
-  // Transport Calculator State
-  const [editEnquiryType, setEditEnquiryType] = useState<'General' | 'Transport'>('General');
-  const [editTransportService, setEditTransportService] = useState<'Taxi' | 'Load Xpress'>('Taxi');
-  const [editTaxiType, setEditTaxiType] = useState<'Local' | 'Rental' | 'Outstation'>('Local');
-  const [editOutstationType, setEditOutstationType] = useState<'OneWay' | 'RoundTrip'>('RoundTrip');
-  const [editVehicleType, setEditVehicleType] = useState<'Sedan' | 'SUV'>('Sedan');
-  const [calcDetails, setCalcDetails] = useState({
-     pickup: '', drop: '', estKm: '', waitingMins: '', packageId: '1hr',
-     destination: '', days: '1', estTotalKm: '', loadPickup: '', loadDrop: '', loadWeight: ''
-  });
-  const [generatedEstimateMsg, setGeneratedEstimateMsg] = useState('');
-  const [estimateTotal, setEstimateTotal] = useState(0);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // --- Handlers ---
 
@@ -162,6 +151,7 @@ const CallEnquiries: React.FC = () => {
     let found = false;
 
     // 1. Check Vendors
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vendor = vendors.find((v: any) => v.phone && v.phone.replace(/\D/g, '').includes(cleanNumber));
     if (vendor) {
         setLogForm(prev => ({ ...prev, name: vendor.ownerName, city: vendor.city, callerType: 'Vendor' }));
@@ -177,6 +167,7 @@ const CallEnquiries: React.FC = () => {
                 ...prev, 
                 name: prevEnquiry.name, 
                 city: prevEnquiry.city, 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 callerType: prevEnquiry.type as any 
             }));
             setLookupResult('Existing');
@@ -211,9 +202,6 @@ const CallEnquiries: React.FC = () => {
 
     setRecentTransfers(prev => [newItem, ...prev]);
 
-    // Update Global Enquiry Database (Mock Sync)
-    // ... (Simplified logic similar to Reception for brevity) ...
-
     setTimeout(() => {
         setIsSubmitting(false);
         setIsLogModalOpen(false);
@@ -236,34 +224,30 @@ const CallEnquiries: React.FC = () => {
                           item.city?.toLowerCase().includes(searchQuery);
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     const matchesDate = !dateFilter || item.date === dateFilter;
-    const matchesTab = activeTab === 'All' || item.type.includes(activeTab);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matchesTab = activeTab === 'All' || item.type.includes(activeTab as any);
     
     return matchesSearch && matchesStatus && matchesDate && matchesTab;
   });
-
-  // Edit Logic (Same as Reception for Transport Calc)
-  useEffect(() => {
-    if (editEnquiryType === 'Transport' && editTransportService === 'Taxi') {
-        calculateTaxiEstimate();
-    }
-  }, [calcDetails, editTaxiType, editTransportService, editEnquiryType, editVehicleType, editOutstationType]);
-
-  const calculateTaxiEstimate = () => {
-      // ... (Same calculation logic as Reception.tsx) ...
-      // For brevity, using simplified version
-      let total = 0;
-      if (editTaxiType === 'Local') total = 500; // Mock calculation
-      if (editTaxiType === 'Rental') total = 2000;
-      if (editTaxiType === 'Outstation') total = 5000;
-      setEstimateTotal(total);
-      setGeneratedEstimateMsg(`Estimate for ${editFormData.name}: ₹${total}`);
-  };
 
   const handleSaveEdit = () => {
       if(!editingItem) return;
       const updated = recentTransfers.map(i => i.id === editingItem.id ? { ...i, ...editFormData } : i);
       setRecentTransfers(updated);
       setEditingItem(null);
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!editFormData.details) return;
+    setIsGeneratingSummary(true);
+    try {
+      const summary = await generateGeminiResponse(`Summarize this call note into a concise action item: ${editFormData.details}`);
+      setEditFormData(prev => ({ ...prev, details: summary }));
+    } catch (error) {
+      console.error("Failed to generate summary", error);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
   };
 
   return (
@@ -321,6 +305,7 @@ const CallEnquiries: React.FC = () => {
                {['All', 'Incoming', 'Outgoing'].map(tab => (
                   <button 
                     key={tab}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onClick={() => setActiveTab(tab as any)}
                     className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === tab ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
@@ -488,6 +473,7 @@ const CallEnquiries: React.FC = () => {
                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none bg-white"
                               >
                                  <option value="">Select City</option>
+                                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                  {corporates.map((c:any) => <option key={c.id} value={c.city}>{c.city}</option>)}
                                  <option value="Head Office">Head Office</option>
                               </select>
@@ -544,7 +530,7 @@ const CallEnquiries: React.FC = () => {
          </div>
       )}
 
-      {/* Edit Modal (Reused Logic but Styled for Tickets) */}
+      {/* Edit Modal */}
       {editingItem && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
@@ -553,7 +539,6 @@ const CallEnquiries: React.FC = () => {
                   <button onClick={() => setEditingItem(null)} className="text-violet-400 hover:text-violet-700"><X className="w-5 h-5" /></button>
                </div>
                <div className="p-6 space-y-4 overflow-y-auto">
-                  {/* ... Simplified Edit Form similar to Log Form ... */}
                   <div>
                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Update Status</label>
                      <select 
@@ -568,7 +553,17 @@ const CallEnquiries: React.FC = () => {
                      </select>
                   </div>
                   <div>
-                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Update Notes</label>
+                     <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-bold text-gray-500 uppercase">Update Notes</label>
+                        <button 
+                          onClick={handleGenerateSummary}
+                          disabled={isGeneratingSummary || !editFormData.details}
+                          className="text-xs text-violet-600 hover:text-violet-800 flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {isGeneratingSummary ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                          {isGeneratingSummary ? 'Summarizing...' : 'AI Summary'}
+                        </button>
+                     </div>
                      <textarea 
                         rows={4} 
                         value={editFormData.details} 

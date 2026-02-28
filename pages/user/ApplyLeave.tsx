@@ -9,7 +9,8 @@ const ApplyLeave: React.FC = () => {
     type: 'Casual Leave (CL)',
     startDate: '',
     endDate: '',
-    reason: ''
+    reason: '',
+    duration: '1 Hour'
   });
 
   const sessionId = localStorage.getItem('app_session_id') || '';
@@ -45,13 +46,15 @@ const ApplyLeave: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.startDate || !formData.endDate || !formData.reason) {
+    
+    const isPermission = formData.type === 'Permission';
+    
+    if (!formData.startDate || (!isPermission && !formData.endDate) || !formData.reason) {
       alert("Please fill in all fields.");
       return;
     }
 
     const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
     const today = new Date();
     today.setHours(0,0,0,0);
     
@@ -60,16 +63,50 @@ const ApplyLeave: React.FC = () => {
        return;
     }
 
-    if (end < start) {
-      alert("End date cannot be earlier than start date.");
-      return;
+    let days = 0;
+    let end = new Date(formData.startDate);
+
+    const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+
+    if (isPermission) {
+        // Permission Logic
+        const month = start.getMonth();
+        const year = start.getFullYear();
+        
+        const permissionsThisMonth = history.filter(h => {
+            const d = new Date(h.from);
+            return h.type === 'Permission' && d.getMonth() === month && d.getFullYear() === year && h.status !== 'Rejected';
+        }).length;
+
+        const PERMISSION_KEY = corporateId === 'admin' ? 'company_permission_limit' : `company_permission_limit_${corporateId}`;
+        const limitStr = localStorage.getItem(PERMISSION_KEY) || localStorage.getItem('company_permission_limit') || '2';
+        const limit = parseInt(limitStr);
+
+        if (permissionsThisMonth >= limit) {
+            alert(`You have reached the monthly permission limit of ${limit}.`);
+            return;
+        }
+
+        if (formData.duration === 'Half Day') {
+            days = 0.5;
+        } else if (formData.duration === '2 Hours') {
+            days = 0.25;
+        } else {
+            days = 0.125; // 1 Hour
+        }
+        
+        end = start; // End date is same as start date
+    } else {
+        end = new Date(formData.endDate);
+        if (end < start) {
+          alert("End date cannot be earlier than start date.");
+          return;
+        }
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     }
-    
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
     const employeeName = sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'Employee';
-    const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
 
     const newLeave: LeaveRequest = {
       id: `LV-${Date.now()}`,
@@ -78,11 +115,12 @@ const ApplyLeave: React.FC = () => {
       corporateId: corporateId,
       type: formData.type,
       from: formData.startDate,
-      to: formData.endDate,
+      to: isPermission ? formData.startDate : formData.endDate,
       days: isNaN(days) ? 1 : days,
       status: 'Pending',
       reason: formData.reason,
-      appliedOn: new Date().toISOString()
+      appliedOn: new Date().toISOString(),
+      duration: isPermission ? formData.duration : undefined
     };
 
     const savedRaw = localStorage.getItem('global_leave_requests');
@@ -93,7 +131,7 @@ const ApplyLeave: React.FC = () => {
     await sendSystemNotification({
         type: 'leave_request',
         title: 'New Leave Request',
-        message: `${employeeName} requested ${newLeave.days} day(s) leave from ${newLeave.from}. Reason: ${newLeave.reason}`,
+        message: `${employeeName} requested ${isPermission ? formData.duration + ' Permission' : newLeave.days + ' day(s) leave'} from ${newLeave.from}. Reason: ${newLeave.reason}`,
         targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
         corporateId: corporateId === 'admin' ? undefined : corporateId,
         employeeId: sessionId,
@@ -101,9 +139,9 @@ const ApplyLeave: React.FC = () => {
     });
 
     setHistory([newLeave, ...history]);
-    setFormData({ type: 'Casual Leave (CL)', startDate: '', endDate: '', reason: '' });
+    setFormData({ type: 'Casual Leave (CL)', startDate: '', endDate: '', reason: '', duration: '1 Hour' });
     window.dispatchEvent(new Event('storage'));
-    alert("Leave request submitted successfully! It is now pending Admin approval.");
+    alert("Request submitted successfully! It is now pending Admin approval.");
   };
 
   const todayDate = new Date().toISOString().split('T')[0];
@@ -164,12 +202,13 @@ const ApplyLeave: React.FC = () => {
                   <option>Sick Leave (SL)</option>
                   <option>Privilege Leave (PL)</option>
                   <option>Loss of Pay (LWP)</option>
+                  <option>Permission</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                <div className={formData.type === 'Permission' ? 'col-span-2' : ''}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{formData.type === 'Permission' ? 'Date' : 'From Date'}</label>
                   <input 
                     type="date" 
                     name="startDate"
@@ -180,6 +219,7 @@ const ApplyLeave: React.FC = () => {
                     required
                   />
                 </div>
+                {formData.type !== 'Permission' ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
                   <input 
@@ -192,6 +232,21 @@ const ApplyLeave: React.FC = () => {
                     required
                   />
                 </div>
+                ) : (
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Duration</label>
+                  <select 
+                    name="duration"
+                    value={formData.duration}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                  >
+                    <option>1 Hour</option>
+                    <option>2 Hours</option>
+                    <option>Half Day</option>
+                  </select>
+                </div>
+                )}
               </div>
 
               <div>
@@ -234,13 +289,17 @@ const ApplyLeave: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-bold text-gray-800">{item.type}</span>
-                          <span className="text-xs text-gray-400">• {item.days} Day{item.days > 1 ? 's' : ''}</span>
+                          <span className="text-xs text-gray-400">• {item.duration ? item.duration : `${item.days} Day${item.days > 1 ? 's' : ''}`}</span>
                         </div>
                         <p className="text-sm text-gray-600 flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5 text-gray-400" />
                           {new Date(item.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} 
-                          <span className="text-gray-300">→</span>
-                          {new Date(item.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {item.type !== 'Permission' && (
+                            <>
+                            <span className="text-gray-300">→</span>
+                            {new Date(item.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </>
+                          )}
                         </p>
                       </div>
                       

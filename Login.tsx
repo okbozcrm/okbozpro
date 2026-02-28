@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { UserRole } from '../types';
-import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck } from 'lucide-react';
+import { UserRole, CorporateAccount, Employee } from '../types';
+import { Lock, Mail, ArrowRight, Eye, EyeOff, AlertTriangle, Cloud } from 'lucide-react';
 import { useBranding } from '../context/BrandingContext';
 import { sendSystemNotification, HARDCODED_FIREBASE_CONFIG } from '../services/cloudService'; // Import sendSystemNotification
 
@@ -49,7 +49,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         else if (activeTab === 'corporate') {
             // 1. Check Stored Corporate Accounts
             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            const foundCorp = corps.find((c: any) => c.email.toLowerCase() === email.toLowerCase() && c.password === password);
+            const foundCorp = corps.find((c: CorporateAccount) => c.email.toLowerCase() === email.toLowerCase() && c.password === password);
             
             if (foundCorp) {
                 success = true;
@@ -62,9 +62,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             let foundEmp = null;
             try {
                 const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-                foundEmp = adminStaff.find((e: any) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
+                foundEmp = adminStaff.find((e: Employee) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
                 if (foundEmp) corporateOwnerId = 'admin';
-            } catch(e) {}
+            } catch (e) { console.error(e); }
 
             // 2. Search Corporate Staff if not found
             if (!foundEmp) {
@@ -72,13 +72,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
                     for (const corp of corps) {
                         const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
-                        foundEmp = corpStaff.find((e: any) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
+                        foundEmp = corpStaff.find((e: Employee) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
                         if (foundEmp) {
                             corporateOwnerId = corp.email; // Found in this corporate account
                             break;
                         }
                     }
-                } catch(e) {}
+                } catch (e) { console.error(e); }
             }
 
             if (foundEmp) {

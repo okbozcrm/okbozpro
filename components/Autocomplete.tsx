@@ -81,7 +81,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
         const results = await getGeocode({ address });
         const { lat, lng } = await getLatLng(results[0]);
         setNewPlace({ lat, lng });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.warn("Geocoding failed, attempting PlacesService fallback...", error);
         
         // Method 2: Fallback to Places Details (Requires Places API, often enabled when Geocoding isn't)
@@ -100,7 +100,8 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
                     } else {
                         // If both fail, show specific error
                         console.error("Places Details fallback failed:", status);
-                        if (error?.toString().includes("REQUEST_DENIED") || error === "REQUEST_DENIED") {
+                        const errString = String(error);
+                        if (errString.includes("REQUEST_DENIED") || errString === "REQUEST_DENIED") {
                              setErrorMsg("Geocoding/Places API not fully authorized. Coordinates unavailable.");
                         } else {
                              setErrorMsg("Failed to fetch location coordinates.");

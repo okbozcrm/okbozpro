@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Settings, Plus, Search, Filter, Download, 
-  Truck, DollarSign, Calendar, CheckCircle, 
-  AlertCircle, X, Save, ChevronDown, PieChart, Info, Building2,
-  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, CreditCard, Edit2, Hash, RefreshCw, Check, MapPin,
-  Clock, FileText, SlidersHorizontal, Phone, Trash2
+  Settings, Plus, Search, Filter, 
+  Truck, CheckCircle, 
+  X, Save, ChevronDown, Building2,
+  Wallet, ArrowRightLeft, User, ThumbsUp, ThumbsDown, Edit2, Hash, RefreshCw, Check,
+  FileText, SlidersHorizontal, Phone, Trash2
 } from 'lucide-react';
-import { UserRole, CorporateAccount, Employee, Branch } from '../../types'; // Import Branch interface
-import { sendSystemNotification } from '../../services/cloudService';
+import { CorporateAccount, Employee, Branch } from '../../types'; // Import Branch interface
 // AiAssistant removed as per user request
 // import AiAssistant from '../../components/AiAssistant'; 
 
@@ -164,7 +163,7 @@ export const DriverPayments: React.FC = () => {
     // 1. Load Rules
     const savedRules = localStorage.getItem('driver_payment_rules');
     if (savedRules) {
-        try { setRules(JSON.parse(savedRules)); } catch(e) { setRules(DEFAULT_RULES); }
+        try { setRules(JSON.parse(savedRules)); } catch { setRules(DEFAULT_RULES); }
     }
 
     // 2. Load Corporates
@@ -181,30 +180,30 @@ export const DriverPayments: React.FC = () => {
         // --- Admin View: Aggregate Everything ---
         const adminPay = JSON.parse(localStorage.getItem('driver_payment_records') || '[]');
         loadedPayments = [...adminPay];
-        corps.forEach((c: any) => {
+        corps.forEach((c: CorporateAccount) => {
             const cPay = JSON.parse(localStorage.getItem(`driver_payment_records_${c.email}`) || '[]');
             loadedPayments = [...loadedPayments, ...cPay];
         });
 
         const adminWalletRaw = JSON.parse(localStorage.getItem('driver_wallet_data') || '[]');
-        loadedWallet = [...adminWalletRaw.map((t: any) => ({ ...t, corporateId: 'admin' }))];
-        corps.forEach((c: any) => {
+        loadedWallet = [...adminWalletRaw.map((t: WalletTransaction) => ({ ...t, corporateId: 'admin' }))];
+        corps.forEach((c: CorporateAccount) => {
             const cWalletRaw = JSON.parse(localStorage.getItem(`driver_wallet_data_${c.email}`) || '[]');
-            loadedWallet = [...loadedWallet, ...cWalletRaw.map((t: any) => ({ ...t, corporateId: c.email }))];
+            loadedWallet = [...loadedWallet, ...cWalletRaw.map((t: WalletTransaction) => ({ ...t, corporateId: c.email }))];
         });
 
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-        loadedStaff = [...adminStaff.map((s:any) => ({...s, owner: 'admin'}))];
-        corps.forEach((c: any) => {
+        loadedStaff = [...adminStaff.map((s: Employee) => ({...s, owner: 'admin'}))];
+        corps.forEach((c: CorporateAccount) => {
             const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
-            loadedStaff = [...loadedStaff, ...cStaff.map((s:any) => ({...s, owner: c.email}))];
+            loadedStaff = [...loadedStaff, ...cStaff.map((s: Employee) => ({...s, owner: c.email}))];
         });
 
         const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        loadedBranches = [...adminBranches.map((b:any) => ({...b, owner: 'admin'}))];
-        corps.forEach((c: any) => {
+        loadedBranches = [...adminBranches.map((b: Branch) => ({...b, owner: 'admin'}))];
+        corps.forEach((c: CorporateAccount) => {
             const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            loadedBranches = [...loadedBranches, ...cBranches.map((b:any) => ({...b, owner: c.email}))];
+            loadedBranches = [...loadedBranches, ...cBranches.map((b: Branch) => ({...b, owner: c.email}))];
         });
     } else {
         // --- Franchise / Employee View: Scoped Data ---
@@ -215,9 +214,9 @@ export const DriverPayments: React.FC = () => {
 
         loadedPayments = JSON.parse(localStorage.getItem(payKey) || '[]');
         const myWalletRaw = JSON.parse(localStorage.getItem(walletKey) || '[]');
-        loadedWallet = myWalletRaw.map((t: any) => ({ ...t, corporateId: contextOwnerId }));
-        loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]').map((s:any) => ({...s, owner: contextOwnerId}));
-        loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]').map((b:any) => ({...b, owner: contextOwnerId}));
+        loadedWallet = myWalletRaw.map((t: WalletTransaction) => ({ ...t, corporateId: contextOwnerId }));
+        loadedStaff = JSON.parse(localStorage.getItem(staffKey) || '[]').map((s: Employee) => ({...s, owner: contextOwnerId}));
+        loadedBranches = JSON.parse(localStorage.getItem(branchKey) || '[]').map((b: Branch) => ({...b, owner: contextOwnerId}));
     }
 
     setPayments(loadedPayments.reverse());
@@ -326,7 +325,7 @@ export const DriverPayments: React.FC = () => {
     // Generate records for each selected type
     selectedPaymentTypes.forEach((type, idx) => {
         let amount = 0;
-        let details: any = {};
+        let details: DriverPayment['details'] = {};
 
         if (type === 'Empty Km') {
             const dist = parseFloat(compForm.pickupDistance) || 0;
@@ -352,9 +351,9 @@ export const DriverPayments: React.FC = () => {
                 orderId: compForm.orderId || `ORD-${Math.floor(10000 + Math.random()*90000)}`,
                 branch: compForm.branch || 'Main Branch',
                 corporateId: targetCorpId,
-                type: type as any,
+                type: type as DriverPayment['type'],
                 amount: amount,
-                status: compForm.status as any,
+                status: compForm.status as DriverPayment['status'],
                 date: compForm.date,
                 dateToPay: compForm.dateToPay || compForm.date, // Store Date to Pay
                 paymentMode: compForm.paymentMode,
@@ -514,9 +513,9 @@ export const DriverPayments: React.FC = () => {
 
       const key = targetCorpId === 'admin' ? 'driver_wallet_data' : `driver_wallet_data_${targetCorpId}`;
       const existingStorage = JSON.parse(localStorage.getItem(key) || '[]');
-      let newStorage;
+      let newStorage: WalletTransaction[];
       if (editingWalletId) {
-          newStorage = existingStorage.map((t: any) => t.id === editingWalletId ? transactionData : t);
+          newStorage = existingStorage.map((t: WalletTransaction) => t.id === editingWalletId ? transactionData : t);
       } else {
           newStorage = [transactionData, ...existingStorage];
       }
@@ -532,7 +531,7 @@ export const DriverPayments: React.FC = () => {
       if (!window.confirm("Approve this wallet request?")) return;
       const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Approved' } : t);
+      const newStored = existing.map((t: WalletTransaction) => t.id === id ? { ...t, status: 'Approved' } : t);
       localStorage.setItem(key, JSON.stringify(newStored));
       loadAllData();
   };
@@ -542,7 +541,7 @@ export const DriverPayments: React.FC = () => {
       if (!window.confirm("Reject this wallet request?")) return;
       const key = (!corporateId || corporateId === 'admin') ? 'driver_wallet_data' : `driver_wallet_data_${corporateId}`;
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      const newStored = existing.map((t: any) => t.id === id ? { ...t, status: 'Rejected' } : t);
+      const newStored = existing.map((t: WalletTransaction) => t.id === id ? { ...t, status: 'Rejected' } : t);
       localStorage.setItem(key, JSON.stringify(newStored));
       loadAllData();
   };

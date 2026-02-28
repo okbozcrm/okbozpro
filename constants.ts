@@ -12,7 +12,7 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
 
   // Determine the current day for the generated month.
   const today = new Date();
-  let simulatedCurrentDay = 32; // Default to fill all (past months)
+  let simulatedCurrentDay: number;
 
   if (year === today.getFullYear() && month === today.getMonth()) {
     simulatedCurrentDay = today.getDate(); // For current real month, fill up to today
@@ -60,8 +60,8 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
     }
 
     const dayOfWeek = new Date(year, month, i).getDay();
-    let status = AttendanceStatus.PRESENT;
-    let isLate = false;
+    let status: AttendanceStatus;
+    const isLate = false;
 
     if (dayOfWeek === 0 || employee.weekOff === new Date(year, month, i).toLocaleDateString('en-US', { weekday: 'long' })) { 
       status = AttendanceStatus.WEEK_OFF;

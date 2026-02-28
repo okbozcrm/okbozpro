@@ -1,15 +1,11 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Search, Phone, Mail, X, User, Upload, FileText, CreditCard, Briefcase, 
-  Calendar, Pencil, Trash2, Building2, Lock, Download, Navigation, Globe, 
-  MapPin, Eye, EyeOff, Smartphone, ScanLine, MousePointerClick, Heart, Home, 
-  AlertCircle, PhoneCall, Laptop, ShieldCheck, Key, QrCode, ChevronDown, 
-  IndianRupee, Fingerprint, Shield, UserCheck, Layers, FileCheck, CheckSquare, Square,
-  Circle, Dot, DollarSign, Plane, Building, UserPlus, Info, HeartPulse, Check, Car, BarChart3, Users, Landmark, CheckCircle,
-  Save
+  Search, Phone, X, User, Upload, CreditCard, Briefcase, 
+  Pencil, Trash2, Building2, Eye, EyeOff, Heart, 
+  PhoneCall, ShieldCheck, Layers, DollarSign, Building, Check, Users, Landmark, CheckCircle,
+  Save, UserPlus
 } from 'lucide-react'; 
-import { Employee, UserRole } from '../../types';
+import { Employee, CorporateAccount, Branch } from '../../types';
 
 interface DisplayEmployee extends Employee {
     franchiseName?: string;
@@ -23,24 +19,23 @@ const SHIFT_OPTIONS = ['Select Shift', 'General Shift (09:30 - 18:30)', 'Night S
 const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const MODULE_PERMISSIONS = [
-  { id: 'trips', label: 'Trip Earning (Bookings)', icon: Car },
-  { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
+  { id: 'trips', label: 'Trip Earning (Bookings)', icon: Building },
+  { id: 'reports', label: 'Reports & Analytics', icon: Landmark },
   { id: 'driver_payments', label: 'Driver Payments', icon: CreditCard },
   { id: 'staff_mgt', label: 'Staff Management', icon: Users },
   { id: 'finance', label: 'Finance & Expenses', icon: Landmark },
-  { id: 'live_tracking', label: 'Live Tracking', icon: Navigation },
+  { id: 'live_tracking', label: 'Live Tracking', icon: Phone },
   { id: 'leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'payroll', label: 'Payroll Access', icon: DollarSign }
 ];
 
 const StaffList: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const userRole = localStorage.getItem('user_role');
-  const isSuperAdmin = userRole === 'ADMIN';
+  const isSuperAdmin = sessionId === 'admin';
 
   const [employees, setEmployees] = useState<DisplayEmployee[]>([]);
-  const [corporates, setCorporates] = useState<any[]>([]);
-  const [branches, setBranches] = useState<any[]>([]);
+  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,16 +50,16 @@ const StaffList: React.FC = () => {
         const adminData = localStorage.getItem('staff_data');
         if (adminData) {
             try { 
-                allData = [...allData, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: 'OK BOZ HEAD OFFICE', franchiseId: 'admin'}))];
-            } catch (e) {}
+                allData = [...allData, ...JSON.parse(adminData).map((e: Employee) => ({...e, franchiseName: 'OK BOZ HEAD OFFICE', franchiseId: 'admin'}))];
+            } catch { /* ignore */ }
         }
-        const corporatesList = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporatesList.forEach((corp: any) => {
+        const corporatesList: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corporatesList.forEach((corp) => {
             const cData = localStorage.getItem(`staff_data_${corp.email}`);
             if (cData) {
                 try {
-                    allData = [...allData, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
-                } catch (e) {}
+                    allData = [...allData, ...JSON.parse(cData).map((e: Employee) => ({...e, franchiseName: corp.companyName, franchiseId: corp.email }))];
+                } catch { /* ignore */ }
             }
         });
     } else {
@@ -72,8 +67,8 @@ const StaffList: React.FC = () => {
         const saved = localStorage.getItem(key);
         if (saved) {
             try {
-                allData = JSON.parse(saved).map((e: any) => ({...e, franchiseName: 'My Branch', franchiseId: sessionId }));
-            } catch (e) {}
+                allData = JSON.parse(saved).map((e: Employee) => ({...e, franchiseName: 'My Branch', franchiseId: sessionId }));
+            } catch { /* ignore */ }
         }
     }
     setEmployees(allData);
@@ -81,27 +76,27 @@ const StaffList: React.FC = () => {
 
   useEffect(() => {
     loadScopedStaff();
-    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
     setCorporates(corps);
 
-    let allB: any[] = [];
+    let allB: Branch[] = [];
     if (isSuperAdmin) {
         const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        allB = [...adminB.map((b: any) => ({...b, owner: 'admin'}))];
-        corps.forEach((c: any) => {
+        allB = [...adminB.map((b: Branch) => ({...b, owner: 'admin'}))];
+        corps.forEach((c) => {
             const cB = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            allB = [...allB, ...cB.map((b: any) => ({...b, owner: c.email}))];
+            allB = [...allB, ...cB.map((b: Branch) => ({...b, owner: c.email}))];
         });
     } else {
         const savedBranches = localStorage.getItem(`branches_data_${sessionId}`);
         if (savedBranches) {
             try {
                 // Ensure owner is set for each branch object for filtering consistency
-                allB = JSON.parse(savedBranches).map((b: any) => ({
+                allB = JSON.parse(savedBranches).map((b: Branch) => ({
                     ...b,
                     owner: b.owner || sessionId
                 }));
-            } catch(e) {}
+            } catch { /* ignore */ }
         }
     }
     setBranches(allB);
@@ -134,39 +129,39 @@ const StaffList: React.FC = () => {
     franchiseId: isSuperAdmin ? 'admin' : sessionId
   });
 
-  const [formData, setFormData] = useState<any>(getInitialFormState());
+  const [formData, setFormData] = useState<Partial<Employee> & { franchiseId: string }>(getInitialFormState());
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
         const checked = (e.target as HTMLInputElement).checked;
-        setFormData((prev: any) => ({
+        setFormData(prev => ({
             ...prev,
-            attendanceConfig: { ...prev.attendanceConfig, [name]: checked }
+            attendanceConfig: { ...prev.attendanceConfig!, [name]: checked }
         }));
     } else {
-        setFormData((prev: any) => ({ ...prev, [name]: value }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const togglePermission = (id: string) => {
-    setFormData((prev: any) => ({ 
+    setFormData(prev => ({ 
         ...prev, 
-        moduleAccess: prev.moduleAccess.includes(id) 
+        moduleAccess: prev.moduleAccess?.includes(id) 
             ? prev.moduleAccess.filter((m: string) => m !== id) 
-            : [...prev.moduleAccess, id] 
+            : [...(prev.moduleAccess || []), id] 
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim()) {
+    if (!formData.name?.trim() || !formData.phone?.trim() || !formData.email?.trim()) {
         alert("Please fill in mandatory fields: Name, Phone, and Email.");
         return;
     }
 
     const payload: DisplayEmployee = {
-        ...formData,
+        ...(formData as Employee),
         id: editingId || `BOZ${Date.now().toString().slice(-4)}`,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=10b981&color=fff`,
     };
@@ -183,23 +178,27 @@ const StaffList: React.FC = () => {
             isMoveOperation = true;
             const oldKey = originalFranchiseId === 'admin' ? 'staff_data' : `staff_data_${originalFranchiseId}`;
             const oldStorage = JSON.parse(localStorage.getItem(oldKey) || '[]');
-            localStorage.setItem(oldKey, JSON.stringify(oldStorage.filter((e: any) => e.id !== editingId)));
+            localStorage.setItem(oldKey, JSON.stringify(oldStorage.filter((e: Employee) => e.id !== editingId)));
         }
     }
 
     const currentStorage = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    let updatedStorage: any[];
+    let updatedStorage: Employee[];
 
     if (editingId && !isMoveOperation) {
         // Simple Update: Same franchise
-        updatedStorage = currentStorage.map((emp: any) => emp.id === editingId ? payload : emp);
+        updatedStorage = currentStorage.map((emp: Employee) => emp.id === editingId ? payload : emp);
     } else {
         // Create OR Move (Add to new list)
         updatedStorage = [payload, ...currentStorage];
     }
     
     // Clean up temporary UI fields before saving to DB
-    const cleanForStorage = updatedStorage.map(({franchiseName, franchiseId, ...rest}: any) => rest);
+    const cleanForStorage = updatedStorage.map((item) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { franchiseName, franchiseId, ...rest } = item as DisplayEmployee;
+        return rest;
+    });
     localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
     
     window.dispatchEvent(new Event('cloud-sync-immediate'));
@@ -218,7 +217,7 @@ const StaffList: React.FC = () => {
     });
   }, [employees, searchTerm, isSuperAdmin, sessionId]);
 
-  const SectionTitle = ({ icon: Icon, title, color = "text-emerald-500" }: { icon: any, title: string, color?: string }) => (
+  const SectionTitle = ({ icon: Icon, title, color = "text-emerald-500" }: { icon: React.ElementType, title: string, color?: string }) => (
       <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
           <Icon className={`w-4 h-4 ${color}`} />
           <h4 className="text-xs font-black uppercase tracking-widest text-gray-700">{title}</h4>
@@ -280,7 +279,7 @@ const StaffList: React.FC = () => {
                             if(window.confirm("Delete staff member permanent?")) {
                                 const key = emp.franchiseId === 'admin' ? 'staff_data' : `staff_data_${emp.franchiseId}`;
                                 const stored = JSON.parse(localStorage.getItem(key) || '[]');
-                                localStorage.setItem(key, JSON.stringify(stored.filter((e:any) => e.id !== emp.id)));
+                                localStorage.setItem(key, JSON.stringify(stored.filter((e: Employee) => e.id !== emp.id)));
                                 loadScopedStaff();
                             }
                         }} 
@@ -500,15 +499,15 @@ const StaffList: React.FC = () => {
                                     <div className="space-y-2">
                                         <label className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
                                             <span className="text-sm font-bold text-gray-700">GPS Geofencing</span>
-                                            <input type="checkbox" name="gpsGeofencing" checked={formData.attendanceConfig.gpsGeofencing} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                            <input type="checkbox" name="gpsGeofencing" checked={formData.attendanceConfig?.gpsGeofencing} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
                                         </label>
                                         <label className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
                                             <span className="text-sm font-bold text-gray-700">QR Scan Required</span>
-                                            <input type="checkbox" name="qrScan" checked={formData.attendanceConfig.qrScan} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                            <input type="checkbox" name="qrScan" checked={formData.attendanceConfig?.qrScan} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
                                         </label>
                                         <label className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
                                             <span className="text-sm font-bold text-gray-700">Allow Manual Punch</span>
-                                            <input type="checkbox" name="manualPunch" checked={formData.attendanceConfig.manualPunch} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                            <input type="checkbox" name="manualPunch" checked={formData.attendanceConfig?.manualPunch} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
                                         </label>
                                     </div>
                                 </div>
@@ -518,8 +517,8 @@ const StaffList: React.FC = () => {
                                     <div className="flex gap-4">
                                         <button 
                                             type="button" 
-                                            onClick={() => setFormData((prev:any) => ({ ...prev, attendanceConfig: { ...prev.attendanceConfig, workMode: 'Remote' } }))}
-                                            className={`flex-1 p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.attendanceConfig.workMode === 'Remote' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+                                            onClick={() => setFormData(prev => ({ ...prev, attendanceConfig: { ...prev.attendanceConfig!, workMode: 'Remote' } }))}
+                                            className={`flex-1 p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.attendanceConfig?.workMode === 'Remote' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
                                         >
                                             <Check className="w-5 h-5" />
                                             <div className="text-left">
@@ -529,8 +528,8 @@ const StaffList: React.FC = () => {
                                         </button>
                                         <button 
                                             type="button" 
-                                            onClick={() => setFormData((prev:any) => ({ ...prev, attendanceConfig: { ...prev.attendanceConfig, workMode: 'Office' } }))}
-                                            className={`flex-1 p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.attendanceConfig.workMode === 'Office' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+                                            onClick={() => setFormData(prev => ({ ...prev, attendanceConfig: { ...prev.attendanceConfig!, workMode: 'Office' } }))}
+                                            className={`flex-1 p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${formData.attendanceConfig?.workMode === 'Office' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
                                         >
                                             <Check className="w-5 h-5" />
                                             <div className="text-left">
@@ -561,13 +560,13 @@ const StaffList: React.FC = () => {
                                     <label key={perm.id} className="flex items-center gap-3 group cursor-pointer">
                                         <div 
                                             onClick={() => togglePermission(perm.id)}
-                                            className={`w-5 h-5 rounded flex items-center justify-center transition-all ${formData.moduleAccess.includes(perm.id) ? 'bg-emerald-500 border-emerald-500 shadow-sm' : 'bg-white border border-gray-300 group-hover:border-emerald-400'}`}
+                                            className={`w-5 h-5 rounded flex items-center justify-center transition-all ${formData.moduleAccess?.includes(perm.id) ? 'bg-emerald-500 border-emerald-500 shadow-sm' : 'bg-white border border-gray-300 group-hover:border-emerald-400'}`}
                                         >
-                                            {formData.moduleAccess.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
+                                            {formData.moduleAccess?.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <perm.icon className={`w-3.5 h-3.5 ${formData.moduleAccess.includes(perm.id) ? 'text-emerald-600' : 'text-gray-400'}`} />
-                                            <span className={`text-xs font-bold ${formData.moduleAccess.includes(perm.id) ? 'text-gray-800' : 'text-gray-500'}`}>{perm.label}</span>
+                                            <perm.icon className={`w-3.5 h-3.5 ${formData.moduleAccess?.includes(perm.id) ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                            <span className={`text-xs font-bold ${formData.moduleAccess?.includes(perm.id) ? 'text-gray-800' : 'text-gray-500'}`}>{perm.label}</span>
                                         </div>
                                     </label>
                                 ))}

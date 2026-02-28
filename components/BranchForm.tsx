@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Maximize, Crosshair, Loader2, AlertTriangle, Building, Trash2, Settings, Building2, Pencil, X, QrCode, Download, ExternalLink, Filter } from 'lucide-react';
-import { Branch } from '../types';
+import { MapPin, Maximize, Crosshair, Loader2, AlertTriangle, Building, Trash2, Settings, Building2, Pencil, QrCode, Download, ExternalLink, Filter } from 'lucide-react';
+import { Branch, CorporateAccount } from '../types';
 import { useNavigate } from 'react-router-dom';
 import Autocomplete from './Autocomplete';
 import { HARDCODED_MAPS_API_KEY } from '../services/cloudService';
@@ -17,7 +17,6 @@ const BranchForm: React.FC = () => {
   
   // Determine Session Context
   const userRole = localStorage.getItem('user_role');
-  const isSuperAdminUser = userRole === 'ADMIN';
   const isCorporateUser = userRole === 'CORPORATE';
 
   const getSessionKey = () => {
@@ -28,7 +27,7 @@ const BranchForm: React.FC = () => {
   const isSuperAdmin = (localStorage.getItem('app_session_id') || 'admin') === 'admin';
 
   // --- Corporate Selection State (Super Admin Only) ---
-  const [corporates, setCorporates] = useState<any[]>([]);
+  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
   const [selectedOwner, setSelectedOwner] = useState<string>('admin'); // Default to admin/head office
   const [filterOwner, setFilterOwner] = useState<string>('All'); // For Admin List View
 
@@ -36,7 +35,7 @@ const BranchForm: React.FC = () => {
     if (isSuperAdmin) {
        const savedCorps = localStorage.getItem('corporate_accounts');
        if (savedCorps) {
-          try { setCorporates(JSON.parse(savedCorps)); } catch(e) {}
+          try { setCorporates(JSON.parse(savedCorps)); } catch (error) { console.error("Failed to parse corporate accounts", error); }
        }
        setSelectedOwner('admin');
     } else {
@@ -46,30 +45,30 @@ const BranchForm: React.FC = () => {
   }, [isSuperAdmin]);
 
   // Branch List State - Aggregated for Admin
-  const [branches, setBranches] = useState<any[]>(() => {
+  const [branches, setBranches] = useState<Branch[]>(() => {
     if (isSuperAdmin) {
         // --- SUPER ADMIN AGGREGATION ---
-        let allBranches: any[] = [];
+        let allBranches: Branch[] = [];
         
         // 1. Admin Data (Head Office)
         const adminData = localStorage.getItem('branches_data');
         if (adminData) {
             try { 
                 const parsed = JSON.parse(adminData);
-                allBranches = [...allBranches, ...parsed.map((b: any) => ({...b, owner: 'admin', ownerName: 'Head Office'}))];
-            } catch (e) {}
+                allBranches = [...allBranches, ...parsed.map((b: Branch) => ({...b, owner: 'admin', ownerName: 'Head Office'}))];
+            } catch (error) { console.error("Failed to parse admin branches", error); }
         }
 
         // 2. Corporate Data
         const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corporates.forEach((corp: any) => {
+        corporates.forEach((corp: CorporateAccount) => {
             const cData = localStorage.getItem(`branches_data_${corp.email}`);
             if (cData) {
                 try {
                     const parsed = JSON.parse(cData);
-                    const tagged = parsed.map((b: any) => ({...b, owner: corp.email, ownerName: corp.companyName}));
+                    const tagged = parsed.map((b: Branch) => ({...b, owner: corp.email, ownerName: corp.companyName}));
                     allBranches = [...allBranches, ...tagged];
-                } catch (e) {}
+                } catch (error) { console.error("Failed to parse corporate branches", error); }
             }
         });
         return allBranches;
@@ -87,13 +86,15 @@ const BranchForm: React.FC = () => {
         // Save Head Office Branches
         const adminBranches = branches.filter(b => b.owner === 'admin');
         // Strip metadata before saving
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const cleanAdmin = adminBranches.map(({owner, ownerName, ...rest}) => rest);
         localStorage.setItem('branches_data', JSON.stringify(cleanAdmin));
 
         // Save Corporate Branches (Iterate corporates to find their branches in state)
         const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        corps.forEach((c: any) => {
+        corps.forEach((c: CorporateAccount) => {
              const cBranches = branches.filter(b => b.owner === c.email);
+             // eslint-disable-next-line @typescript-eslint/no-unused-vars
              const cleanC = cBranches.map(({owner, ownerName, ...rest}) => rest);
              localStorage.setItem(`branches_data_${c.email}`, JSON.stringify(cleanC));
         });
@@ -106,15 +107,15 @@ const BranchForm: React.FC = () => {
   
   // Map State
   const mapRef = useRef<HTMLDivElement>(null);
-  const [mapInstance, setMapInstance] = useState<any>(null);
-  const [markerInstance, setMarkerInstance] = useState<any>(null);
-  const [location, setLocation] = useState<any>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const [markerInstance, setMarkerInstance] = useState<google.maps.Marker | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: 11.0168, lng: 76.9558 }); // Default: Coimbatore
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
 
   // Callback from Autocomplete component when a place is selected
-  const handleNewPlaceSelected = (newPos: any) => {
+  const handleNewPlaceSelected = (newPos: { lat: number; lng: number }) => {
     setLocation(newPos);
     if (mapInstance && markerInstance) {
       mapInstance.panTo(newPos);
@@ -126,7 +127,7 @@ const BranchForm: React.FC = () => {
   // Load Google Maps Script
   useEffect(() => {
     // 1. Check global failure flag
-    if ((window as any).gm_authFailure_detected) {
+    if (window.gm_authFailure_detected) {
       setMapError("Billing Not Enabled: Please enable billing on your Google Cloud Project.");
       return;
     }
@@ -137,9 +138,9 @@ const BranchForm: React.FC = () => {
       return;
     }
     // 3. Global Auth Failure Handler
-    const originalAuthFailure = (window as any).gm_authFailure;
-    (window as any).gm_authFailure = () => {
-      (window as any).gm_authFailure_detected = true;
+    const originalAuthFailure = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      window.gm_authFailure_detected = true;
       setMapError("Billing Not Enabled: Map functionality requires an active billing account on Google Cloud.");
       if (originalAuthFailure) originalAuthFailure();
     };
@@ -149,7 +150,7 @@ const BranchForm: React.FC = () => {
     let script = document.getElementById(scriptId) as HTMLScriptElement;
 
     // Check if script is already fully loaded AND includes the 'places' library
-    if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
+    if (window.google && window.google.maps && window.google.maps.places) {
       setIsMapReady(true);
       return;
     }
@@ -162,7 +163,7 @@ const BranchForm: React.FC = () => {
       script.defer = true;
       script.onload = () => {
         // Double check after script is loaded that `places` library is truly available
-        if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
+        if (window.google && window.google.maps && window.google.maps.places) {
           setIsMapReady(true);
         } else {
           setMapError("Google Maps 'places' library failed to load.");
@@ -174,13 +175,13 @@ const BranchForm: React.FC = () => {
         // If script already exists but might not have finished loading 'places' library,
         // attach load listener just in case.
         script.addEventListener('load', () => {
-          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
+          if (window.google && window.google.maps && window.google.maps.places) {
             setIsMapReady(true);
           }
         });
         // If script is already present and theoretically loaded, but `isMapReady` is false,
         // manually trigger check if `places` is there.
-        if ((window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
+        if (window.google && window.google.maps && window.google.maps.places) {
             setIsMapReady(true);
         }
     }
@@ -189,9 +190,9 @@ const BranchForm: React.FC = () => {
   // Initialize Map
   useEffect(() => {
     if (mapError) return;
-    if (isMapReady && mapRef.current && !mapInstance && (window as any).google && (window as any).google.maps) {
+    if (isMapReady && mapRef.current && !mapInstance && window.google && window.google.maps) {
       try {
-        const map = new (window as any).google.maps.Map(mapRef.current, {
+        const map = new window.google.maps.Map(mapRef.current, {
           center: location,
           zoom: 15,
           mapTypeControl: false,
@@ -199,18 +200,20 @@ const BranchForm: React.FC = () => {
           streetViewControl: false,
           zoomControl: true,
         });
-        const marker = new (window as any).google.maps.Marker({
+        const marker = new window.google.maps.Marker({
           position: location,
           map: map,
           draggable: true,
-          animation: (window as any).google.maps.Animation.DROP,
+          animation: window.google.maps.Animation.DROP,
         });
-        marker.addListener("dragend", (e: any) => {
+        marker.addListener("dragend", (e: google.maps.MapMouseEvent) => {
+          if (!e.latLng) return;
           const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
           setLocation(newPos);
           map.panTo(newPos);
         });
-        map.addListener("click", (e: any) => {
+        map.addListener("click", (e: google.maps.MapMouseEvent) => {
+          if (!e.latLng) return;
           const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
           marker.setPosition(newPos);
           setLocation(newPos);
@@ -219,22 +222,23 @@ const BranchForm: React.FC = () => {
         setMapInstance(map);
         setMarkerInstance(marker);
       } catch (e) {
+        console.error("Map init error:", e);
         setMapError("Error initializing map interface. Check Settings.");
       }
     }
   }, [isMapReady, mapError, location]);
 
   const handleGetAddress = () => {
-    if (!isMapReady || !(window as any).google || !(window as any).google.maps || !(window as any).google.maps.Geocoder || mapError) {
+    if (!isMapReady || !window.google || !window.google.maps || !window.google.maps.Geocoder || mapError) {
       alert("Map services are currently unavailable. Please enter address manually.");
       return;
     }
     setLoadingAddress(true);
     try {
-      const geocoder = new (window as any).google.maps.Geocoder();
-      geocoder.geocode({ location }, (results: any, status: any) => {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
         setLoadingAddress(false);
-        if (status === "OK" && results[0]) {
+        if (status === "OK" && results && results[0]) {
           setAddress(results[0].formatted_address);
         } else if (status === 'REQUEST_DENIED') {
           // Alert user instead of setting mapError to keep map visible for manual pinning
@@ -246,6 +250,7 @@ const BranchForm: React.FC = () => {
         }
       });
     } catch (e) {
+      console.error("Geocoding error:", e);
       setLoadingAddress(false);
       alert("Error accessing Geocoding service.");
     }
@@ -276,7 +281,7 @@ const BranchForm: React.FC = () => {
     }
   };
 
-  const handleEditBranch = (branch: any) => {
+  const handleEditBranch = (branch: Branch) => {
     setEditingId(branch.id);
     setBranchName(branch.name);
     setAddress(branch.address);
@@ -319,7 +324,7 @@ const BranchForm: React.FC = () => {
     }
 
     // Determine Owner & Name for Admin Context
-    let ownerId = isSuperAdmin ? selectedOwner : currentSession;
+    const ownerId = isSuperAdmin ? selectedOwner : currentSession;
     let ownerDisplayName = 'Head Office';
     
     if (ownerId !== 'admin') {
@@ -539,7 +544,7 @@ const BranchForm: React.FC = () => {
                             <strong>Action Required:</strong>
                             <ul className="list-disc list-inside mt-1">
                                 <li>Enable Billing on Google Cloud Project</li>
-                                <li>Ensure 'Maps JavaScript API', 'Places API', & 'Geocoding API' are enabled</li>
+                                <li>Ensure &apos;Maps JavaScript API&apos;, &apos;Places API&apos;, &amp; &apos;Geocoding API&apos; are enabled</li>
                             </ul>
                         </div>
                         <a 

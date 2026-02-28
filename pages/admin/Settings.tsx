@@ -122,7 +122,8 @@ const Settings: React.FC = () => {
     ];
 
     return collections.map(col => {
-        let localCount = getAggregatedLocalCount(col.key);
+        const localCount = getAggregatedLocalCount(col.key);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let localContent: any = null;
         let localStr: string | null = localStorage.getItem(col.key);
         
@@ -134,7 +135,7 @@ const Settings: React.FC = () => {
             if (localStr) {
                 localContent = JSON.parse(localStr);
             }
-        } catch(e) {
+        } catch {
             localContent = localStr;
         }
 
@@ -190,7 +191,7 @@ const Settings: React.FC = () => {
         const result = await syncToCloud();
         alert(result.message);
         checkConnection();
-    } catch (e) {
+    } catch {
         alert("Backup failed. Check internet connection.");
     }
     setIsBackingUp(false);
@@ -205,13 +206,14 @@ const Settings: React.FC = () => {
             if (result.success) {
                 window.location.reload();
             }
-        } catch (e) {
+        } catch {
             alert("Restore failed.");
         }
         setIsRestoring(false);
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleViewCollection = (collectionKey: string, content: any) => {
     setCurrentViewingCollection(collectionKey);
     setCollectionError(null);
@@ -222,7 +224,7 @@ const Settings: React.FC = () => {
         try {
             const parsed = JSON.parse(content);
             setCollectionContent(parsed);
-        } catch (e) {
+        } catch {
             setCollectionContent(content); 
             setCollectionError("Content is not valid JSON.");
         }

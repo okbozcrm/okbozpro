@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
-import { BozNotification, UserRole } from '../types';
+import { BozNotification } from '../types';
 import { fetchSystemNotifications, markNotificationAsRead as apiMarkNotificationAsRead, restoreFromCloud } from '../services/cloudService';
 
 interface NotificationContextType {
@@ -64,7 +64,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Polling mechanism to fetch notifications
   useEffect(() => {
-    let timeoutId: any;
+    let timeoutId: NodeJS.Timeout;
 
     const pollNotifications = async () => {
       try {

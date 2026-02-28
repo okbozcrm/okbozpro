@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, MapPin, Calendar, DollarSign, Briefcase, Menu, X, LogOut, UserCircle, Building, Settings, Target, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Car, Building2, PhoneIncoming, GripVertical, Edit2, Check, FileText, Layers, PhoneCall, Bus, Bell, Sun, Moon, Monitor, Mail, UserCog, CarFront, BellRing, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, Loader2, ShieldCheck, BookOpen } from 'lucide-react';
-import { UserRole, Enquiry, CorporateAccount, Employee, BozNotification, TravelAllowanceRequest } from '../types';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical } from 'lucide-react';
+import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
-import { sendSystemNotification, restoreFromCloud } from '../services/cloudService';
+import { restoreFromCloud } from '../services/cloudService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -60,10 +60,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         const orderIds = JSON.parse(savedOrder);
         const reordered = orderIds
           .map((id: string) => MASTER_ADMIN_LINKS.find(link => link.id === id))
-          .filter((link: any): link is typeof MASTER_ADMIN_LINKS[0] => !!link);
+          .filter((link: typeof MASTER_ADMIN_LINKS[0] | undefined): link is typeof MASTER_ADMIN_LINKS[0] => !!link);
         const missing = MASTER_ADMIN_LINKS.filter(link => !orderIds.includes(link.id));
         return [...reordered, ...missing];
-      } catch (e) {
+      } catch {
+        // Fallback to default order on error
         return MASTER_ADMIN_LINKS;
       }
     }
@@ -75,9 +76,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         try {
             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
             const sessionId = localStorage.getItem('app_session_id');
-            const found = corps.find((c: any) => c.email === sessionId);
+            const found = corps.find((c: CorporateAccount) => c.email === sessionId);
             return found ? found.companyName : '';
-        } catch (e) {
+        } catch {
             return '';
         }
     }
@@ -93,6 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   
   const themeRef = useRef<HTMLDivElement>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
@@ -113,8 +115,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       // 1. Search Admin Staff
       try {
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-        foundEmp = adminStaff.find((e: Employee) => e.id === sessionId);
-      } catch(e) {}
+        foundEmp = adminStaff.find((e: Employee) => e.id === sessionId) || null;
+      } catch {
+        // Ignore parsing errors
+      }
 
       // 2. Search Corporate Staff
       if (!foundEmp) {
@@ -125,7 +129,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             foundEmp = corpStaff.find((e: Employee) => e.id === sessionId);
             if (foundEmp) break;
           }
-        } catch(e) {}
+        } catch {
+          // Ignore parsing errors
+        }
       }
 
       if (foundEmp && foundEmp.moduleAccess) {
@@ -135,6 +141,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   }, [role]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -170,19 +177,24 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               filtered = [];
           }
           setPendingTaCount(filtered.length);
-      } catch (e) {}
+      } catch {
+        // Ignore parsing errors
+      }
 
       try {
           const msgs = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
           const sessionId = localStorage.getItem('app_session_id');
           if (!sessionId) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const unread = msgs.filter((m: any) => m.receiverId === sessionId && !m.read).length;
           setChatUnreadCount(unread);
           if (unread > prevChatCountRef.current) {
               playAlarmSound();
           }
           prevChatCountRef.current = unread;
-      } catch (e) {}
+      } catch {
+        // Ignore parsing errors
+      }
   };
 
   useEffect(() => {
@@ -214,7 +226,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const handleInstallClick = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult: any) => {
+      deferredPrompt.userChoice.then(() => {
         setDeferredPrompt(null);
         setIsInstallable(false);
       });
@@ -241,7 +253,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
             relevantNewEnquiries = allEnquiries.filter(e => e.status === 'New' && e.assignedTo === sessionId);
         }
         setNewTaskCount(relevantNewEnquiries.length);
-    } catch (e) {
+    } catch {
         setNewTaskCount(0);
     }
   };
@@ -295,7 +307,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       if (role === UserRole.SUB_ADMIN) {
           const subAdmins = JSON.parse(localStorage.getItem('sub_admins_data') || '[]');
           const myId = localStorage.getItem('sub_admin_id'); 
-          const me = subAdmins.find((s: any) => s.id === myId);
+          const me = subAdmins.find((s: SubAdmin) => s.id === myId);
           
           if (!me || !me.permissions) return false;
           
@@ -360,6 +372,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     ];
     
     // UPDATED: Correct key mapping to match StaffList.tsx permissions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const restrictedLinksMap: Record<string, any> = {
         'reports': { id: 'reports', path: '/user/reports', label: 'Reports', icon: BarChart3 },
         'trips': { id: 'trips', path: '/user/trips', label: 'Trip Booking', icon: Map },
@@ -371,6 +384,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers }
     };
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const addedLinks: any[] = [];
     employeePermissions.forEach(perm => {
         if (restrictedLinksMap[perm]) addedLinks.push(restrictedLinksMap[perm]);

@@ -168,9 +168,9 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [corporates, setCorporates] = useState<any[]>([]);
-  const [allBranches, setAllBranches] = useState<any[]>([]);
-  const [allStaff, setAllStaff] = useState<any[]>([]);
+  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
+  const [allStaff, setAllStaff] = useState<Employee[]>([]);
   
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
@@ -200,7 +200,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [isPhoneChecked, setIsPhoneChecked] = useState(false);
   const [phoneLookupResult, setPhoneLookupResult] = useState<'New' | 'Existing' | null>(null);
   const [existingEnquiriesForPhone, setExistingEnquiriesForPhone] = useState<Enquiry[]>([]);
-  const [vendorsData, setVendorsData] = useState<any[]>([]);
+  const [vendorsData, setVendorsData] = useState<any[]>([]); // Keeping any for vendors as structure is unknown
 
   const [generalFollowUpDate, setGeneralFollowUpDate] = useState(new Date().toISOString().split('T')[0]);
   const [generalFollowUpTime, setGeneralFollowUpTime] = useState('10:00');
@@ -225,24 +225,25 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
       setCorporates(corps);
       const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-      let branches = [...adminBranches.map((b: any) => ({...b, owner: 'admin'}))];
+      let branches: Branch[] = [...adminBranches.map((b: Branch) => ({...b, owner: 'admin'}))];
       const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-      let staff = [...adminStaff.map((s: any) => ({...s, owner: 'admin'}))];
-      corps.forEach((c: any) => {
+      let staff: Employee[] = [...adminStaff.map((s: Employee) => ({...s, owner: 'admin'}))];
+      corps.forEach((c: CorporateAccount) => {
           const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-          branches = [...branches, ...cBranches.map((b: any) => ({...b, owner: c.email}))];
+          branches = [...branches, ...cBranches.map((b: Branch) => ({...b, owner: c.email}))];
           const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
-          staff = [...staff, ...cStaff.map((s: any) => ({...s, owner: c.email}))];
+          staff = [...staff, ...cStaff.map((s: Employee) => ({...s, owner: c.email}))];
       });
       setAllBranches(branches);
       setAllStaff(staff);
   }, [isSuperAdmin, sessionId]);
 
   const filteredBranches = useMemo(() => allBranches.filter(b => assignment.corporateId === 'admin' ? b.owner === 'admin' : b.owner === assignment.corporateId), [allBranches, assignment.corporateId]);
-  const filteredStaff = useMemo(() => allStaff.filter(s => (assignment.corporateId === 'admin' ? s.owner === 'admin' : s.owner === assignment.corporateId) && (assignment.branchName === '' || s.branch === assignment.branchName)), [allStaff, assignment.corporateId, assignment.branchName]);
+  // @ts-ignore - 'owner' property might not exist on Employee type explicitly but added in runtime
+  const filteredStaff = useMemo(() => allStaff.filter(s => (assignment.corporateId === 'admin' ? (s as any).owner === 'admin' : (s as any).owner === assignment.corporateId) && (assignment.branchName === '' || s.branch === assignment.branchName)), [allStaff, assignment.corporateId, assignment.branchName]);
 
   useEffect(() => {
-    if ((window as any).gm_authFailure_detected) { setMapError("Map API Error"); return; }
+    if (window.gm_authFailure_detected) { setMapError("Map API Error"); return; }
     const apiKey = HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key');
     if (!apiKey) { setMapError("API Key is missing."); return; }
     if (window.google && window.google.maps && window.google.maps.places) { setIsMapReady(true); return; }
@@ -271,8 +272,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             const start = locations[i];
             const end = locations[i+1];
             try {
-                const response: any = await new Promise((resolve, reject) => {
-                    service.getDistanceMatrix({ origins: [start], destinations: [end], travelMode: window.google.maps.TravelMode.DRIVING, unitSystem: window.google.maps.UnitSystem.METRIC, }, (res, status) => { if (status === "OK") resolve(res); else reject(status); });
+                const response: google.maps.DistanceMatrixResponse = await new Promise((resolve, reject) => {
+                    service.getDistanceMatrix({ origins: [start], destinations: [end], travelMode: window.google.maps.TravelMode.DRIVING, unitSystem: window.google.maps.UnitSystem.METRIC, }, (res, status) => { if (status === "OK" && res) resolve(res); else reject(status); });
                 });
                 if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
             } catch (err) { console.error(err); }
@@ -344,7 +345,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleAddDrop = () => setTransportDetails(prev => ({ ...prev, drops: [...prev.drops, { address: '', coords: null }] }));
   const handleRemoveDrop = (index: number) => setTransportDetails(prev => { const newDrops = prev.drops.filter((_, i) => i !== index); if (newDrops.length === 0) return { ...prev, drops: [{ address: '', coords: null }] }; return { ...prev, drops: newDrops }; });
-  const handleDropChange = (index: number, address: string, coords: any) => setTransportDetails(prev => { const newDrops = [...prev.drops]; newDrops[index] = { address, coords }; return { ...prev, drops: newDrops }; });
+  const handleDropChange = (index: number, address: string, coords: { lat: number; lng: number } | null) => setTransportDetails(prev => { const newDrops = [...prev.drops]; newDrops[index] = { address, coords }; return { ...prev, drops: newDrops }; });
 
   // Calculation Logic Updated
   useEffect(() => {
@@ -537,7 +538,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       setEnquiryCategory(order.enquiryCategory || 'General');
       if (order.transportData) {
           setTripType(order.tripType || 'Local'); setVehicleType(order.vehicleType || 'Sedan');
-          setTransportDetails({ ...transportDetails, ...order.transportData, drops: (order.transportData as any).drops || [{ address: '', coords: null }] });
+          setTransportDetails({ ...transportDetails, ...order.transportData, drops: order.transportData.drops || [{ address: '', coords: null }] });
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
