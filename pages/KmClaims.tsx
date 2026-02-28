@@ -454,8 +454,8 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
                                 required 
                                 value={formData.ratePerKm} 
                                 onChange={handleInputChange} 
-                                readOnly={isEmployee}
-                                className={`w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 ${isEmployee ? 'cursor-not-allowed opacity-60' : ''}`} 
+                                disabled={true}
+                                className="w-full px-4 py-3 bg-gray-100 border border-gray-100 rounded-xl text-sm font-bold text-gray-600 outline-none cursor-not-allowed opacity-70" 
                             />
                         </div>
                       </div>
