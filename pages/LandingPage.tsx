@@ -209,20 +209,20 @@ const LandingPage: React.FC = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10 py-12">
             <div className="max-w-3xl space-y-8 animate-in fade-in slide-in-from-left-8 duration-1000">
-              <h1 className="text-6xl lg:text-8xl font-black text-white leading-[1.1] tracking-tighter uppercase">
-                <span className="text-emerald-400 block mb-4 text-3xl lg:text-4xl tracking-[0.3em] font-black">LOCAL • RENTAL • OUTSTATION</span>
+              <h1 className="text-4xl lg:text-6xl font-black text-white leading-[1.1] tracking-tighter uppercase">
+                <span className="text-emerald-400 block mb-4 text-xl lg:text-2xl tracking-[0.3em] font-black">LOCAL • RENTAL • OUTSTATION</span>
                 BOOK YOUR <span className="text-emerald-500">OK BOZ</span><br/>
                 IN SECONDS.
               </h1>
-              <p className="text-xl text-white/80 max-w-xl font-medium leading-relaxed">
+              <p className="text-base text-white/80 max-w-xl font-medium leading-relaxed">
                 Experience the safest and most transparent travel across India. 
                 Professional drivers, real-time tracking, and zero hidden costs.
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-8 pt-4">
-                <button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-emerald-600/30 transition-all transform hover:scale-105 active:scale-95">Explore Services</button>
+                <button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-emerald-600/30 transition-all transform hover:scale-105 active:scale-95">Explore Services</button>
                 <div className="flex items-center gap-4 text-white">
-                  <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/20 shadow-lg"><Phone className="w-6 h-6 text-emerald-500" /></div>
-                  <div><p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">Customer Support</p><p className="text-2xl font-black font-mono text-emerald-400">81 1001 3001</p></div>
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/20 shadow-lg"><Phone className="w-5 h-5 text-emerald-500" /></div>
+                  <div><p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">Customer Support</p><p className="text-xl font-black font-mono text-emerald-400">81 1001 3001</p></div>
                 </div>
               </div>
             </div>
