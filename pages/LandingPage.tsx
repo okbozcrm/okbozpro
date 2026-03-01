@@ -40,6 +40,8 @@ interface PricingRules {
   outstationDriverAllowance: number;
   outstationNightAllowance: number;
   outstationHillsAllowance: number;
+  outstationOneWayMinKm: number;
+  outstationOneWayBaseFare: number;
 }
 
 const RENTAL_PACKAGES: RentalPackage[] = [
@@ -56,14 +58,16 @@ const PRICING: Record<VehicleType, PricingRules> = {
     rentalExtraKmRate: 17, rentalExtraHrRate: 100,
     outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 13,
     outstationDriverAllowance: 400, outstationNightAllowance: 300,
-    outstationHillsAllowance: 500
+    outstationHillsAllowance: 500,
+    outstationOneWayMinKm: 130, outstationOneWayBaseFare: 1690
   },
   SUV: {
     localBaseFare: 300, localBaseKm: 5, localPerKmRate: 25, localWaitingRate: 3,
     rentalExtraKmRate: 18, rentalExtraHrRate: 150,
     outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 17,
     outstationDriverAllowance: 500, outstationNightAllowance: 400,
-    outstationHillsAllowance: 700
+    outstationHillsAllowance: 700,
+    outstationOneWayMinKm: 130, outstationOneWayBaseFare: 2210
   }
 };
 
@@ -143,7 +147,10 @@ const LandingPage: React.FC = () => {
             total = (chargeKm * rules.outstationExtraKmRate) + driver + (parseFloat(transportDetails.nights) || 0) * rules.outstationNightAllowance;
             if (transportDetails.isHillsTrip) total += (rules.outstationHillsAllowance * days);
         } else {
-            total = rules.outstationBaseRate + (km * rules.outstationExtraKmRate) + driver;
+            // One Way Logic: Base Fare (covers Min Km) + Extra Km Charges + Driver Allowance
+            const minKm = rules.outstationOneWayMinKm;
+            const extraKm = Math.max(0, km - minKm);
+            total = rules.outstationOneWayBaseFare + (extraKm * rules.outstationExtraKmRate) + driver;
             if (transportDetails.isHillsTrip) total += (rules.outstationHillsAllowance * days);
         }
     }
@@ -461,7 +468,9 @@ const LandingPage: React.FC = () => {
                         <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-100 flex items-start gap-4">
                             <AlertCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                             <p className="text-xs text-emerald-900 font-bold italic leading-relaxed opacity-80">
-                                This is a base calculation. Government taxes (GST), Toll fees, and Parking charges will be additional as per actuals.
+                                {tripType === 'Outstation' 
+                                    ? "Toll fees and Parking charges will be additional as per actuals. (No GST for Outstation)" 
+                                    : "This is a base calculation. Government taxes (GST), Toll fees, and Parking charges will be additional as per actuals."}
                             </p>
                         </div>
 
