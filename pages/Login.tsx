@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole } from '../types';
-import { Shield, User, Lock, Mail, ArrowRight, Building2, Eye, EyeOff, AlertTriangle, Cloud, BadgeCheck, Download } from 'lucide-react';
+import { UserRole, SubAdmin, CorporateAccount, Employee } from '../types';
+import { Lock, Mail, ArrowRight, Eye, EyeOff, AlertTriangle, Cloud, Download } from 'lucide-react';
 import { useBranding } from '../context/BrandingContext';
 import { sendSystemNotification, HARDCODED_FIREBASE_CONFIG } from '../services/cloudService'; // Import sendSystemNotification
 import { BozNotification } from '../types'; 
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+} 
 
 interface LoginProps {
   onLogin: (role: UserRole) => void;
@@ -21,13 +26,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Install Prompt State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
     };
 
@@ -41,7 +46,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
   const handleInstallClick = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult: any) => {
+      deferredPrompt.userChoice.then((choiceResult: { outcome: 'accepted' | 'dismissed' }) => {
         if (choiceResult.outcome === 'accepted') {
           console.log('User accepted the install prompt');
         }
@@ -82,7 +87,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 // Check Sub Admins
                 try {
                     const subAdmins = JSON.parse(localStorage.getItem('sub_admins_data') || '[]');
-                    const foundSub = subAdmins.find((s: any) => s.email.toLowerCase() === email.toLowerCase() && s.password === password && s.status === 'Active');
+                    const foundSub = subAdmins.find((s: SubAdmin) => s.email.toLowerCase() === email.toLowerCase() && s.password === password && s.status === 'Active');
                     
                     if (foundSub) {
                         success = true;
@@ -103,7 +108,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
         else if (activeTab === 'corporate') {
             // 1. Check Stored Corporate Accounts
             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            const foundCorp = corps.find((c: any) => c.email.toLowerCase() === email.toLowerCase() && c.password === password);
+            const foundCorp = corps.find((c: CorporateAccount) => c.email.toLowerCase() === email.toLowerCase() && c.password === password);
             
             if (foundCorp) {
                 success = true;
@@ -116,9 +121,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
             let foundEmp = null;
             try {
                 const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-                foundEmp = adminStaff.find((e: any) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
+                foundEmp = adminStaff.find((e: Employee) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
                 if (foundEmp) corporateOwnerId = 'admin';
-            } catch(e) {}
+            } catch(e) { void e; }
 
             // 2. Search Corporate Staff if not found
             if (!foundEmp) {
@@ -126,13 +131,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
                     for (const corp of corps) {
                         const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]');
-                        foundEmp = corpStaff.find((e: any) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
+                        foundEmp = corpStaff.find((e: Employee) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);
                         if (foundEmp) {
                             corporateOwnerId = corp.email; // Found in this corporate account
                             break;
                         }
                     }
-                } catch(e) {}
+                } catch(e) { void e; }
             }
 
             if (foundEmp) {

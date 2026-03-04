@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Database, Download, HardDrive, CheckCircle, 
-  FileSpreadsheet, Loader2, RefreshCw, Shield, AlertTriangle, Cloud
+  Database, Download, 
+  FileSpreadsheet, Loader2, RefreshCw, AlertTriangle, Cloud
 } from 'lucide-react';
-import { Employee, CorporateAccount } from '../../types';
+import { CorporateAccount } from '../../types';
 
 // Helper to convert JSON to CSV
-const convertToCSV = (objArray: any[]) => {
+const convertToCSV = (objArray: Record<string, unknown>[]) => {
   if (!objArray || objArray.length === 0) return '';
   const array = typeof objArray !== 'object' ? JSON.parse(objArray) : objArray;
   
@@ -18,12 +18,12 @@ const convertToCSV = (objArray: any[]) => {
 
   let str = header.join(',') + '\r\n';
 
-  for (let i = 0; i < array.length; i++) {
+  for (const item of array) {
     let line = '';
     for (let index = 0; index < header.length; index++) {
       if (index > 0) line += ',';
       
-      let val = array[i][header[index]];
+      let val = item[header[index]];
       
       // Handle formatting
       if (val === null || val === undefined) val = '';
@@ -48,7 +48,7 @@ const DataExport: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [driveSyncing, setDriveSyncing] = useState(false);
-  const [dataStats, setDataStats] = useState<any>({});
+  const [dataStats, setDataStats] = useState<Record<string, number>>({});
   
   // Module Keys Definition
   const MODULES = [
@@ -65,14 +65,14 @@ const DataExport: React.FC = () => {
 
   // Helper to fetch data based on role
   const fetchAggregatedData = (baseKey: string) => {
-      let aggregated: any[] = [];
+      let aggregated: Record<string, unknown>[] = [];
       
       if (isSuperAdmin) {
           // 1. Get Head Office Data
           try {
              const hoData = localStorage.getItem(baseKey);
-             if (hoData) aggregated = [...aggregated, ...JSON.parse(hoData).map((i:any) => ({...i, source: 'Head Office'}))];
-          } catch(e) {}
+             if (hoData) aggregated = [...aggregated, ...JSON.parse(hoData).map((i: Record<string, unknown>) => ({...i, source: 'Head Office'}))];
+          } catch(e) { void e; }
 
           // 2. Get Corporate Data
           try {
@@ -81,24 +81,24 @@ const DataExport: React.FC = () => {
                  const corpKey = `${baseKey}_${corp.email}`;
                  const cData = localStorage.getItem(corpKey);
                  if (cData) {
-                     aggregated = [...aggregated, ...JSON.parse(cData).map((i:any) => ({...i, source: corp.companyName}))];
+                     aggregated = [...aggregated, ...JSON.parse(cData).map((i: Record<string, unknown>) => ({...i, source: corp.companyName}))];
                  }
              });
-          } catch(e) {}
+          } catch(e) { void e; }
       } else {
           // Franchise View
           const key = `${baseKey}_${sessionId}`;
           try {
              const data = localStorage.getItem(key);
              if (data) aggregated = JSON.parse(data);
-          } catch(e) {}
+          } catch(e) { void e; }
       }
       return aggregated;
   };
 
   useEffect(() => {
       // Calculate stats
-      const stats: any = {};
+      const stats: Record<string, number> = {};
       MODULES.forEach(mod => {
           const data = fetchAggregatedData(mod.key);
           stats[mod.id] = data.length;
@@ -150,7 +150,7 @@ const DataExport: React.FC = () => {
           setDriveSyncing(false);
           
           // Since we can't do real OAuth in this environment, we create a master CSV and prompt user
-          let masterData: any[] = [];
+          let masterData: Record<string, unknown>[] = [];
           MODULES.forEach(mod => {
               const data = fetchAggregatedData(mod.key);
               if (data.length > 0) {

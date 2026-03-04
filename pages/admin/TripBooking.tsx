@@ -280,7 +280,8 @@ export const TripBooking: React.FC = () => {
     const disc = Number(formData.discount) || 0;
     const commPct = Number(formData.adminCommissionPercentage) || 0;
 
-    const taxAmt = (tripPrice * taxPct) / 100;
+    const isOutstation = formData.tripCategory === 'Outstation';
+    const taxAmt = isOutstation ? 0 : (tripPrice * taxPct) / 100;
     const total = tripPrice + taxAmt + wait + cancelChg - disc;
     const commAmt = ((tripPrice + wait) * commPct / 100) + cancelChg - disc;
 

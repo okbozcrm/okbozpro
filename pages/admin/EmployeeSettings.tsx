@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Building2, Users, FileText, UserX, Clock, 
-  Settings2, Plane, Calendar, Zap, DollarSign, 
-  RotateCcw, Download, Award, File, Bell, 
+  Building2, FileText, UserX, Clock, 
+  Settings2, Plane, Calendar, Zap, 
+  Bell, 
   MessageSquare, Plus, Trash2, Edit2, CheckCircle, 
-  MapPin as MapPinIcon, Briefcase as BriefcaseIcon,
-  ToggleLeft, ToggleRight, Save, UploadCloud, Search,
-  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, RotateCw, CalendarCheck, BookOpen, X,
+  Briefcase as BriefcaseIcon,
+  Save,
+  AlertCircle, Shield, Smartphone, TrendingUp as TrendingUpIcon, CalendarCheck, BookOpen,
   QrCode, Crosshair, MousePointer2, Globe, Bike
 } from 'lucide-react';
 
@@ -584,7 +584,7 @@ const CMSSettings = () => {
                 {['privacy', 'terms', 'about'].map(p => (
                     <div key={p} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                         <h3 className="font-bold text-gray-800 mb-4 capitalize">{p} Policy</h3>
-                        <textarea value={(pages as any)[p]} onChange={(e) => setPages({...pages, [p]: e.target.value})} className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder={`Enter ${p} content...`} />
+                        <textarea value={pages[p as keyof typeof pages]} onChange={(e) => setPages({...pages, [p]: e.target.value})} className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder={`Enter ${p} content...`} />
                     </div>
                 ))}
                 <div className="flex justify-end"><button type="button" onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2"><Save className="w-4 h-4" /> Save Content</button></div>

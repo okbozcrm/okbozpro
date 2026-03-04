@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Phone, ArrowRight, Menu, X, MapPin, Calendar, Clock, 
-  Car, Briefcase, Plane, ChevronRight, CheckCircle2, 
+  Phone, Menu, X, Clock, 
+  Car, Briefcase, Plane, CheckCircle2, 
   Search, ShieldCheck, Heart, User, Star, MapIcon,
-  Plus, Trash2, Info, MessageCircle, Copy, Mail,
-  Mountain, Loader2, Sparkles, Navigation,
-  DollarSign, AlertCircle, Send, ChevronDown, Check
+  Mountain, DollarSign, AlertCircle, Send
 } from 'lucide-react';
 import { useBranding } from '../context/BrandingContext';
 import Autocomplete from '../components/Autocomplete';
@@ -73,7 +71,7 @@ const PRICING: Record<VehicleType, PricingRules> = {
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { logoUrl, companyName } = useBranding();
+  const { logoUrl } = useBranding();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -168,10 +166,31 @@ const LandingPage: React.FC = () => {
         else if (tripType === 'Outstation' && destCoords) locations.push(destCoords);
         if (locations.length < 2) return;
         for (let i = 0; i < locations.length - 1; i++) {
-            const response: any = await new Promise(r => service.getDistanceMatrix({
-                origins: [locations[i]], destinations: [locations[i+1]], travelMode: window.google.maps.TravelMode.DRIVING, unitSystem: window.google.maps.UnitSystem.METRIC
-            }, r));
-            if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
+            try {
+                const response: google.maps.DistanceMatrixResponse = await new Promise((resolve, reject) => {
+                    service.getDistanceMatrix(
+                        {
+                            origins: [locations[i]], 
+                            destinations: [locations[i+1]], 
+                            travelMode: window.google.maps.TravelMode.DRIVING, 
+                            unitSystem: window.google.maps.UnitSystem.METRIC
+                        }, 
+                        (response, status) => {
+                            if (status === 'OK' && response) {
+                                resolve(response);
+                            } else {
+                                reject(status);
+                            }
+                        }
+                    );
+                });
+                if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
+            } catch (error) {
+                console.error("Distance Matrix Error:", error);
+                if (String(error).includes("REQUEST_DENIED")) {
+                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console.");
+                }
+            }
         }
         if (tripType === 'Outstation' && outstationSubType === 'RoundTrip') totalKm *= 2;
         setTransportDetails(prev => ({ ...prev, [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: totalKm.toFixed(1) }));
@@ -339,7 +358,7 @@ const LandingPage: React.FC = () => {
                                 {['Sedan', 'SUV'].map(v => (
                                     <button 
                                         key={v} 
-                                        onClick={() => setVehicleType(v as any)} 
+                                        onClick={() => setVehicleType(v as VehicleType)} 
                                         className={`px-6 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${vehicleType === v ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
                                     >
                                         {v}
@@ -353,7 +372,7 @@ const LandingPage: React.FC = () => {
                             {['LOCAL', 'RENTAL', 'OUTSTATION'].map(t => (
                                 <button 
                                     key={t} 
-                                    onClick={() => setTripType(t.charAt(0) + t.slice(1).toLowerCase() as any)} 
+                                    onClick={() => setTripType(t.charAt(0) + t.slice(1).toLowerCase() as TripType)} 
                                     className={`flex-1 py-4 text-xs font-black tracking-[0.3em] border-b-[5px] transition-all ${tripType === (t.charAt(0) + t.slice(1).toLowerCase()) ? 'border-emerald-500 text-slate-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                                 >
                                     {t}
@@ -374,6 +393,12 @@ const LandingPage: React.FC = () => {
                                         onAddressSelect={(addr, coords) => { setCustomer(p => ({ ...p, pickup: addr })); setPickupCoords(coords); }} 
                                         setNewPlace={(c) => setPickupCoords(c)}
                                     />
+                                </div>
+                            )}
+                            {mapError && (
+                                <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 animate-in fade-in slide-in-from-top-2">
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="text-xs font-bold">{mapError}</span>
                                 </div>
                             )}
                         </div>

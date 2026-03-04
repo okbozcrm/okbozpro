@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Sparkles, Image as ImageIcon, Video, Mic, BrainCircuit, 
-  Upload, Send, Loader2, Download, Play, Square, Wand2, Edit, AlertCircle, Key
+  Sparkles, Video, Mic, BrainCircuit, 
+  Upload, Loader2, Download, Play, Square, Wand2, Edit, AlertCircle, Key
 } from 'lucide-react';
 import { 
   generateImage, editImage, analyzeVideo, 
@@ -75,8 +75,9 @@ const GenAITools: React.FC = () => {
       } else {
         setError("Failed to generate image.");
       }
-    } catch (e: any) {
-      if (e.message?.includes("Requested entity was not found")) {
+    } catch (e) {
+      const errorMessage = (e as Error).message || "";
+      if (errorMessage.includes("Requested entity was not found")) {
           setHasPaidKey(false);
           setError("API Key configuration error. Please re-select your paid API key.");
       } else {

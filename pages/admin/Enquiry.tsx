@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Phone, User, Users, MapPin, 
-  MessageCircle, Mail, Send, Calendar, Clock, 
+  Plus, Search, Phone, User, MapPin, 
+  MessageCircle, Mail, Calendar, 
   CheckCircle, X, Car, AlertCircle, PhoneIncoming, UserPlus, PhoneOutgoing 
 } from 'lucide-react';
-import { Enquiry, HistoryLog, Employee } from '../../types';
+import { Enquiry, HistoryLog, Employee, Vendor, CorporateAccount } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
 
 // Helper to access vendor data to check for existence
@@ -25,10 +25,10 @@ const EnquiryPage: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [vendors] = useState<any[]>(getExistingVendors());
+  const [vendors] = useState<Vendor[]>(getExistingVendors());
   
   // Load Corporate Accounts for City Dropdown
-  const [corporateAccounts, setCorporateAccounts] = useState<any[]>(() => {
+  const [corporateAccounts, setCorporateAccounts] = useState<CorporateAccount[]>(() => {
     const saved = localStorage.getItem('corporate_accounts');
     return saved ? JSON.parse(saved) : [];
   });
@@ -85,7 +85,7 @@ const EnquiryPage: React.FC = () => {
 
   const handlePhoneCheck = () => {
     if (formData.type === 'Vendor') {
-      const foundVendor = vendors.find((v: any) => v.phone.includes(formData.phone) && formData.phone.length > 5);
+      const foundVendor = vendors.find((v: Vendor) => v.phone.includes(formData.phone) && formData.phone.length > 5);
       if (foundVendor) {
         setFormData(prev => ({
           ...prev,
@@ -255,7 +255,7 @@ const EnquiryPage: React.FC = () => {
                {['All', 'Customer', 'Vendor'].map(t => (
                  <button
                    key={t}
-                   onClick={() => setFilterType(t as any)}
+                   onClick={() => setFilterType(t as 'All' | 'Customer' | 'Vendor')}
                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filterType === t ? 'bg-emerald-50 text-emerald-600' : 'text-gray-600 hover:bg-gray-50'}`}
                  >
                    {t}
@@ -480,7 +480,7 @@ const EnquiryPage: React.FC = () => {
                             {['New', 'In Progress', 'Converted', 'Closed'].map(s => (
                                <button
                                  key={s}
-                                 onClick={() => handleStatusChange(s as any)}
+                                 onClick={() => handleStatusChange(s as Enquiry['status'])}
                                  className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
                                     selectedEnquiry.status === s 
                                       ? 'bg-emerald-50 text-emerald-600 border-emerald-200 ring-2 ring-emerald-100' 
@@ -693,8 +693,8 @@ const EnquiryPage: React.FC = () => {
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                            >
                               <option value="">Select City - Corporate</option>
-                              {corporateAccounts.map((acc: any) => (
-                                 <option key={acc.id} value={acc.city}>
+                              {corporateAccounts.map((acc: CorporateAccount) => (
+                                 <option key={acc.email} value={acc.city}>
                                     {acc.city} - {acc.companyName}
                                  </option>
                               ))}

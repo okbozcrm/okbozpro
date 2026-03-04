@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
 import { MOCK_EMPLOYEES } from '../../constants';
-import { Employee, Enquiry, HistoryLog } from '../../types';
+import { Employee, Enquiry, HistoryLog, Vendor, CorporateAccount } from '../../types';
 
 interface HistoryItem {
   id: number;
@@ -70,7 +70,7 @@ const DEFAULT_PRICING_SUV: PricingRules = {
   outstationDriverAllowance: 500, outstationNightAllowance: 400 
 };
 
-const getExistingVendors = () => {
+const getExistingVendors = (): Vendor[] => {
   const globalData = localStorage.getItem('vendor_data');
   return globalData ? JSON.parse(globalData) : [];
 };
@@ -85,9 +85,9 @@ const Reception: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [vendors] = useState<any[]>(getExistingVendors());
+  const [vendors] = useState<Vendor[]>(getExistingVendors());
   
-  const [corporateAccounts] = useState<any[]>(() => {
+  const [corporateAccounts] = useState<CorporateAccount[]>(() => {
     try { return JSON.parse(localStorage.getItem('corporate_accounts') || '[]'); } catch (e) { return []; }
   });
 

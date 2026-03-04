@@ -102,7 +102,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
                         console.error("Places Details fallback failed:", status);
                         const errString = String(error);
                         if (errString.includes("REQUEST_DENIED") || errString === "REQUEST_DENIED") {
-                             setErrorMsg("Geocoding/Places API not fully authorized. Coordinates unavailable.");
+                             setErrorMsg("API Error: Enable 'Geocoding API' & 'Places API' in Google Cloud.");
                         } else {
                              setErrorMsg("Failed to fetch location coordinates.");
                         }

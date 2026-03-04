@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Calendar, User, Clock, CheckCircle, AlertCircle, 
-  Trash2, Search, Filter, MoreHorizontal, X, SlidersHorizontal, 
-  Pencil, Building2, Save, BarChart3, List, CalendarDays, Bell
+  Plus, CheckCircle, 
+  Trash2, Search, MoreHorizontal, X, 
+  Pencil, Building2, BarChart3, List, Bell
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';
@@ -233,12 +233,12 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         assignedTo: formData.assignedTo,
         corporateId: formData.corporateId,
         corporateName: corpName,
-        priority: formData.priority as any,
+        priority: formData.priority as Task['priority'],
         startDate: formData.startDate,
         endDate: formData.endDate,
         reminderTime: finalReminderTime,
         reminderTriggered: (finalReminderTime === t.reminderTime) ? t.reminderTriggered : false, // Reset if time changed
-        status: formData.status as any
+        status: formData.status as Task['status']
       } : t);
       setTasks(updatedTasks);
     } else {
@@ -251,7 +251,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         corporateId: formData.corporateId,
         corporateName: corpName,
         status: 'Todo',
-        priority: formData.priority as any,
+        priority: formData.priority as Task['priority'],
         startDate: formData.startDate,
         endDate: formData.endDate,
         reminderTime: finalReminderTime,
@@ -670,7 +670,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                        <button
                           type="button"
                           key={p}
-                          onClick={() => setFormData({...formData, priority: p as any})}
+                          onClick={() => setFormData({...formData, priority: p as Task['priority']})}
                           className={`flex-1 py-3 text-sm font-medium transition-colors ${
                              formData.priority === p 
                                ? 'bg-slate-800 text-white' 

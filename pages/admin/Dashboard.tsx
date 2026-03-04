@@ -241,7 +241,7 @@ const Dashboard = () => {
               // Send Notification
               if (targetItem) {
                   await sendSystemNotification({
-                      type: notificationType as any,
+                      type: notificationType as 'system' | 'leave_approval' | 'payment_success' | 'trip_update',
                       title: notificationTitle,
                       message: notificationMessage,
                       targetRoles: [UserRole.EMPLOYEE],

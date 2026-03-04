@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, CreditCard, Zap, Shield, Download, AlertCircle, Package, FileText, Loader2 } from 'lucide-react';
+import { Check, CreditCard, Zap, Download, AlertCircle, FileText, Loader2 } from 'lucide-react';
 
 interface Plan {
   id: string;

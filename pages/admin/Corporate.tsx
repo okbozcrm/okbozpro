@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Building2, Mail, Phone, Lock, Trash2, X, MapPin, Eye, EyeOff, Download, Upload, AlertTriangle, Edit2, Percent, Users, UserPlus } from 'lucide-react';
+import { Plus, Search, Building2, Mail, Phone, Lock, Trash2, X, MapPin, Eye, EyeOff, Download, Upload, AlertTriangle, Edit2, Percent, Users } from 'lucide-react';
 import { CorporateAccount, Partner } from '../../types';
 
 const Corporate: React.FC = () => {
@@ -49,7 +49,9 @@ const Corporate: React.FC = () => {
                 console.log("Restored corporate accounts from storage mismatch.");
                 setAccounts(parsed);
             }
-        } catch (e) {}
+        } catch {
+            // Ignore error
+        }
     }
   }, []);
 
@@ -316,8 +318,8 @@ const Corporate: React.FC = () => {
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center gap-3 text-amber-800 text-sm">
               <AlertTriangle className="w-5 h-5" />
               <span>
-                  No corporate accounts visible. If you believe data is missing, try reloading the page or use the "Restore" button.
-                  Data is stored in your browser's local storage.
+                  No corporate accounts visible. If you believe data is missing, try reloading the page or use the &quot;Restore&quot; button.
+                  Data is stored in your browser&apos;s local storage.
               </span>
           </div>
       )}

@@ -12,6 +12,15 @@ declare global {
   }
 }
 
+interface StaffLocation {
+  corporateId: string;
+  lat: number;
+  lng: number;
+  name: string;
+  role: string;
+  lastUpdate: string;
+}
+
 const LiveTracking: React.FC = () => {
   const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -29,7 +38,7 @@ const LiveTracking: React.FC = () => {
   const center = { lat: 11.0168, lng: 76.9558 };
 
   // Staff Locations state
-  const [staffLocations, setStaffLocations] = useState<any[]>([]);
+  const [staffLocations, setStaffLocations] = useState<StaffLocation[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
   // Function to load live locations from shared storage
@@ -38,7 +47,7 @@ const LiveTracking: React.FC = () => {
           const allActive = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
           
           // Filter based on admin scope
-          const myStaff = allActive.filter((s: any) => {
+          const myStaff = allActive.filter((s: StaffLocation) => {
               if (isSuperAdmin) return true; // Super Admin sees everyone
               // Corporate or Employee (with permission) sees staff from their corporate ID
               return s.corporateId === corporateId; 

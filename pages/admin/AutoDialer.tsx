@@ -2,10 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
   Phone, Cloud, Settings, FileText, Plus, Upload, 
   Search, Filter, Download, Trash2, Play, MapPin, 
-  User, Clock, CheckCircle, XCircle, AlertCircle,
-  ChevronRight, Calendar
+  User, Clock, Calendar
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 // --- Types ---
 interface Lead {
@@ -331,7 +330,7 @@ const AutoDialer: React.FC = () => {
                                     <p className="text-sm font-bold text-gray-700">{t.name}</p>
                                     <button onClick={() => setTemplates(templates.filter(temp => temp.id !== t.id))} className="text-gray-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5" /></button>
                                 </div>
-                                <p className="text-xs text-gray-500 italic">"{t.content}"</p>
+                                <p className="text-xs text-gray-500 italic">&quot;{t.content}&quot;</p>
                             </div>
                         ))}
                         {templates.length === 0 && <p className="text-center text-gray-400 text-sm py-4">No templates found.</p>}
@@ -424,7 +423,7 @@ const AutoDialer: React.FC = () => {
            <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4 opacity-90">
                  <Calendar className="w-4 h-4" />
-                 <span className="text-[10px] font-black uppercase tracking-widest">Today's Action Center</span>
+                 <span className="text-[10px] font-black uppercase tracking-widest">Today&apos;s Action Center</span>
               </div>
               <div className="flex items-end gap-2 mb-1">
                  <span className="text-6xl font-black tracking-tighter leading-none">2</span>
@@ -549,7 +548,7 @@ const AutoDialer: React.FC = () => {
                     {selectedLead.history.length > 0 ? (
                        selectedLead.history.map((h, i) => (
                           <div key={i} className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-sm text-gray-600 italic">
-                             "{h.note}"
+                             &quot;{h.note}&quot;
                           </div>
                        ))
                     ) : (

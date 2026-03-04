@@ -1,11 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Bike, Plus, Search, Filter, Download, CheckCircle, 
-  XCircle, Clock, MapPin, Calculator, FileText, 
-  Trash2, Check, X, Building2, User, Calendar, 
-  TrendingUp, Wallet, AlertCircle, Loader2, Gauge,
-  /* Added DollarSign and Send icons to fix "Cannot find name" errors */
+  Bike, Plus, Search, CheckCircle, 
+  Clock, Check, X, 
+  TrendingUp, AlertCircle, Gauge,
   DollarSign, Send
 } from 'lucide-react';
 import { UserRole, TravelAllowanceRequest, Employee, CorporateAccount } from '../types';
@@ -23,7 +21,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
   // --- State ---
   const [requests, setRequests] = useState<TravelAllowanceRequest[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  // const [isProcessing, setIsProcessing] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,7 +89,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
     allStaff = [...adminStaff];
     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-    corps.forEach((c: any) => {
+    corps.forEach((c: CorporateAccount) => {
       const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
       allStaff = [...allStaff, ...cStaff];
     });
@@ -148,6 +146,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
 
     // Resolve my corporate ID
     const me = staff.find(s => s.id === sessionId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const myCorpId = (me as any)?.corporateId || (me as any)?.owner || 'admin';
 
     const newRequest: TravelAllowanceRequest = {
@@ -193,7 +192,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
       const updated = all.map((r: TravelAllowanceRequest) => r.id === id ? { ...r, status: newStatus } : r);
       localStorage.setItem(key, JSON.stringify(updated));
       
-      const request = updated.find((r: any) => r.id === id);
+      const request = updated.find((r: TravelAllowanceRequest) => r.id === id);
       if (request) {
           sendSystemNotification({
               type: 'system',
@@ -213,7 +212,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
     if (window.confirm("Delete this request?")) {
         const key = 'global_travel_requests';
         const all = JSON.parse(localStorage.getItem(key) || '[]');
-        const updated = all.filter((r: any) => r.id !== id);
+        const updated = all.filter((r: TravelAllowanceRequest) => r.id !== id);
         localStorage.setItem(key, JSON.stringify(updated));
         loadData();
     }
@@ -513,7 +512,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
               <ul className="list-disc list-inside mt-1 space-y-1 opacity-80">
                   <li>Ensure odometer photos are available if requested by HR for audit.</li>
                   <li>Claims are usually processed along with the monthly salary disbursement.</li>
-                  <li>Approved claims appear in your Salary Breakdown as "Special Allowance" or "TA Reimb.".</li>
+                  <li>Approved claims appear in your Salary Breakdown as &quot;Special Allowance&quot; or &quot;TA Reimb.&quot;.</li>
               </ul>
           </div>
       </div>

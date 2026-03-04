@@ -6,23 +6,34 @@ import {
   UploadCloud, DownloadCloud, Loader2, RefreshCw, Eye,
   PhoneForwarded, Headset, ClipboardList,
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
-  Cpu, Signal, Info, MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
-  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Check, Plane, TrendingUp,
+  MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
+  DollarSign, HardDrive, Building2, Bike, X, EyeOff, Plane, TrendingUp,
   FileSpreadsheet, BookOpen
 } from 'lucide-react';
 import { 
-  HARDCODED_FIREBASE_CONFIG, HARDCODED_MAPS_API_KEY, getCloudDatabaseStats,
+  HARDCODED_FIREBASE_CONFIG, getCloudDatabaseStats,
   syncToCloud, restoreFromCloud 
 } from '../../services/cloudService';
 import { useBranding } from '../../context/BrandingContext';
+import { CorporateAccount } from '../../types';
+
+interface CollectionStat {
+    key: string;
+    label: string;
+    icon: React.ElementType;
+    local: number;
+    localContent: any;
+    cloud: string | number;
+    status: string;
+}
 
 const Settings: React.FC = () => {
   const { companyName, primaryColor, updateBranding } = useBranding();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<Record<string, any> | null>(null);
   const [dbStatus, setDbStatus] = useState<'Connected' | 'Disconnected' | 'Error'>('Disconnected');
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [collectionStats, setCollectionStats] = useState<any[]>([]);
+  const [collectionStats, setCollectionStats] = useState<CollectionStat[]>([]);
 
   const [brandName, setBrandName] = useState(companyName);
   const [brandColor, setBrandColor] = useState(primaryColor);
@@ -31,7 +42,7 @@ const Settings: React.FC = () => {
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
-  const [collectionContent, setCollectionContent] = useState<any[] | string | null>(null);
+  const [collectionContent, setCollectionContent] = useState<any[] | string | null | Record<string, any>>(null);
   const [collectionError, setCollectionError] = useState<string | null>(null);
 
   const [adminPasswords, setAdminPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -63,20 +74,20 @@ const Settings: React.FC = () => {
             const parsed = JSON.parse(rootData);
             count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
         }
-    } catch(e) {}
+    } catch(e) { void e; }
 
     // 2. If Super Admin, aggregate from all Corporates
     if (isSuperAdmin) {
         try {
             const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-            corporates.forEach((c: any) => {
+            corporates.forEach((c: CorporateAccount) => {
                 const cData = localStorage.getItem(`${key}_${c.email}`);
                 if (cData) {
                     const parsed = JSON.parse(cData);
                     count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
                 }
             });
-        } catch(e) {}
+        } catch(e) { void e; }
     } else {
         // If Franchise, check their specific key if root returned 0 or if scoping applies
         if (count === 0 && sessionId) {
@@ -85,14 +96,14 @@ const Settings: React.FC = () => {
                 try {
                     const parsed = JSON.parse(cData);
                     count += Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
-                } catch(e) {}
+                } catch(e) { void e; }
              }
         }
     }
     return count;
   };
 
-  const generateCollectionStats = (cloudData: any) => {
+  const generateCollectionStats = (cloudData: Record<string, any>) => {
     const collections = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },

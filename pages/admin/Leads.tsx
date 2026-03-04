@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, MapPin, IndianRupee, Calendar, Clock, Sparkles,
-  X, User, Pencil, Trash2, MessageCircle, Send, Loader2, FileText, 
-  Upload, TrendingUp, BarChart3, Edit2, Share2, AtSign, Wand2, Paperclip, 
+  X, User, Trash2, MessageCircle, Send, Loader2, FileText, 
+  TrendingUp, Edit2, AtSign, Wand2, Paperclip, 
   Settings, CheckCircle, Filter, ArrowUpRight, ChevronDown, Users, 
   Activity, Building2, PhoneOutgoing, Wallet, ArrowRight, ThumbsUp, 
-  ThumbsDown, PhoneMissed, Timer, AlertCircle, LayoutGrid, List as ListIcon,
+  ThumbsDown, PhoneMissed, Timer, LayoutGrid, List as ListIcon,
   Target, Phone, ChevronRight
 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
@@ -633,7 +633,7 @@ const Leads = () => {
                                          <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-3"><ArrowUpRight className="w-4 h-4" /> Lead Priority</h4>
                                          <div className="flex gap-2">
                                              {['Hot', 'Warm', 'Cold'].map(p => (
-                                                 <button key={p} type="button" onClick={() => setFormData({...formData, priority: p as any})} className={`flex-1 py-4 text-xs font-black uppercase rounded-2xl border-2 transition-all ${formData.priority === p ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'}`}>{p}</button>
+                                                 <button key={p} type="button" onClick={() => setFormData({...formData, priority: p as 'Hot' | 'Warm' | 'Cold'})} className={`flex-1 py-4 text-xs font-black uppercase rounded-2xl border-2 transition-all ${formData.priority === p ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'}`}>{p}</button>
                                              ))}
                                          </div>
                                      </div>

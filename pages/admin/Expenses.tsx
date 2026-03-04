@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
-  Plus, Search, DollarSign, 
+  Plus, Search, 
   PieChart, FileText, 
-  CheckCircle, X, Download,
-  Smartphone, Zap, Wifi, Users, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown, Building2, Upload, Loader2, Paperclip, Eye, Edit2, Trash2, Printer, MapPin, Filter, RefreshCcw, Calendar,
+  X, Download,
+  ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown, Building2, Upload, Loader2, Eye, Edit2, Filter, RefreshCcw,
   Info, FileSpreadsheet
 } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend } from 'recharts';
 import { uploadFileToCloud } from '../../services/cloudService';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { UserRole } from '../../types'; // Import UserRole for type checking
+import { CorporateAccount, Branch } from '../../types';
 
 interface Expense {
   id: string;
@@ -68,11 +68,12 @@ const Expenses: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); 
 
-  const [corporates, setCorporates] = useState<any[]>([]);
-  const [allBranches, setAllBranches] = useState<any[]>([]);
+  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
 
   // NEW STATE for Other Expense Detail
   const [otherExpenseDetail, setOtherExpenseDetail] = useState('');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'GSTR Filing'>('Overview');
 
   // Function to load expenses to ensure UI stays in sync with LocalStorage/Cloud
   const loadExpenses = useCallback(() => {
@@ -83,18 +84,18 @@ const Expenses: React.FC = () => {
         const adminData = localStorage.getItem('office_expenses');
         if (adminData) {
             try { 
-                allExpenses = [...allExpenses, ...JSON.parse(adminData).map((e: any) => ({...e, franchiseName: e.franchiseName || 'Head Office', corporateId: e.corporateId || 'admin'}))];
-            } catch (e) {}
+                allExpenses = [...allExpenses, ...JSON.parse(adminData).map((e: Expense) => ({...e, franchiseName: e.franchiseName || 'Head Office', corporateId: e.corporateId || 'admin'}))];
+            } catch (e) { void e; }
         }
         
         // Dynamically load from all available corporate accounts
         const currentCorps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-        currentCorps.forEach((corp: any) => {
+        currentCorps.forEach((corp: CorporateAccount) => {
             const cData = localStorage.getItem(`office_expenses_${corp.email}`);
             if (cData) {
                 try {
-                    allExpenses = [...allExpenses, ...JSON.parse(cData).map((e: any) => ({...e, franchiseName: corp.companyName, corporateId: corp.email}))];
-                } catch (e) {}
+                    allExpenses = [...allExpenses, ...JSON.parse(cData).map((e: Expense) => ({...e, franchiseName: corp.companyName, corporateId: corp.email}))];
+                } catch (e) { void e; }
             }
         });
     } else {
@@ -105,7 +106,7 @@ const Expenses: React.FC = () => {
         const saved = localStorage.getItem(key);
         if (saved) {
             try { 
-                allExpenses = JSON.parse(saved).map((e: any) => ({...e, corporateId: e.corporateId || targetOwnerId})); 
+                allExpenses = JSON.parse(saved).map((e: Expense) => ({...e, corporateId: e.corporateId || targetOwnerId})); 
             } catch(e) { 
                 console.error("Error parsing expenses", e);
             }
@@ -121,20 +122,20 @@ const Expenses: React.FC = () => {
       const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
       setCorporates(corps);
       
-      let branches: any[] = [];
+      let branches: Branch[] = [];
       if (isSuperAdmin) {
           const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-          branches = [...adminBranches.map((b:any) => ({...b, corporateId: 'admin'}))];
-          corps.forEach((c: any) => {
+          branches = [...adminBranches.map((b: Branch) => ({...b, corporateId: 'admin'}))];
+          corps.forEach((c: CorporateAccount) => {
               const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-              branches = [...branches, ...cBranches.map((b:any) => ({...b, corporateId: c.email}))];
+              branches = [...branches, ...cBranches.map((b: Branch) => ({...b, corporateId: c.email}))];
           });
       } else {
           // Scoped branches for franchise/employee
           const targetOwnerId = userRole === 'EMPLOYEE' ? (employeeCorporateId || 'admin') : sessionId;
           const key = targetOwnerId === 'admin' ? 'branches_data' : `branches_data_${targetOwnerId}`;
           const saved = localStorage.getItem(key);
-          if (saved) branches = JSON.parse(saved).map((b:any) => ({...b, corporateId: targetOwnerId}));
+          if (saved) branches = JSON.parse(saved).map((b: Branch) => ({...b, corporateId: targetOwnerId}));
       }
       setAllBranches(branches);
 
@@ -325,7 +326,7 @@ const Expenses: React.FC = () => {
           const text = event.target?.result as string;
           const lines = text.split('\n');
           // Basic CSV Parsing (Assumes comma separated, no complex quotes handling for simplicity)
-          const headers = lines[0].split(',').map(h => h.trim());
+          // const headers = lines[0].split(',').map(h => h.trim());
           
           const newExpenses: Expense[] = [];
           
@@ -476,7 +477,7 @@ const Expenses: React.FC = () => {
     let currentData: Expense[] = [];
     try {
         currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    } catch(e) {}
+    } catch(e) { void e; }
 
     let updatedData: Expense[];
     if (editingExpenseId) {
@@ -551,6 +552,18 @@ const Expenses: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex gap-6 border-b border-gray-200">
+          <button onClick={() => setActiveTab('Overview')} className={`pb-3 px-1 font-bold text-sm transition-all relative ${activeTab === 'Overview' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}>
+              Overview
+              {activeTab === 'Overview' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600 rounded-t-full" />}
+          </button>
+          <button onClick={() => setActiveTab('GSTR Filing')} className={`pb-3 px-1 font-bold text-sm transition-all relative ${activeTab === 'GSTR Filing' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}>
+              GSTR Filing (Auditor)
+              {activeTab === 'GSTR Filing' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600 rounded-t-full" />}
+          </button>
+      </div>
+
+      {activeTab === 'Overview' ? (
       <div ref={reportRef} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-gray-500 mb-1">Total Income</p><h3 className="text-2xl font-bold text-emerald-600">+₹{stats.totalIncome.toLocaleString()}</h3></div><div className="bg-emerald-50 p-3 rounded-lg text-emerald-600"><TrendingUp className="w-6 h-6" /></div></div>
@@ -567,8 +580,8 @@ const Expenses: React.FC = () => {
                     {filterDateType === 'Month' ? (<input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm" />) : (<input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm" />)}
                  </div>
                  <div className="flex flex-wrap gap-2 items-center"><Filter className="w-4 h-4 text-gray-400 mr-1" />
-                    {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"><option value="All">All Corporates</option><option value="admin">Head Office</option>{corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}</select>)}
-                    <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"><option value="All">All Branches</option>{availableBranches.map((b: any) => (<option key={b.name} value={b.name}>{b.name}</option>))}</select>
+                    {isSuperAdmin && (<select value={filterCorporate} onChange={(e) => { setFilterCorporate(e.target.value); setFilterBranch('All'); }} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"><option value="All">All Corporates</option><option value="admin">Head Office</option>{corporates.map((c: CorporateAccount) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}</select>)}
+                    <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"><option value="All">All Branches</option>{availableBranches.map((b: Branch) => (<option key={b.name} value={b.name}>{b.name}</option>))}</select>
                     <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm"><option value="All">All Types</option><option value="Income">Income Only</option><option value="Expense">Expense Only</option></select>
                     <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm max-w-[150px]"><option value="All">All Categories</option>{[...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].sort().map(c => <option key={c} value={c}>{c}</option>)}</select>
                     <button onClick={() => {setSearchTerm('');setCategoryFilter('All');setTypeFilter('All');setFilterCorporate('All');setFilterBranch('All');setFilterDateType('Month');}} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"><RefreshCcw className="w-4 h-4" /></button>
@@ -638,6 +651,92 @@ const Expenses: React.FC = () => {
             </div>
           </div>
       </div>
+      ) : (
+        <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <h3 className="text-lg font-bold text-gray-800">GSTR Filing Data</h3>
+                    <p className="text-sm text-gray-500">Consolidated Sales & Purchase data for Auditor</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-gray-600">Select Month:</label>
+                    <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white text-sm" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* SALES (GSTR-1) */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-emerald-700 uppercase tracking-wider text-sm flex items-center gap-2"><ArrowUpCircle className="w-4 h-4" /> GSTR-1 (Sales / Outward)</h4>
+                        <span className="text-xs font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg">
+                            Total: ₹{expenses.filter(e => e.type === 'Income' && e.date.startsWith(selectedMonth)).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                        </span>
+                    </div>
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                <tr>
+                                    <th className="px-4 py-3">Date</th>
+                                    <th className="px-4 py-3">Invoice No</th>
+                                    <th className="px-4 py-3">Party / Category</th>
+                                    <th className="px-4 py-3 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {expenses.filter(e => e.type === 'Income' && e.date.startsWith(selectedMonth)).map(exp => (
+                                    <tr key={exp.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 text-gray-600">{exp.date}</td>
+                                        <td className="px-4 py-3 font-mono text-gray-500">{exp.transactionNumber}</td>
+                                        <td className="px-4 py-3 font-medium text-gray-800">{exp.title} <span className="text-gray-400 font-normal">({exp.category})</span></td>
+                                        <td className="px-4 py-3 text-right font-bold text-emerald-600">₹{exp.amount.toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                                {expenses.filter(e => e.type === 'Income' && e.date.startsWith(selectedMonth)).length === 0 && (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No Sales Records for {selectedMonth}</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* PURCHASES (GSTR-2) */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-red-700 uppercase tracking-wider text-sm flex items-center gap-2"><ArrowDownCircle className="w-4 h-4" /> GSTR-2 (Purchases / Inward)</h4>
+                        <span className="text-xs font-bold bg-red-50 text-red-600 px-2 py-1 rounded-lg">
+                            Total: ₹{expenses.filter(e => e.type === 'Expense' && e.date.startsWith(selectedMonth)).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                        </span>
+                    </div>
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                <tr>
+                                    <th className="px-4 py-3">Date</th>
+                                    <th className="px-4 py-3">Ref No</th>
+                                    <th className="px-4 py-3">Party / Category</th>
+                                    <th className="px-4 py-3 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {expenses.filter(e => e.type === 'Expense' && e.date.startsWith(selectedMonth)).map(exp => (
+                                    <tr key={exp.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 text-gray-600">{exp.date}</td>
+                                        <td className="px-4 py-3 font-mono text-gray-500">{exp.transactionNumber}</td>
+                                        <td className="px-4 py-3 font-medium text-gray-800">{exp.title} <span className="text-gray-400 font-normal">({exp.category})</span></td>
+                                        <td className="px-4 py-3 text-right font-bold text-red-600">₹{exp.amount.toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                                {expenses.filter(e => e.type === 'Expense' && e.date.startsWith(selectedMonth)).length === 0 && (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No Purchase Records for {selectedMonth}</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Invoice Viewer Modal - ADDED THIS BLOCK */}
       {showInvoiceViewer && invoiceData && (
@@ -683,7 +782,7 @@ const Expenses: React.FC = () => {
                      {invoiceData.description && (
                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                              <p className="text-xs text-gray-500 mb-1">Description</p>
-                             <p className="text-sm text-gray-700 italic">"{invoiceData.description}"</p>
+                             <p className="text-sm text-gray-700 italic">&quot;{invoiceData.description}&quot;</p>
                          </div>
                      )}
                      
@@ -745,7 +844,7 @@ const Expenses: React.FC = () => {
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Franchise / Entity</label>
                     <select name="corporateId" value={formData.corporateId} onChange={(e) => setFormData(prev => ({ ...prev, corporateId: e.target.value, branch: '' }))} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg outline-none bg-white text-sm focus:ring-2 focus:ring-emerald-500">
                         <option value="admin">Head Office</option>
-                        {corporates.map((c: any) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
+                        {corporates.map((c: CorporateAccount) => (<option key={c.email} value={c.email}>{c.companyName}</option>))}
                     </select>
                   </div>
               )}
@@ -765,7 +864,7 @@ const Expenses: React.FC = () => {
                 <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label><input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" /></div>
               </div>
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Title</label><input type="text" name="title" required value={formData.title} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" placeholder="e.g. Office Electricity Bill" /></div>
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"><option value="">Select Branch</option>{formBranches.map((b: any) => (<option key={b.name} value={b.name}>{b.name}</option>))}</select></div>
+              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Branch</label><select name="branch" value={formData.branch} onChange={handleInputChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"><option value="">Select Branch</option>{formBranches.map((b: Branch) => (<option key={b.name} value={b.name}>{b.name}</option>))}</select></div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>

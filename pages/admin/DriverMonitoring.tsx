@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   CartesianGrid, Legend
 } from 'recharts';
-import { Employee, DriverActivityLog } from '../../types';
+import { Employee, DriverActivityLog, CorporateAccount } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
 
 // Helper function to get the ISO week number from a date
@@ -60,7 +60,7 @@ const DriverMonitoring: React.FC = () => {
       const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]').map((e: Employee) => ({ ...e, corporateId: 'admin', corporateName: 'Head Office' }));
       drivers = [...drivers, ...adminStaff];
       const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-      corporates.forEach((corp: any) => {
+      corporates.forEach((corp: CorporateAccount) => {
         const corpStaff = JSON.parse(localStorage.getItem(`staff_data_${corp.email}`) || '[]').map((e: Employee) => ({ ...e, corporateId: corp.email, corporateName: corp.companyName }));
         drivers = [...drivers, ...corpStaff];
       });

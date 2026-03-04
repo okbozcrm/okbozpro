@@ -4,11 +4,10 @@ import {
   Send, Search, User, MoreVertical, Phone, 
   Check, CheckCheck, MessageSquare, ChevronLeft, 
   Building2, Shield, Cloud, Minus, Circle, 
-  Paperclip, Mic, X, File, Image as ImageIcon, StopCircle, Download,
-  Users, Plus, Settings, Trash2, Bell, CheckSquare, Square,
-  PhoneOff, MicOff, Volume2, Clock as ClockIcon
+  Paperclip, Mic, X, File, Download,
+  Users, Settings, Trash2, CheckSquare, Square
 } from 'lucide-react';
-import { UserRole, Employee, CorporateAccount, CallSignal } from '../../types';
+import { UserRole, CorporateAccount, CallSignal } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
 import { sendSystemNotification } from '../../services/cloudService';
 
@@ -93,16 +92,19 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
 
   // --- 1. Initial Load Contacts & Groups ---
   useEffect(() => {
-    let loadedContacts: Contact[] = [];
+    const loadedContacts: Contact[] = [];
 
     const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let allStaff: any[] = [];
     
     const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allStaff = [...adminStaff.map((s: any) => ({...s, owner: 'admin'}))];
 
     corps.forEach(c => {
         const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         allStaff = [...allStaff, ...cStaff.map((s: any) => ({...s, owner: c.email}))];
     });
 
@@ -138,6 +140,7 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         });
     } else if (role === UserRole.EMPLOYEE) {
         const me = allStaff.find(s => s.id === sessionId) || MOCK_EMPLOYEES.find(e => e.id === sessionId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const myOwnerId = me?.owner || (me as any)?.corporateId || 'admin';
         
         loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', phone: '9123456780', online: true });

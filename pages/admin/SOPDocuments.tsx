@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Files, ExternalLink, Info, ShieldCheck, Building2 } from 'lucide-react';
-import { UserRole } from '../../types';
+import { BookOpen, Files, ExternalLink, Info, ShieldCheck } from 'lucide-react';
+import { UserRole, CorporateAccount } from '../../types';
 
 const SOPDocuments: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
@@ -15,7 +15,7 @@ const SOPDocuments: React.FC = () => {
     if (role === UserRole.CORPORATE) {
       const sessionId = localStorage.getItem('app_session_id');
       const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-      const myCorp = corporates.find((c: any) => c.email === sessionId);
+      const myCorp = corporates.find((c: CorporateAccount) => c.email === sessionId);
       if (myCorp) {
         setCorporateName(myCorp.companyName);
       }

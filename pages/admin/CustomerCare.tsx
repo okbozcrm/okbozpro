@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Settings, Loader2, ArrowRight, ArrowRightLeft, 
+  Settings, 
   MessageCircle, Copy, Mail, Car, User, Edit2,
-  CheckCircle, Building2, Save, X, Phone, Truck, DollarSign,
+  X, Phone, Truck, DollarSign,
   Calendar, MapPin, Plus, Trash2, Headset,
-  Clock, CheckCircle as CheckCircleIcon, Filter, Search, ChevronDown, UserCheck, XCircle, AlertCircle, History, PhoneOutgoing, PhoneIncoming, CalendarCheck, BookOpen, FileText, RefreshCcw, Mountain, List as ListIcon,
-  // Added TrendingUp as TrendingUpIcon to fix the compilation error
-  Package, Bike, TrendingUp as TrendingUpIcon
+  Clock, Search, ChevronDown, AlertCircle, RefreshCcw, Mountain, List as ListIcon,
+  Package, TrendingUp as TrendingUpIcon, FileText, ArrowRight
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
-import { Enquiry, HistoryLog, UserRole } from '../../types';
-import { sendSystemNotification, HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
+import { Enquiry, UserRole } from '../../types';
+import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 
 // Types
 type TripType = 'Local' | 'Rental' | 'Outstation';
@@ -40,7 +39,9 @@ interface PricingRules {
   rentalExtraHrRate: number;
   outstationMinKmPerDay: number;
   outstationBaseRate: number;
+  outstationBaseKm: number;
   outstationExtraKmRate: number;
+  outstationOneWayExtraKmRate: number; // Added for One Way Extra Km Rate
   outstationDriverAllowance: number;
   outstationNightAllowance: number;
   outstationHillsAllowance: number;
@@ -63,7 +64,7 @@ const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
 const DEFAULT_PRICING_SEDAN: PricingRules = {
   localBaseFare: 200, localBaseKm: 5, localPerKmRate: 20, localWaitingRate: 2,
   rentalExtraKmRate: 15, rentalExtraHrRate: 100,
-  outstationMinKmPerDay: 250, outstationBaseRate: 0, outstationExtraKmRate: 13,
+  outstationMinKmPerDay: 250, outstationBaseRate: 1800, outstationBaseKm: 250, outstationExtraKmRate: 13, outstationOneWayExtraKmRate: 13,
   outstationDriverAllowance: 400, outstationNightAllowance: 300,
   outstationHillsAllowance: 500
 };
@@ -71,7 +72,7 @@ const DEFAULT_PRICING_SEDAN: PricingRules = {
 const DEFAULT_PRICING_SUV: PricingRules = {
   localBaseFare: 300, localBaseKm: 5, localPerKmRate: 25, localWaitingRate: 3,
   rentalExtraKmRate: 18, rentalExtraHrRate: 150,
-  outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 17,
+  outstationMinKmPerDay: 300, outstationBaseRate: 2500, outstationBaseKm: 300, outstationExtraKmRate: 17, outstationOneWayExtraKmRate: 17,
   outstationDriverAllowance: 500, outstationNightAllowance: 400,
   outstationHillsAllowance: 700
 };
@@ -79,7 +80,7 @@ const DEFAULT_PRICING_SUV: PricingRules = {
 const DEFAULT_PRICING_AUTO: PricingRules = {
   localBaseFare: 100, localBaseKm: 2, localPerKmRate: 15, localWaitingRate: 1,
   rentalExtraKmRate: 12, rentalExtraHrRate: 80,
-  outstationMinKmPerDay: 200, outstationBaseRate: 0, outstationExtraKmRate: 12,
+  outstationMinKmPerDay: 200, outstationBaseRate: 0, outstationBaseKm: 0, outstationExtraKmRate: 12, outstationOneWayExtraKmRate: 12,
   outstationDriverAllowance: 300, outstationNightAllowance: 200,
   outstationHillsAllowance: 400
 };
@@ -87,7 +88,7 @@ const DEFAULT_PRICING_AUTO: PricingRules = {
 const DEFAULT_PRICING_ACE: PricingRules = {
   localBaseFare: 400, localBaseKm: 5, localPerKmRate: 30, localWaitingRate: 4,
   rentalExtraKmRate: 22, rentalExtraHrRate: 200,
-  outstationMinKmPerDay: 250, outstationBaseRate: 500, outstationExtraKmRate: 18,
+  outstationMinKmPerDay: 250, outstationBaseRate: 500, outstationBaseKm: 50, outstationExtraKmRate: 18, outstationOneWayExtraKmRate: 18,
   outstationDriverAllowance: 500, outstationNightAllowance: 400,
   outstationHillsAllowance: 600
 };
@@ -95,7 +96,7 @@ const DEFAULT_PRICING_ACE: PricingRules = {
 const DEFAULT_PRICING_PICKUP: PricingRules = {
   localBaseFare: 600, localBaseKm: 5, localPerKmRate: 40, localWaitingRate: 5,
   rentalExtraKmRate: 28, rentalExtraHrRate: 250,
-  outstationMinKmPerDay: 300, outstationBaseRate: 800, outstationExtraKmRate: 22,
+  outstationMinKmPerDay: 300, outstationBaseRate: 800, outstationBaseKm: 50, outstationExtraKmRate: 22, outstationOneWayExtraKmRate: 22,
   outstationDriverAllowance: 600, outstationNightAllowance: 500,
   outstationHillsAllowance: 800
 };
@@ -168,15 +169,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
-  const [allBranches, setAllBranches] = useState<Branch[]>([]);
   const [allStaff, setAllStaff] = useState<Employee[]>([]);
   
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
   const isEmployee = role === UserRole.EMPLOYEE;
 
-  const [assignment, setAssignment] = useState({
+  const [assignment] = useState({
     corporateId: isSuperAdmin ? 'admin' : sessionId,
     branchName: '',
     staffId: ''
@@ -191,20 +190,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [filterDate, setFilterDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [scheduleData, setScheduleData] = useState({ date: '', time: '' });
+  const [scheduleData] = useState({ date: '', time: '' });
 
   const [enquiries, setEnquiries] = useState<Enquiry[]>(getInitialEnquiries);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-
-  const [isPhoneChecked, setIsPhoneChecked] = useState(false);
-  const [phoneLookupResult, setPhoneLookupResult] = useState<'New' | 'Existing' | null>(null);
-  const [existingEnquiriesForPhone, setExistingEnquiriesForPhone] = useState<Enquiry[]>([]);
-  const [vendorsData, setVendorsData] = useState<any[]>([]); // Keeping any for vendors as structure is unknown
-
-  const [generalFollowUpDate, setGeneralFollowUpDate] = useState(new Date().toISOString().split('T')[0]);
-  const [generalFollowUpTime, setGeneralFollowUpTime] = useState('10:00');
-  const [generalFollowUpPriority, setGeneralFollowUpPriority] = useState<'Hot' | 'Warm' | 'Cold'>('Warm');
 
   useEffect(() => {
     localStorage.setItem('transport_rental_packages_v3', JSON.stringify(rentalPackages));
@@ -214,33 +203,20 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     localStorage.setItem('transport_pricing_rules_v3', JSON.stringify(pricing));
   }, [pricing]);
 
-  useEffect(() => {
-    try {
-      const savedVendors = localStorage.getItem('vendor_data');
-      if (savedVendors) setVendorsData(JSON.parse(savedVendors));
-    } catch (e) { console.error(e); }
-  }, []);
+
 
   useEffect(() => {
       const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-      setCorporates(corps);
-      const adminBranches = JSON.parse(localStorage.getItem('branches_data') || '[]');
-      let branches: Branch[] = [...adminBranches.map((b: Branch) => ({...b, owner: 'admin'}))];
       const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
       let staff: Employee[] = [...adminStaff.map((s: Employee) => ({...s, owner: 'admin'}))];
       corps.forEach((c: CorporateAccount) => {
-          const cBranches = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-          branches = [...branches, ...cBranches.map((b: Branch) => ({...b, owner: c.email}))];
           const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
           staff = [...staff, ...cStaff.map((s: Employee) => ({...s, owner: c.email}))];
       });
-      setAllBranches(branches);
       setAllStaff(staff);
   }, [isSuperAdmin, sessionId]);
 
-  const filteredBranches = useMemo(() => allBranches.filter(b => assignment.corporateId === 'admin' ? b.owner === 'admin' : b.owner === assignment.corporateId), [allBranches, assignment.corporateId]);
-  // @ts-ignore - 'owner' property might not exist on Employee type explicitly but added in runtime
-  const filteredStaff = useMemo(() => allStaff.filter(s => (assignment.corporateId === 'admin' ? (s as any).owner === 'admin' : (s as any).owner === assignment.corporateId) && (assignment.branchName === '' || s.branch === assignment.branchName)), [allStaff, assignment.corporateId, assignment.branchName]);
+
 
   useEffect(() => {
     if (window.gm_authFailure_detected) { setMapError("Map API Error"); return; }
@@ -276,7 +252,12 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     service.getDistanceMatrix({ origins: [start], destinations: [end], travelMode: window.google.maps.TravelMode.DRIVING, unitSystem: window.google.maps.UnitSystem.METRIC, }, (res, status) => { if (status === "OK" && res) resolve(res); else reject(status); });
                 });
                 if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error("Distance Matrix Error:", err);
+                if (String(err).includes("REQUEST_DENIED")) {
+                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console.");
+                }
+            }
         }
         if (tripType === 'Outstation' && outstationSubType === 'RoundTrip') totalKm *= 2;
         setTransportDetails(prev => ({ ...prev, [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: totalKm.toFixed(1) }));
@@ -352,13 +333,11 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       let total = 0;
       const rules = pricing[vehicleType];
       let breakup: FareItem[] = [];
-      let details = '';
       let msg = '';
 
       if (enquiryCategory === 'General') {
           total = 0;
           breakup = [];
-          details = customerDetails.requirements || "General Enquiry.";
           msg = `Hello ${customerDetails.name || 'Sir/Madam'},\nThank you for contacting OK BOZ. \n\nRegarding your enquiry:\n"${customerDetails.requirements || 'General Requirement'}"\n\nWe have received your request and our team will get back to you shortly.\n\nRegards,\nOK BOZ Support Team`;
       } else if (tripType === 'Local') {
           const base = rules.localBaseFare;
@@ -373,9 +352,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKmVal.toFixed(1)} KM @ ₹${rules.localPerKmRate}/KM`, type: 'extra' });
           if (waitCost > 0) breakup.push({ label: 'Waiting Charges', value: waitCost, description: `${transportDetails.waitingMins} Mins @ ₹${rules.localWaitingRate}/min`, type: 'extra' });
           
-          const validDrops = transportDetails.drops.filter(d => d.address);
-          details = `Local Trip: ${km}km (${validDrops.length} Drops)`;
-
           msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Local Trip* estimate from OK BOZ! 🚕\n\n` +
                 `🚘 Vehicle: ${vehicleType}\n` +
                 `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
@@ -394,7 +370,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               else if (vehicleType === 'Pickup') total = pkg.pricePickup;
 
               breakup.push({ label: 'Package Rate', value: total, description: pkg.name, type: 'base' });
-              details = `Rental: ${pkg.name}`;
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Rental Package* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
@@ -426,8 +401,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${nightAllowanceRate}/night`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
               
-              details = `Round Trip: ${days} days, ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
-
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation Round-Trip* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
@@ -444,17 +417,18 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           } else {
               const baseFare = rules.outstationBaseRate;
-              const kmCharges = km * perKmRate;
+              const baseKm = rules.outstationBaseKm || 0;
+              const perKmRate = rules.outstationOneWayExtraKmRate || rules.outstationExtraKmRate; // Use One Way Rate
+              const extraKm = Math.max(0, km - baseKm);
+              const kmCharges = extraKm * perKmRate;
               const hillsAllowance = transportDetails.isHillsTrip ? (hillsAllowanceRate * days) : 0;
               
               total = baseFare + kmCharges + driverAllowance + hillsAllowance;
               
-              if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, type: 'base' });
-              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${km.toFixed(1)} KM @ ₹${perKmRate}/KM`, type: 'base' });
+              if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, description: `Includes first ${baseKm} KM`, type: 'base' });
+              if (kmCharges > 0) breakup.push({ label: 'Extra KM Charges', value: kmCharges, description: `${extraKm.toFixed(1)} KM @ ₹${perKmRate}/KM`, type: 'base' });
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
-
-              details = `One Way: ${km} km${transportDetails.isHillsTrip ? ' (Hills Included)' : ''}`;
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation One-Way* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
@@ -462,20 +436,23 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     `🌍 Destination: ${transportDetails.destination}\n\n` +
                     `*Trip Parameters:*\n` +
                     `• Approx KM: ${km} KM\n` +
-                    `• Per KM Rate: ₹${perKmRate}\n\n` +
+                    `• Base Fare: ₹${baseFare} (upto ${baseKm} KM)\n` +
+                    `• Extra KM Rate: ₹${perKmRate}/KM\n\n` +
                     `*Fare Breakdown:*\n` +
                     (baseFare > 0 ? `• Base Fare: ₹${baseFare}\n` : '') +
-                    `• KM Charges: ₹${kmCharges} (${km.toFixed(1)} KM)\n` +
+                    (kmCharges > 0 ? `• Extra KM: ₹${kmCharges} (${extraKm.toFixed(1)} KM)\n` : '') +
                     `• Driver Allw.: ₹${driverAllowance} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
                     (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           }
       }
 
       if (total > 0) {
-          const gst = Math.round(total * 0.05); // 5% GST
-          breakup.push({ label: 'GST (5%)', value: gst, type: 'tax' });
-          total += gst;
-          msg += `• GST (5%): ₹${gst}\n\n`;
+          if (tripType !== 'Outstation') {
+              const gst = Math.round(total * 0.05); // 5% GST
+              breakup.push({ label: 'GST (5%)', value: gst, type: 'tax' });
+              total += gst;
+              msg += `• GST (5%): ₹${gst}\n\n`;
+          }
           msg += `💰 *Total Estimate: ₹${total.toFixed(0)}*\n`;
           msg += `(Tolls & Parking Charges Extra as per actuals.)\n\nBook now with OK BOZ!`;
       }
@@ -487,7 +464,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const saveOrder = async (status: OrderStatus, scheduleInfo?: { date: string, time: string, priority?: 'Hot' | 'Warm' | 'Cold' }) => {
       if (!customerDetails.name || !customerDetails.phone) { alert("Please enter Customer Name and Phone."); return; }
-      let detailsText = enquiryCategory === 'Transport' ? `[${vehicleType} - ${tripType}] Estimate: ₹${estimatedCost}` : customerDetails.requirements;
+      const detailsText = enquiryCategory === 'Transport' ? `[${vehicleType} - ${tripType}] Estimate: ₹${estimatedCost}` : customerDetails.requirements;
       if (!detailsText.trim()) { alert("Please enter details."); return; }
       
       const newEnquiry: Enquiry = {
@@ -526,11 +503,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       setGeneratedMessage(''); setEstimatedCost(0); setEditingOrderId(null); setIsPhoneChecked(false);
   };
 
-  const handleStatusUpdate = (id: string, newStatus: OrderStatus) => {
-      const updatedList = enquiries.map(e => e.id === id ? { ...e, status: newStatus, history: [{ id: Date.now(), type: 'Note', message: `Status: ${newStatus}`, date: new Date().toLocaleString() }, ...e.history] } : e);
-      setEnquiries(updatedList);
-      localStorage.setItem('global_enquiries_data', JSON.stringify(updatedList));
-  };
+
 
   const handleEditOrder = (order: Enquiry) => {
       setEditingOrderId(order.id);
@@ -545,14 +518,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleBookNow = () => saveOrder('Booked');
 
-  const confirmSchedule = () => {
-    if (!scheduleData.date || !scheduleData.time) {
-      alert("Please select date and time");
-      return;
-    }
-    saveOrder('Scheduled', { date: scheduleData.date, time: scheduleData.time });
-    setIsScheduleModalOpen(false);
-  };
+
 
   const resetFilters = () => {
     setFilterStatus('All');
@@ -685,32 +651,66 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     <h4 className="text-[11px] font-black text-orange-600 uppercase tracking-[0.2em] border-b-2 border-orange-100 pb-2 flex items-center gap-2">
                         <TrendingUpIcon className="w-3.5 h-3.5" /> Outstation Matrix
                     </h4>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Min Km / Day</label>
-                                <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
+                    <div className="space-y-6">
+                        {/* Round Trip Section */}
+                        <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                            <h5 className="text-[10px] font-black text-orange-700 uppercase tracking-widest mb-3 flex items-center gap-1">
+                                <RefreshCcw className="w-3 h-3" /> Round Trip
+                            </h5>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Min Km / Day</label>
+                                    <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Rate (₹/km)</label>
+                                    <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Per Km Rate (₹/km)</label>
-                                <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
+                        </div>
+
+                        {/* One Way Section */}
+                        <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                            <h5 className="text-[10px] font-black text-orange-700 uppercase tracking-widest mb-3 flex items-center gap-1">
+                                <ArrowRight className="w-3 h-3" /> One Way
+                            </h5>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Rate</label>
+                                        <input type="number" name="outstationBaseRate" value={pricing[settingsVehicleType].outstationBaseRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Km</label>
+                                        <input type="number" name="outstationBaseKm" value={pricing[settingsVehicleType].outstationBaseKm || 0} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Km Rate (₹/km)</label>
+                                    <input type="number" name="outstationOneWayExtraKmRate" value={pricing[settingsVehicleType].outstationOneWayExtraKmRate || pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Base Rate (One Way)</label>
-                            <input type="number" name="outstationBaseRate" value={pricing[settingsVehicleType].outstationBaseRate} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Driver Allowance (₹/day)</label>
-                            <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Night Allowance (₹/night)</label>
-                            <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Hills Allowance (₹/day)</label>
-                            <input type="number" name="outstationHillsAllowance" value={pricing[settingsVehicleType].outstationHillsAllowance} onChange={handlePricingChange} className="w-full p-3 border border-gray-200 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-inner" />
+
+                        {/* Common Allowances */}
+                        <div className="pt-2 border-t border-gray-100">
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Common Allowances</p>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Driver Allowance (₹/day)</label>
+                                    <input type="number" name="outstationDriverAllowance" value={pricing[settingsVehicleType].outstationDriverAllowance} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Night (₹/night)</label>
+                                        <input type="number" name="outstationNightAllowance" value={pricing[settingsVehicleType].outstationNightAllowance} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Hills (₹/day)</label>
+                                        <input type="number" name="outstationHillsAllowance" value={pricing[settingsVehicleType].outstationHillsAllowance} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                  </div>
@@ -883,11 +883,17 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                               </div>
                           </div>
 
-                          <div className="flex border-b border-gray-100">{['Local', 'Rental', 'Outstation'].map(t => (<button key={t} onClick={() => setTripType(t as any)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.3em] border-b-4 transition-all ${tripType === t ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{t}</button>))}</div>
+                          <div className="flex border-b border-gray-100">{['Local', 'Rental', 'Outstation'].map(t => (<button key={t} onClick={() => setTripType(t as TripType)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.3em] border-b-4 transition-all ${tripType === t ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{t}</button>))}</div>
                           
                           <div className="space-y-2">
                               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Pickup Origin</label>
                               {isMapReady ? (<Autocomplete placeholder="Search Google Maps for Pickup" onAddressSelect={(addr, coords) => { setCustomerDetails(prev => ({ ...prev, pickup: addr })); setPickupCoords(coords); }} setNewPlace={(place) => setPickupCoords(place)} defaultValue={customerDetails.pickup} />) : <div className="p-4 bg-gray-50 rounded-2xl border text-xs font-bold text-gray-400 animate-pulse">CONNECTING TO SAT...</div>}
+                              {mapError && (
+                                <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 animate-in fade-in slide-in-from-top-2">
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="text-xs font-bold">{mapError}</span>
+                                </div>
+                              )}
                           </div>
 
                           {tripType === 'Local' && (
@@ -1061,7 +1067,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                         return (
                         <tr key={i} className="hover:bg-gray-50/80 transition-all group animate-in slide-in-from-bottom-2 duration-300">
                             <td className="px-12 py-10"><div className="flex items-center gap-6"><div className="w-14 h-14 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl border border-indigo-100 shadow-inner">{order.name.charAt(0)}</div><div><p className="font-black text-gray-900 text-lg tracking-tighter leading-none mb-2">{order.name}</p><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2 font-mono"><Phone className="w-3 h-3" /> {order.phone}</p></div></div></td>
-                            <td className="px-12 py-10"><div className="max-w-xs space-y-2"><p className="text-sm text-gray-600 font-black line-clamp-1 truncate leading-tight uppercase tracking-tight" title={order.details}>{order.details}</p><div className="flex gap-2 flex-wrap">{order.enquiryCategory === 'Transport' && <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black border border-emerald-100 tracking-tighter uppercase">Dispatched</span>}{(order as any).priority === 'Hot' && <span className="bg-rose-50 text-rose-700 px-3 py-1 rounded-lg text-[9px] font-black border border-rose-100 tracking-tighter uppercase">High Priority</span>}</div></div></td>
+                            <td className="px-12 py-10"><div className="max-w-xs space-y-2"><p className="text-sm text-gray-600 font-black line-clamp-1 truncate leading-tight uppercase tracking-tight" title={order.details}>{order.details}</p><div className="flex gap-2 flex-wrap">{order.enquiryCategory === 'Transport' && <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black border border-emerald-100 tracking-tighter uppercase">Dispatched</span>}{order.priority === 'Hot' && <span className="bg-rose-50 text-rose-700 px-3 py-1 rounded-lg text-[9px] font-black border border-rose-100 tracking-tighter uppercase">High Priority</span>}</div></div></td>
                             <td className="px-12 py-10">{assigned ? (<div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 w-fit pr-4 shadow-sm"><img src={assigned.avatar} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" /><div className="text-[10px] font-black text-gray-700 uppercase tracking-widest">{assigned.name}</div></div>) : <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] italic border-b border-gray-100 pb-1">Operational Pending</span>}</td>
                             <td className="px-12 py-10 text-center"><span className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm ${order.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : order.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>{order.status}</span></td>
                             <td className="px-12 py-10 text-right"><div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditOrder(order)} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-indigo-600 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95"><Edit2 className="w-5 h-5"/></button><button onClick={() => { if(window.confirm('Delete Permanent?')) setEnquiries(enquiries.filter(e => e.id !== order.id)) }} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95"><Trash2 className="w-5 h-5"/></button></div></td>

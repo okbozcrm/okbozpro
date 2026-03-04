@@ -967,7 +967,7 @@ export const DriverPayments: React.FC = () => {
                                 <div className="flex gap-2">
                                     <select 
                                         value={filterDateType} 
-                                        onChange={(e) => setFilterDateType(e.target.value as any)} 
+                                        onChange={(e) => setFilterDateType(e.target.value as 'All' | 'Month' | 'Date')} 
                                         className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                     >
                                         <option value="All">All</option>

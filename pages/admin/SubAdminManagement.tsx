@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Search, X, Shield, ShieldCheck, Mail, Phone, Lock, 
+  Search, X, Shield, ShieldCheck, Mail, Phone, 
   Trash2, Edit2, Building2, Eye, EyeOff, Save, CheckSquare, Square,
-  Check, AlertCircle, Info, ChevronDown, MapPin
+  Info, ChevronDown, MapPin
 } from 'lucide-react';
 import { CorporateAccount, SubAdmin, ModulePermission, Branch } from '../../types';
 
@@ -78,13 +78,13 @@ const SubAdminManagement: React.FC = () => {
         setCorporates(corpData);
 
         // Load Branches for all contexts to facilitate Super Admin
-        let allBranches: any[] = [];
+        let allBranches: Branch[] = [];
         const adminB = JSON.parse(localStorage.getItem('branches_data') || '[]');
-        allBranches = [...adminB.map((b: any) => ({ ...b, owner: 'admin' }))];
+        allBranches = [...adminB.map((b: Branch) => ({ ...b, owner: 'admin' }))];
         
-        corpData.forEach((c: any) => {
+        corpData.forEach((c: CorporateAccount) => {
             const cb = JSON.parse(localStorage.getItem(`branches_data_${c.email}`) || '[]');
-            allBranches = [...allBranches, ...cb.map((b: any) => ({ ...b, owner: c.email }))];
+            allBranches = [...allBranches, ...cb.map((b: Branch) => ({ ...b, owner: c.email }))];
         });
         setBranches(allBranches);
     };
@@ -201,7 +201,7 @@ const SubAdminManagement: React.FC = () => {
 
   const availableBranchesForContext = useMemo(() => {
       const targetContext = formData.context === 'Head Office' ? 'admin' : formData.context;
-      return branches.filter((b: any) => b.owner === targetContext);
+      return branches.filter((b: Branch) => b.owner === targetContext);
   }, [branches, formData.context]);
 
   const availableContexts = useMemo(() => {
@@ -278,7 +278,7 @@ const SubAdminManagement: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-400 mt-2 bg-gray-50 p-2 rounded-lg">
                   <Info className="w-3 h-3 shrink-0" />
-                  <span className="truncate">Perms: {Object.values(admin.permissions || {}).filter(p => (p as any).view).length} Modules Active</span>
+                  <span className="truncate">Perms: {Object.values(admin.permissions || {}).filter(p => p.view).length} Modules Active</span>
                 </div>
               </div>
             </div>
@@ -386,7 +386,7 @@ const SubAdminManagement: React.FC = () => {
                                 value={typeof formData.branchAccess === 'string' ? formData.branchAccess : 'Specific'} 
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    setFormData({ ...formData, branchAccess: (val === 'Specific' ? [] : val) as any });
+                                    setFormData({ ...formData, branchAccess: (val === 'Specific' ? [] : val) as 'All' | 'None' | string[] });
                                 }}
                                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-gray-800"
                             >

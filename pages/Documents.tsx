@@ -78,11 +78,11 @@ const Documents: React.FC<DocumentsProps> = ({ role }) => {
             name: uploadFile.name,
             type: uploadFile.type,
             size: (uploadFile.size / 1024 / 1024).toFixed(2) + ' MB',
-            category: uploadCategory as any,
+            category: uploadCategory as DocumentFile['category'],
             uploadedBy: role === UserRole.ADMIN ? 'Super Admin' : role === UserRole.CORPORATE ? 'Corporate Admin' : 'Employee',
             uploadDate: new Date().toISOString().split('T')[0],
             url: fileUrl,
-            visibility: uploadVisibility as any,
+            visibility: uploadVisibility as DocumentFile['visibility'],
             ownerId: sessionId
         };
 

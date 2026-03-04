@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Send, Users, Filter, Clock, CheckCircle, AlertCircle, RefreshCcw, ChevronRight, Target, Megaphone, Sparkles, Search, User, CheckSquare, Square, Building2, UserPlus, AtSign } from 'lucide-react';
+import { Mail, Send, Users, Clock, CheckCircle, AlertCircle, Megaphone, Sparkles, Search, User, CheckSquare, Building2, UserPlus, AtSign } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
 
 interface Campaign {
@@ -71,28 +71,37 @@ const EmailMarketing: React.FC = () => {
         if (leadsStr) {
             try {
                 const leads = JSON.parse(leadsStr);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 loadedContacts = [...loadedContacts, ...leads.map((l: any) => ({
                     id: l.id, name: l.name, email: l.email || 'No Email', type: 'Lead', selected: false
                 }))];
-            } catch (e) {}
+            } catch {
+                // Ignore error
+            }
         }
 
         if (staffStr) {
             try {
                 const staff = JSON.parse(staffStr);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 loadedContacts = [...loadedContacts, ...staff.map((s: any) => ({
                     id: s.id, name: s.name, email: s.email || 'No Email', type: 'Staff', selected: false
                 }))];
-            } catch (e) {}
+            } catch {
+                // Ignore error
+            }
         }
 
         if (corpsStr) {
             try {
                 const corps = JSON.parse(corpsStr);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 loadedContacts = [...loadedContacts, ...corps.map((c: any) => ({
                     id: c.id, name: c.companyName, email: c.email, type: 'Franchise', selected: false
                 }))];
-            } catch (e) {}
+            } catch {
+                // Ignore error
+            }
         }
 
         // Filter out those without valid emails

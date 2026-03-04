@@ -1,16 +1,13 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
-  DollarSign, Save, Download, Filter, Search, Calculator, 
-  RefreshCw, CheckCircle, Clock, X, Eye, CreditCard, 
-  Banknote, History, Trash2, Printer, User, ArrowLeft, 
-  Calendar, Building2, MapPin, Users, TrendingUp, TrendingDown, Wallet,
-  ArrowRight, ShieldCheck, Landmark, Loader2, FileText, Bike, BarChart3,
-  Send, AlertCircle, IndianRupee, Check, MessageSquare, Mail, ChevronLeft, ChevronRight,
-  Info
+  RefreshCw, X, 
+  BarChart3,
+  ChevronLeft, ChevronRight,
+  Info, Download, Loader2
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
+import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry, CorporateAccount } from '../../types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { sendSystemNotification } from '../../services/cloudService';
@@ -39,6 +36,16 @@ interface ExtendedEmployee extends Employee {
     corporateName?: string;
 }
 
+interface AttendanceCounts {
+    present: number;
+    half: number;
+    leave: number;
+    off: number;
+    holiday: number;
+    alternate: number;
+    absent: number;
+}
+
 export const Payroll: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Salary' | 'Advances' | 'KM Claims (TA)' | 'History'>('Salary');
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,11 +58,11 @@ export const Payroll: React.FC = () => {
   const [history, setHistory] = useState<PayrollHistoryRecord[]>([]);
   const [advances, setAdvances] = useState<SalaryAdvanceRequest[]>([]);
   const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
-  const [corporatesList, setCorporatesList] = useState<any[]>([]);
+  const [corporatesList, setCorporatesList] = useState<CorporateAccount[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
 
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
-  const [activeSlip, setActiveSlip] = useState<{ emp: ExtendedEmployee, data: PayrollEntry, counts?: any } | null>(null);
+  const [activeSlip, setActiveSlip] = useState<{ emp: ExtendedEmployee, data: PayrollEntry, counts?: AttendanceCounts } | null>(null);
   const slipRef = useRef<HTMLDivElement>(null);
   const [isExportingSlip, setIsExportingSlip] = useState(false);
 
@@ -80,9 +87,9 @@ export const Payroll: React.FC = () => {
       if (isSuperAdmin) {
           const rootHistory = localStorage.getItem('payroll_history');
           if (rootHistory) allHistory = JSON.parse(rootHistory);
-          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
           setCorporatesList(corps);
-          corps.forEach((c: any) => {
+          corps.forEach((c: CorporateAccount) => {
               const cHistory = localStorage.getItem(`payroll_history_${c.email}`);
               if (cHistory) allHistory = [...allHistory, ...JSON.parse(cHistory)];
           });
@@ -101,15 +108,15 @@ export const Payroll: React.FC = () => {
       let allEmp: ExtendedEmployee[] = [];
       if (isSuperAdmin) {
           const adminData = localStorage.getItem('staff_data');
-          if (adminData) allEmp = JSON.parse(adminData).map((e: any) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}));
-          const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-          corps.forEach((corp: any) => {
+          if (adminData) allEmp = JSON.parse(adminData).map((e: Employee) => ({...e, corporateId: 'admin', corporateName: 'Head Office'}));
+          const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          corps.forEach((corp: CorporateAccount) => {
               const cData = localStorage.getItem(`staff_data_${corp.email}`);
-              if (cData) allEmp = [...allEmp, ...JSON.parse(cData).map((e:any) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
+              if (cData) allEmp = [...allEmp, ...JSON.parse(cData).map((e: Employee) => ({...e, corporateId: corp.email, corporateName: corp.companyName}))];
           });
       } else {
           const saved = localStorage.getItem(`staff_data_${sessionId}`);
-          if (saved) allEmp = JSON.parse(saved).map((e: any) => ({...e, corporateId: sessionId, corporateName: 'My Franchise'}));
+          if (saved) allEmp = JSON.parse(saved).map((e: Employee) => ({...e, corporateId: sessionId, corporateName: 'My Franchise'}));
       }
       setEmployees(allEmp);
   }, [isSuperAdmin, sessionId]);
@@ -224,7 +231,7 @@ export const Payroll: React.FC = () => {
             <button onClick={() => navigate('/admin/reports')} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all shadow-sm"><BarChart3 className="w-4 h-4" /> View Analytics</button>
             <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">
                 {['Salary', 'Advances', 'KM Claims (TA)', 'History'].map(t => (
-                    <button key={t} onClick={() => setActiveTab(t as any)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
+                    <button key={t} onClick={() => setActiveTab(t as 'Salary' | 'Advances' | 'KM Claims (TA)' | 'History')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
                 ))}
             </div>
         </div>
