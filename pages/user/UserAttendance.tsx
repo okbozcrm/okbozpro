@@ -223,11 +223,31 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const filteredStaffList = useMemo(() => {
     return employees.filter(emp => {
         const matchesSearch = filterSearch ? emp.name.toLowerCase().includes(filterSearch.toLowerCase()) : true;
+        
+        // Corporate Filter (for Super Admin)
         const matchesCorp = filterCorporate === 'All' || (emp as any).corporateId === filterCorporate;
+        
+        // Branch Filter
+        // If filterBranch is 'All', we show all employees for the selected corporate (or logged-in franchise).
+        // If filterBranch is specific, we strictly match the employee's branch.
         const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
+
         return matchesSearch && matchesCorp && matchesBranch;
     });
   }, [employees, filterCorporate, filterBranch, filterSearch, refreshToggle]);
+
+  // Effect to update selectedEmployee when filtered list changes
+  useEffect(() => {
+      if (filteredStaffList.length > 0) {
+          // If currently selected employee is NOT in the filtered list, select the first one from the list
+          if (!selectedEmployee || !filteredStaffList.find(e => e.id === selectedEmployee.id)) {
+              setSelectedEmployee(filteredStaffList[0]);
+          }
+      } else {
+          // If list is empty, clear selection
+          setSelectedEmployee(null);
+      }
+  }, [filteredStaffList, selectedEmployee]);
 
   const staffDailyLogs = useMemo(() => {
     if (!isAdmin) return [];
@@ -255,13 +275,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
         
         attendanceData.forEach(day => {
+            const dayOfWeek = new Date(day.date).getDay();
+            const isSunday = dayOfWeek === 0;
+            const isCustomWeekOff = selectedEmployee?.weekOff === new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' });
+            const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
+
             const isPresent = day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY;
             if (isPresent) { 
                 present++; 
                 if (day.isLate) late++; 
                 if (isFieldStaff) onField++;
             }
-            else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && day.date <= todayDateStr)) {
+            else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && day.date <= todayDateStr && !isImplicitWeekOff)) {
                 absent++;
             }
             else if (day.status === AttendanceStatus.HALF_DAY) {
@@ -270,7 +295,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             }
             else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
             else if (day.status === AttendanceStatus.HOLIDAY) holidays++;
-            else if (day.status === AttendanceStatus.WEEK_OFF) weekOff++;
+            else if (day.status === AttendanceStatus.WEEK_OFF || isImplicitWeekOff) weekOff++;
         });
         return { 
             total: attendanceData.length, 
@@ -711,7 +736,11 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 ))}
                 {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-white min-h-[180px] opacity-10"></div>)}
                 {attendanceData.map((day, idx) => {
-                    const isWeekend = new Date(day.date).getDay() === 0;
+                    const dayOfWeek = new Date(day.date).getDay();
+                    const isSunday = dayOfWeek === 0;
+                    const isCustomWeekOff = selectedEmployee?.weekOff === new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' });
+                    const isWeekend = isSunday || isCustomWeekOff;
+                    
                     const isToday = day.date === todayDateStr;
                     const totalMins = calculateTotalWorkTime(day.punches);
                     const durationStr = formatDuration(totalMins);

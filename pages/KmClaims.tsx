@@ -4,7 +4,7 @@ import {
   Bike, Plus, Search, CheckCircle, 
   Clock, Check, X, 
   TrendingUp, AlertCircle, Gauge,
-  DollarSign, Send
+  DollarSign, Send, Trash2, FileText, Calculator
 } from 'lucide-react';
 import { UserRole, TravelAllowanceRequest, Employee, CorporateAccount } from '../types';
 import { sendSystemNotification } from '../services/cloudService';
@@ -69,31 +69,54 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
 
   // --- Load Data ---
   const loadData = () => {
-    const key = 'global_travel_requests';
-    const saved = localStorage.getItem(key);
-    let allRequests: TravelAllowanceRequest[] = saved ? JSON.parse(saved) : [];
+    try {
+      const key = 'global_travel_requests';
+      const saved = localStorage.getItem(key);
+      let allRequests: TravelAllowanceRequest[] = [];
+      try {
+        allRequests = saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error("Error parsing travel requests:", e);
+        allRequests = [];
+      }
 
-    // Data Scoping
-    if (isEmployee) {
-      allRequests = allRequests.filter(r => r.employeeId === sessionId);
-    } else if (role === UserRole.CORPORATE) {
-      allRequests = allRequests.filter(r => r.corporateId === sessionId);
+      // Data Scoping
+      if (isEmployee) {
+        allRequests = allRequests.filter(r => r.employeeId === sessionId);
+      } else if (role === UserRole.CORPORATE) {
+        allRequests = allRequests.filter(r => r.corporateId === sessionId);
+      }
+
+      setRequests(allRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      
+      try {
+        setCorporates(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
+      } catch (e) {
+        console.error("Error parsing corporate accounts:", e);
+        setCorporates([]);
+      }
+      
+      // Load staff for names in Admin view
+      let allStaff: Employee[] = [];
+      try {
+        const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
+        allStaff = [...adminStaff];
+        const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+        corps.forEach((c: CorporateAccount) => {
+          try {
+            const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
+            allStaff = [...allStaff, ...cStaff];
+          } catch (e) {
+            console.warn(`Error parsing staff for ${c.email}`, e);
+          }
+        });
+      } catch (e) {
+        console.error("Error loading staff data:", e);
+      }
+      setStaff(allStaff);
+    } catch (error) {
+      console.error("Critical error in loadData:", error);
     }
-
-    setRequests(allRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    
-    setCorporates(JSON.parse(localStorage.getItem('corporate_accounts') || '[]'));
-    
-    // Load staff for names in Admin view
-    let allStaff: Employee[] = [];
-    const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-    allStaff = [...adminStaff];
-    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-    corps.forEach((c: CorporateAccount) => {
-      const cStaff = JSON.parse(localStorage.getItem(`staff_data_${c.email}`) || '[]');
-      allStaff = [...allStaff, ...cStaff];
-    });
-    setStaff(allStaff);
   };
 
   useEffect(() => {
