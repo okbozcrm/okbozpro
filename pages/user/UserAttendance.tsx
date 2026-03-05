@@ -124,7 +124,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             });
             allBranches = allBranches.map(b => b.owner ? b : {...b, owner: 'admin'});
         } else {
-            const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId;
+            const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
+            const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId);
             const branchKey = ownerId === 'admin' ? 'branches_data' : `branches_data_${ownerId}`;
             allBranches = JSON.parse(localStorage.getItem(branchKey) || '[]');
             allBranches = allBranches.map(b => ({...b, owner: ownerId}));
@@ -139,7 +140,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 if(cData) allStaff = [...allStaff, ...JSON.parse(cData).map((e: any) => ({...e, corporateId: c.email}))];
             });
         } else {
-            const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId;
+            const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
+            const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId);
             const key = ownerId === 'admin' ? 'staff_data' : `staff_data_${ownerId}`;
             allStaff = JSON.parse(localStorage.getItem(key) || '[]').map((e: any) => ({...e, corporateId: ownerId}));
         }
@@ -153,7 +155,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const leaves = JSON.parse(localStorage.getItem('global_leave_requests') || '[]');
         if (isSuperAdmin) setLeaveRequests(leaves);
         else {
-            const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId;
+            const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
+            const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || currentSessionId);
             setLeaveRequests(leaves.filter((l: any) => l.corporateId === ownerId));
         }
     };
@@ -430,7 +433,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     pushToHistory(updated);
     window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
 
-    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+    const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
+    const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || 'admin');
     await sendSystemNotification({
         type: 'system',
         title: `Batch Attendance: ${status.replace('_', ' ')}`,
@@ -482,7 +486,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     pushToHistory(updated);
     window.dispatchEvent(new CustomEvent('cloud-sync-immediate'));
     
-    const ownerId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+    const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
+    const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || 'admin');
     await sendSystemNotification({
         type: 'system',
         title: `Employee Punched ${action}`,
