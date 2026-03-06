@@ -68,8 +68,8 @@ const UserSalary: React.FC = () => {
                   setCurrentMonthPayrollEntry(currentPayrollState[found.id] || null);
               }
 
-              const rateKey = 'company_km_rate'; // Updated to use the correct key
-              const savedRate = localStorage.getItem(rateKey) || '5'; // Default to 5 if not set
+              const rateKey = corporateOwnerId === 'admin' ? 'company_ta_rate' : `company_ta_rate_${corporateOwnerId}`;
+              const savedRate = localStorage.getItem(rateKey) || '10';
 
               setPayoutSettings({ 
                   dates: JSON.parse(localStorage.getItem('company_payout_dates') || '{}'), 
@@ -426,6 +426,35 @@ const UserSalary: React.FC = () => {
             </div>
         </div>
       </div>
+      {isAdvanceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-black text-gray-800 text-lg tracking-tight">Request Salary Advance</h3>
+              <button onClick={() => setIsAdvanceModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={handleSubmitAdvance} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Amount (INR)</label>
+                <div className="relative">
+                    <DollarSign className="w-5 h-5 text-gray-400 absolute left-4 top-3.5" />
+                    <input type="number" required min="1" max={salaryData.monthlyCtc / 2} value={advanceForm.amount} onChange={e => setAdvanceForm({...advanceForm, amount: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none" placeholder="0.00" />
+                </div>
+                <p className="text-[10px] text-gray-400 font-medium ml-1">Max eligible: ₹{(salaryData.monthlyCtc / 2).toLocaleString()}</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Reason for Advance</label>
+                <textarea required value={advanceForm.reason} onChange={e => setAdvanceForm({...advanceForm, reason: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none resize-none h-32" placeholder="Briefly describe why you need this advance..." />
+              </div>
+              <div className="pt-4">
+                <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Submit Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

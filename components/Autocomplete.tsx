@@ -72,7 +72,8 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     setErrorMsg(null);
 
     if (onAddressSelect) {
-      onAddressSelect(address);
+      // Ensure address is a string to prevent circular reference errors
+      onAddressSelect(String(address));
     }
 
     if (setNewPlace) {

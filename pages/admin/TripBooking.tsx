@@ -332,21 +332,36 @@ export const TripBooking: React.FC = () => {
     }
 
     const tripData: Trip = {
-      ...formData,
       id: editingId || `T-${Date.now()}`,
-      tripPrice: Number(formData.tripPrice),
-      totalKm: Number(formData.totalKm),
-      paymentType: formData.paymentType,
-      taxPercentage: financials.isCancelled ? 0 : Number(formData.taxPercentage),
+      tripId: String(formData.tripId || ''),
+      date: String(formData.date || ''),
+      branch: String(formData.branch || ''),
+      bookingType: String(formData.bookingType || ''),
+      orderType: String(formData.orderType || ''),
+      transportType: String(formData.transportType || ''),
+      tripCategory: String(formData.tripCategory || ''),
+      bookingStatus: String(formData.bookingStatus || ''),
+      cancelBy: String(formData.cancelBy || '-'),
+      userName: String(formData.userName || ''),
+      userMobile: String(formData.userMobile || ''),
+      pickupLocation: String(formData.pickupLocation || ''),
+      dropLocation: String(formData.dropLocation || ''),
+      totalKm: Number(formData.totalKm) || 0,
+      paymentType: String(formData.paymentType || 'Cash/UPI'),
+      driverName: String(formData.driverName || ''),
+      driverMobile: String(formData.driverMobile || ''),
+      tripPrice: Number(formData.tripPrice) || 0,
+      taxPercentage: financials.isCancelled ? 0 : (Number(formData.taxPercentage) || 0),
       tax: financials.taxAmt,
-      waitingCharge: financials.isCancelled ? 0 : Number(formData.waitingCharge),
-      discount: financials.isCancelled ? 0 : Number(formData.discount),
-      cancellationCharge: Number(formData.cancellationCharge),
-      adminCommissionPercentage: financials.isCancelled ? 0 : Number(formData.adminCommissionPercentage),
+      waitingCharge: financials.isCancelled ? 0 : (Number(formData.waitingCharge) || 0),
+      discount: financials.isCancelled ? 0 : (Number(formData.discount) || 0),
+      cancellationCharge: Number(formData.cancellationCharge) || 0,
+      adminCommissionPercentage: financials.isCancelled ? 0 : (Number(formData.adminCommissionPercentage) || 0),
       adminCommission: financials.commAmt,
       totalPrice: financials.total,
-      ownerId: formData.ownerId, 
-      ownerName: ownerName
+      remarks: String(formData.remarks || ''),
+      ownerId: String(formData.ownerId || ''), 
+      ownerName: String(ownerName || '')
     };
 
     const targetId = formData.ownerId;

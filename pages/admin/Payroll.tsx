@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   RefreshCw, X, 
   BarChart3,
   ChevronLeft, ChevronRight,
-  Info, Download, Loader2
+  Info, Download, Loader2,
+  Check, DollarSign, Trash2
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry, CorporateAccount } from '../../types';
@@ -13,14 +14,7 @@ import { jsPDF } from 'jspdf';
 import { sendSystemNotification } from '../../services/cloudService';
 import { useNavigate } from 'react-router-dom';
 
-const formatCurrency = (amount: number) => {
-  return amount.toLocaleString('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+
 
 interface PayrollHistoryRecord {
   id: string;
@@ -48,17 +42,13 @@ interface AttendanceCounts {
 
 export const Payroll: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Salary' | 'Advances' | 'KM Claims (TA)' | 'History'>('Salary');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [filterDepartment, setFilterDepartment] = useState('All');
-  const [filterCorporate, setFilterCorporate] = useState('All');
-  const [filterBranch, setFilterBranch] = useState('All');
   const [payrollData, setPayrollData] = useState<Record<string, PayrollEntry>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [history, setHistory] = useState<PayrollHistoryRecord[]>([]);
   const [advances, setAdvances] = useState<SalaryAdvanceRequest[]>([]);
   const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
-  const [corporatesList, setCorporatesList] = useState<CorporateAccount[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
 
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
@@ -71,24 +61,12 @@ export const Payroll: React.FC = () => {
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
   const navigate = useNavigate();
 
-  const [isMarkPaidModalOpen, setIsMarkPaidModalOpen] = useState(false);
-  const [currentEmployeeForPayout, setCurrentEmployeeForPayout] = useState<{ emp: ExtendedEmployee, data: PayrollEntry } | null>(null);
-  const [payoutForm, setPayoutForm] = useState({
-      paidDate: new Date().toISOString().split('T')[0],
-      paymentMode: 'Bank Transfer',
-      remarks: '',
-      manualDeductions: '',
-      manualDeductionReason: '',
-  });
-  const [isProcessingMarkPaid, setIsProcessingMarkPaid] = useState(false);
-
   const loadData = useCallback(() => {
       let allHistory: PayrollHistoryRecord[] = [];
       if (isSuperAdmin) {
           const rootHistory = localStorage.getItem('payroll_history');
           if (rootHistory) allHistory = JSON.parse(rootHistory);
           const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
-          setCorporatesList(corps);
           corps.forEach((c: CorporateAccount) => {
               const cHistory = localStorage.getItem(`payroll_history_${c.email}`);
               if (cHistory) allHistory = [...allHistory, ...JSON.parse(cHistory)];
@@ -243,6 +221,34 @@ export const Payroll: React.FC = () => {
       return counts;
   };
 
+  const handleAdvanceStatus = (id: string, newStatus: SalaryAdvanceRequest['status']) => {
+      if (window.confirm(`Mark this advance request as ${newStatus}?`)) {
+          const updated = advances.map(a => a.id === id ? { ...a, status: newStatus } : a);
+          localStorage.setItem('salary_advances', JSON.stringify(updated));
+          setAdvances(updated);
+          
+          const req = advances.find(a => a.id === id);
+          if (req) {
+              sendSystemNotification({
+                  type: 'system',
+                  title: `Advance Request ${newStatus}`,
+                  message: `Your advance request for ₹${req.amountRequested} has been ${newStatus}.`,
+                  targetRoles: [UserRole.EMPLOYEE],
+                  employeeId: req.employeeId,
+                  link: '/user/salary'
+              });
+          }
+      }
+  };
+
+  const handleDeleteAdvance = (id: string) => {
+      if (window.confirm("Delete this advance request?")) {
+          const updated = advances.filter(a => a.id !== id);
+          localStorage.setItem('salary_advances', JSON.stringify(updated));
+          setAdvances(updated);
+      }
+  };
+
   const handleOpenSlip = (emp: ExtendedEmployee, data: PayrollEntry) => {
       const counts = getAttendanceBreakup(emp.id);
       setActiveSlip({ emp, data, counts });
@@ -352,6 +358,144 @@ export const Payroll: React.FC = () => {
             </div>
         </div>
       </div>
+      )}
+
+      {activeTab === 'Advances' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-100">
+                        <tr>
+                            <th className="px-6 py-4">Date</th>
+                            <th className="px-6 py-4">Employee</th>
+                            <th className="px-6 py-4">Amount</th>
+                            <th className="px-6 py-4">Reason</th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {advances.length === 0 ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 italic">No advance requests found.</td></tr>
+                        ) : (
+                            advances.map(adv => (
+                                <tr key={adv.id} className="hover:bg-gray-50/50 transition-all">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{new Date(adv.requestDate).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 font-bold text-gray-800">{adv.employeeName}</td>
+                                    <td className="px-6 py-4 font-black text-gray-900">₹{adv.amountRequested.toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-gray-500 italic max-w-xs truncate" title={adv.reason}>{adv.reason}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                            adv.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                            adv.status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                            adv.status === 'Paid' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                            'bg-orange-50 text-orange-700 border-orange-100'
+                                        }`}>{adv.status}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            {adv.status === 'Pending' && (
+                                                <>
+                                                    <button onClick={() => handleAdvanceStatus(adv.id, 'Approved')} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200 transition-colors" title="Approve"><Check className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleAdvanceStatus(adv.id, 'Rejected')} className="p-1.5 bg-rose-100 text-rose-600 rounded hover:bg-rose-200 transition-colors" title="Reject"><X className="w-4 h-4" /></button>
+                                                </>
+                                            )}
+                                            {adv.status === 'Approved' && (
+                                                <button onClick={() => handleAdvanceStatus(adv.id, 'Paid')} className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors" title="Mark Paid"><DollarSign className="w-4 h-4" /></button>
+                                            )}
+                                            <button onClick={() => handleDeleteAdvance(adv.id)} className="p-1.5 text-gray-400 hover:text-rose-600 transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      )}
+
+      {activeTab === 'KM Claims (TA)' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                <h3 className="font-bold text-gray-700">Recent Travel Claims</h3>
+                <button onClick={() => navigate('/admin/km-claims')} className="text-sm font-bold text-indigo-600 hover:underline flex items-center gap-1">Manage All Claims <ChevronRight className="w-4 h-4" /></button>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-100">
+                        <tr>
+                            <th className="px-6 py-4">Date</th>
+                            <th className="px-6 py-4">Employee</th>
+                            <th className="px-6 py-4">Distance</th>
+                            <th className="px-6 py-4">Amount</th>
+                            <th className="px-6 py-4">Remarks</th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {kmClaims.length === 0 ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 italic">No travel claims found.</td></tr>
+                        ) : (
+                            kmClaims.slice(0, 50).map(claim => (
+                                <tr key={claim.id} className="hover:bg-gray-50/50 transition-all">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{claim.date}</td>
+                                    <td className="px-6 py-4 font-bold text-gray-800">{claim.employeeName}</td>
+                                    <td className="px-6 py-4 text-gray-600">{claim.totalKm} km</td>
+                                    <td className="px-6 py-4 font-black text-gray-900">₹{claim.totalAmount.toFixed(2)}</td>
+                                    <td className="px-6 py-4 text-gray-500 italic max-w-xs truncate">{claim.remarks || '-'}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                            claim.status === 'Paid' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                            claim.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                            claim.status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                            'bg-orange-50 text-orange-700 border-orange-100'
+                                        }`}>{claim.status}</span>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      )}
+
+      {activeTab === 'History' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-100">
+                        <tr>
+                            <th className="px-6 py-4">Payroll Month</th>
+                            <th className="px-6 py-4">Processed Date</th>
+                            <th className="px-6 py-4 text-center">Staff Count</th>
+                            <th className="px-6 py-4 text-right">Total Payout</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {history.length === 0 ? (
+                            <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">No payroll history found.</td></tr>
+                        ) : (
+                            history.map(rec => (
+                                <tr key={rec.id} className="hover:bg-gray-50/50 transition-all">
+                                    <td className="px-6 py-4 font-black text-gray-900">{rec.name}</td>
+                                    <td className="px-6 py-4 text-gray-500 font-medium">{new Date(rec.date).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 text-center font-bold text-gray-700">{rec.employeeCount}</td>
+                                    <td className="px-6 py-4 text-right font-black text-emerald-600 text-lg">₹{rec.totalAmount.toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button className="text-indigo-600 font-bold text-xs hover:underline flex items-center justify-end gap-1 ml-auto">
+                                            <Download className="w-4 h-4" /> Download Report
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
       )}
 
       {isSlipModalOpen && activeSlip && (
