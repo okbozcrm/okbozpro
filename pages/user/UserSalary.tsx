@@ -152,6 +152,12 @@ const UserSalary: React.FC = () => {
     let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
     
     attendance.forEach(day => {
+        const dayDate = new Date(day.date);
+        const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+        const isSunday = dayDate.getDay() === 0;
+        const isCustomWeekOff = user.weekOff === dayOfWeek;
+        const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
+
         if (day.status === AttendanceStatus.PRESENT) {
             payableDays += 1;
             counts.present++;
@@ -161,7 +167,7 @@ const UserSalary: React.FC = () => {
         } else if (day.status === AttendanceStatus.PAID_LEAVE) {
             payableDays += 1;
             counts.leave++;
-        } else if (day.status === AttendanceStatus.WEEK_OFF) {
+        } else if (day.status === AttendanceStatus.WEEK_OFF || isImplicitWeekOff) {
             payableDays += 1;
             counts.off++;
         } else if (day.status === AttendanceStatus.HOLIDAY) {

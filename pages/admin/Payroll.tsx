@@ -146,7 +146,13 @@ export const Payroll: React.FC = () => {
         
         let payableDays = 0;
         attendance.forEach((day) => {
-            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status)) payableDays += 1;
+            const dayDate = new Date(day.date);
+            const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+            const isSunday = dayDate.getDay() === 0;
+            const isCustomWeekOff = emp.weekOff === dayOfWeek;
+            const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
+
+            if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status) || isImplicitWeekOff) payableDays += 1;
             else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
         });
 
@@ -191,8 +197,14 @@ export const Payroll: React.FC = () => {
       
       let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
       attendance.forEach(day => {
+          const dayDate = new Date(day.date);
+          const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+          const isSunday = dayDate.getDay() === 0;
+          const isCustomWeekOff = emp.weekOff === dayOfWeek;
+          const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
+
           if (day.status === AttendanceStatus.PRESENT) counts.present++;
-          else if (day.status === AttendanceStatus.WEEK_OFF) counts.off++;
+          else if (day.status === AttendanceStatus.WEEK_OFF || isImplicitWeekOff) counts.off++;
           else if (day.status === AttendanceStatus.HOLIDAY) counts.holiday++;
           else if (day.status === AttendanceStatus.PAID_LEAVE) counts.leave++;
           else if (day.status === AttendanceStatus.HALF_DAY) counts.half++;
