@@ -70,6 +70,7 @@ export interface Employee {
   department: string;
   avatar: string;
   joiningDate: string;
+  terminationDate?: string; // Added for payroll calculation
   email: string;
   phone: string;
   password: string;

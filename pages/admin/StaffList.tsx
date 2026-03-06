@@ -549,6 +549,20 @@ const StaffList: React.FC = () => {
                                         <option value="Terminated">Terminated</option>
                                     </select>
                                 </div>
+
+                                {formData.status === 'Terminated' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="text-[10px] font-black uppercase text-rose-500 tracking-widest ml-1 mb-2 block">Termination Date</label>
+                                        <input 
+                                            type="date" 
+                                            name="terminationDate" 
+                                            value={formData.terminationDate || ''} 
+                                            onChange={handleInputChange} 
+                                            className="w-full px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 font-bold text-rose-700" 
+                                        />
+                                        <p className="text-[10px] text-rose-400 mt-1 italic">* Payroll will stop calculating from this date forward.</p>
+                                    </div>
+                                )}
                             </div>
                         </section>
 

@@ -148,11 +148,20 @@ const UserSalary: React.FC = () => {
     const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
     const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const joiningDate = user.joiningDate ? new Date(user.joiningDate + 'T12:00:00') : new Date('2000-01-01');
+    const terminationDate = (user.status === 'Terminated' && user.terminationDate) ? new Date(user.terminationDate + 'T12:00:00') : null;
 
     let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
     
     attendance.forEach(day => {
         const dayDate = new Date(day.date + 'T12:00:00');
+        
+        // Skip days before joining
+        if (dayDate < joiningDate) return;
+
+        // Skip days after termination
+        if (terminationDate && dayDate > terminationDate) return;
+
         const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
         const isSunday = dayDate.getDay() === 0;
         const isCustomWeekOff = user.weekOff === dayOfWeek;
