@@ -21,8 +21,9 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
   // --- State ---
   const [requests, setRequests] = useState<TravelAllowanceRequest[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // const [isProcessing, setIsProcessing] = useState(false);
-  
+  const [editingClaim, setEditingClaim] = useState<TravelAllowanceRequest | null>(null);
+  const [editRate, setEditRate] = useState<string>('');
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -231,6 +232,33 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
     }
   };
 
+  const handleEditRate = (req: TravelAllowanceRequest) => {
+    setEditingClaim(req);
+    setEditRate(req.ratePerKm.toString());
+  };
+
+  const saveRateUpdate = () => {
+    if (!editingClaim) return;
+    const rate = parseFloat(editRate);
+    if (isNaN(rate) || rate < 0) {
+      alert("Please enter a valid rate.");
+      return;
+    }
+
+    const totalAmount = editingClaim.totalKm * rate;
+    const key = 'global_travel_requests';
+    const all = JSON.parse(localStorage.getItem(key) || '[]');
+    const updated = all.map((r: TravelAllowanceRequest) => 
+      r.id === editingClaim.id ? { ...r, ratePerKm: rate, totalAmount: totalAmount } : r
+    );
+
+    localStorage.setItem(key, JSON.stringify(updated));
+    loadData();
+    setEditingClaim(null);
+    setEditRate('');
+    alert("Rate updated successfully!");
+  };
+
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this request?")) {
         const key = 'global_travel_requests';
@@ -416,12 +444,20 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
                                                   <button onClick={() => handleStatusUpdate(req.id, 'Rejected')} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-red-100 border border-red-100 transition-all flex items-center gap-1">
                                                       <X className="w-3 h-3" /> Reject
                                                   </button>
+                                                  <button onClick={() => handleEditRate(req)} className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100 border border-amber-100 transition-all flex items-center gap-1">
+                                                      <Calculator className="w-3 h-3" /> Edit Rate
+                                                  </button>
                                               </>
                                           )}
                                           {req.status === 'Approved' && (
-                                              <button onClick={() => handleStatusUpdate(req.id, 'Paid')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1">
-                                                  <DollarSign className="w-3 h-3" /> Mark Paid
-                                              </button>
+                                              <>
+                                                  <button onClick={() => handleStatusUpdate(req.id, 'Paid')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1">
+                                                      <DollarSign className="w-3 h-3" /> Mark Paid
+                                                  </button>
+                                                  <button onClick={() => handleEditRate(req)} className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100 border border-amber-100 transition-all flex items-center gap-1">
+                                                      <Calculator className="w-3 h-3" /> Edit Rate
+                                                  </button>
+                                              </>
                                           )}
                                           <button onClick={() => handleDelete(req.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Delete Permanent"><Trash2 className="w-4 h-4" /></button>
                                       </div>
@@ -525,6 +561,46 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
                   </form>
               </div>
           </div>
+      )}
+
+      {/* Edit Rate Modal */}
+      {editingClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 className="text-lg font-black text-gray-900 tracking-tighter flex items-center gap-2">
+                      <Calculator className="w-5 h-5 text-amber-600" /> Update Rate
+                    </h3>
+                    <button onClick={() => setEditingClaim(null)} className="p-2 hover:bg-gray-200 rounded-xl transition-all text-gray-400 hover:text-gray-900"><X className="w-5 h-5"/></button>
+                </div>
+                <div className="p-6 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Rate per KM (₹)</label>
+                        <input 
+                            type="number" 
+                            value={editRate} 
+                            onChange={(e) => setEditRate(e.target.value)} 
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-lg font-bold text-gray-800 outline-none focus:ring-2 focus:ring-amber-500" 
+                            placeholder="0.00"
+                            step="0.1"
+                        />
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-500 font-medium">Total Distance</span>
+                            <span className="text-sm font-bold text-gray-800">{editingClaim.totalKm} km</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span className="text-xs text-gray-500 font-medium">New Payable Amount</span>
+                            <span className="text-lg font-black text-emerald-600">₹{((parseFloat(editRate) || 0) * editingClaim.totalKm).toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <button onClick={saveRateUpdate} className="w-full py-3 bg-amber-500 text-white rounded-xl font-black text-sm shadow-lg shadow-amber-900/20 hover:bg-amber-600 transition-all transform active:scale-95">
+                        Update Rate & Amount
+                    </button>
+                </div>
+            </div>
+        </div>
       )}
 
       {/* Info Panel */}

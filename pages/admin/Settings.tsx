@@ -39,6 +39,7 @@ const Settings: React.FC = () => {
   const [brandColor, setBrandColor] = useState(primaryColor);
   const [sheetUrl, setSheetUrl] = useState('');
   const [sopFolderUrl, setSopFolderUrl] = useState(''); // NEW: State for SOPs Folder URL
+  const [kmRate, setKmRate] = useState('5'); // Default KM Rate
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
@@ -59,6 +60,7 @@ const Settings: React.FC = () => {
       checkConnection();
       setSheetUrl(localStorage.getItem('google_sheet_script_url') || '');
       setSopFolderUrl(localStorage.getItem('google_sop_folder_url') || ''); // NEW: Load SOPs URL
+      setKmRate(localStorage.getItem('company_km_rate') || '5');
     } catch (e) {
       console.error("Connection check failed on mount", e);
     }
@@ -193,7 +195,8 @@ const Settings: React.FC = () => {
   const handleSaveIntegrations = () => {
     localStorage.setItem('google_sheet_script_url', sheetUrl);
     localStorage.setItem('google_sop_folder_url', sopFolderUrl); // NEW: Save SOPs URL
-    alert("Integration settings saved!");
+    localStorage.setItem('company_km_rate', kmRate);
+    alert("Integration & Policy settings saved!");
   };
 
   const handleBackup = async () => {
@@ -384,6 +387,23 @@ const Settings: React.FC = () => {
                />
                <p className="text-xs text-gray-400 mt-2 ml-1">Provide the shared Google Drive folder URL containing your SOP documents.</p>
             </div>
+
+            {/* NEW: KM Rate Setting */}
+            <div>
+               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Travel Allowance Rate (per KM)</label>
+               <div className="relative">
+                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
+                   <input 
+                      type="number" 
+                      value={kmRate}
+                      onChange={(e) => setKmRate(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
+                      placeholder="5"
+                   />
+               </div>
+               <p className="text-xs text-gray-400 mt-2 ml-1">This rate is used to calculate reimbursement for approved travel claims.</p>
+            </div>
+
             <div className="pt-2">
                 <button 
                    onClick={handleSaveIntegrations}

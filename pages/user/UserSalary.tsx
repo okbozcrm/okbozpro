@@ -68,8 +68,8 @@ const UserSalary: React.FC = () => {
                   setCurrentMonthPayrollEntry(currentPayrollState[found.id] || null);
               }
 
-              const rateKey = corporateOwnerId === 'admin' ? 'company_ta_rate' : `company_ta_rate_${corporateOwnerId}`;
-              const savedRate = localStorage.getItem(rateKey) || '10';
+              const rateKey = 'company_km_rate'; // Updated to use the correct key
+              const savedRate = localStorage.getItem(rateKey) || '5'; // Default to 5 if not set
 
               setPayoutSettings({ 
                   dates: JSON.parse(localStorage.getItem('company_payout_dates') || '{}'), 
