@@ -5,7 +5,8 @@ import {
   BarChart3,
   ChevronLeft, ChevronRight,
   Info, Download, Loader2,
-  Check, DollarSign, Trash2
+  Check, DollarSign, Trash2,
+  Users, Clock, CheckCircle2
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry, CorporateAccount } from '../../types';
@@ -13,6 +14,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { sendSystemNotification } from '../../services/cloudService';
 import { useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 
 
 
@@ -59,6 +61,8 @@ export const Payroll: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
   const [employees, setEmployees] = useState<ExtendedEmployee[]>([]);
+  const [corporates, setCorporates] = useState<CorporateAccount[]>([]);
+  const [selectedCorporate, setSelectedCorporate] = useState<string>('All');
   const navigate = useNavigate();
 
   const loadData = useCallback(() => {
@@ -67,6 +71,7 @@ export const Payroll: React.FC = () => {
           const rootHistory = localStorage.getItem('payroll_history');
           if (rootHistory) allHistory = JSON.parse(rootHistory);
           const corps: CorporateAccount[] = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+          setCorporates(corps);
           corps.forEach((c: CorporateAccount) => {
               const cHistory = localStorage.getItem(`payroll_history_${c.email}`);
               if (cHistory) allHistory = [...allHistory, ...JSON.parse(cHistory)];
@@ -270,6 +275,42 @@ export const Payroll: React.FC = () => {
     finally { setIsExportingSlip(false); }
   };
 
+  const filteredEmployees = useMemo(() => {
+      return employees.filter(emp => {
+          const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesCorp = selectedCorporate === 'All' || emp.corporateId === selectedCorporate;
+          return matchesSearch && matchesCorp;
+      });
+  }, [employees, searchTerm, selectedCorporate]);
+
+  const stats = useMemo(() => {
+      let totalCost = 0;
+      let pendingCount = 0;
+      let paidCount = 0;
+      let totalDays = 0;
+      let payableDays = 0;
+      
+      filteredEmployees.forEach(emp => {
+          const data = payrollData[emp.id];
+          if (data) {
+              totalCost += calculateNetPay(data);
+              if (data.status === 'Pending') pendingCount++;
+              if (data.status === 'Paid') paidCount++;
+              totalDays += data.totalDays || 0;
+              payableDays += data.payableDays || 0;
+          }
+      });
+
+      return {
+          totalCost,
+          employeeCount: filteredEmployees.length,
+          avgSalary: filteredEmployees.length ? Math.round(totalCost / filteredEmployees.length) : 0,
+          pendingCount,
+          paidCount,
+          avgAttendance: totalDays ? Math.round((payableDays / totalDays) * 100) : 0
+      };
+  }, [filteredEmployees, payrollData]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -286,6 +327,37 @@ export const Payroll: React.FC = () => {
 
       {activeTab === 'Salary' && (
       <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-emerald-100 rounded-full text-emerald-600"><DollarSign className="w-6 h-6" /></div>
+                <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Payroll Cost</p>
+                    <h3 className="text-2xl font-black text-gray-900">₹{stats.totalCost.toLocaleString()}</h3>
+                </div>
+            </div>
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-blue-100 rounded-full text-blue-600"><Users className="w-6 h-6" /></div>
+                <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Employees</p>
+                    <h3 className="text-2xl font-black text-gray-900">{stats.employeeCount}</h3>
+                </div>
+            </div>
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-amber-100 rounded-full text-amber-600"><Clock className="w-6 h-6" /></div>
+                <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pending Clearance</p>
+                    <h3 className="text-2xl font-black text-gray-900">{stats.pendingCount}</h3>
+                </div>
+            </div>
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-indigo-100 rounded-full text-indigo-600"><CheckCircle2 className="w-6 h-6" /></div>
+                <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Avg. Attendance</p>
+                    <h3 className="text-2xl font-black text-gray-900">{stats.avgAttendance}%</h3>
+                </div>
+            </div>
+        </div>
+
         <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex items-start gap-3">
             <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
             <div className="text-xs text-indigo-800">
@@ -305,6 +377,19 @@ export const Payroll: React.FC = () => {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
                 <div className="flex flex-wrap gap-2 items-center">
+                    {isSuperAdmin && (
+                        <select 
+                            value={selectedCorporate} 
+                            onChange={(e) => setSelectedCorporate(e.target.value)} 
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        >
+                            <option value="All">All Corporates</option>
+                            <option value="admin">Head Office</option>
+                            {corporates.map(c => (
+                                <option key={c.id} value={c.email}>{c.companyName}</option>
+                            ))}
+                        </select>
+                    )}
                     <button onClick={() => {
                         const date = new Date(selectedMonth + '-01');
                         date.setMonth(date.getMonth() - 1);
@@ -334,7 +419,7 @@ export const Payroll: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                        {employees.filter(emp => emp.name.toLowerCase().includes(searchTerm.toLowerCase())).map(emp => {
+                        {filteredEmployees.map(emp => {
                             const data = payrollData[emp.id];
                             if (!data) return null;
                             const net = calculateNetPay(data);
