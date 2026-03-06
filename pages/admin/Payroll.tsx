@@ -147,6 +147,8 @@ export const Payroll: React.FC = () => {
         let payableDays = 0;
         const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : new Date('2000-01-01');
         const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
 
         attendance.forEach((day) => {
             const dayDate = new Date(day.date + 'T12:00:00');
@@ -156,6 +158,9 @@ export const Payroll: React.FC = () => {
 
             // Skip days after termination
             if (terminationDate && dayDate > terminationDate) return;
+
+            // Skip future dates (upcoming week offs/holidays should not be counted yet)
+            if (dayDate > today) return;
 
             const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
             const isSunday = dayDate.getDay() === 0;
@@ -205,9 +210,23 @@ export const Payroll: React.FC = () => {
       if (!emp) return null;
       const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
       
-      let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
+      const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : new Date('2000-01-01');
+      const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+
       attendance.forEach(day => {
           const dayDate = new Date(day.date + 'T12:00:00');
+          
+          // Skip days before joining
+          if (dayDate < joiningDate) return;
+
+          // Skip days after termination
+          if (terminationDate && dayDate > terminationDate) return;
+
+          // Skip future dates (upcoming week offs/holidays should not be counted yet)
+          if (dayDate > today) return;
+
           const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
           const isSunday = dayDate.getDay() === 0;
           const isCustomWeekOff = emp.weekOff === dayOfWeek;

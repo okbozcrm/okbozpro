@@ -150,6 +150,8 @@ const UserSalary: React.FC = () => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const joiningDate = user.joiningDate ? new Date(user.joiningDate + 'T12:00:00') : new Date('2000-01-01');
     const terminationDate = (user.status === 'Terminated' && user.terminationDate) ? new Date(user.terminationDate + 'T12:00:00') : null;
+    const currentDate = new Date();
+    currentDate.setHours(12, 0, 0, 0);
 
     let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
     
@@ -161,6 +163,9 @@ const UserSalary: React.FC = () => {
 
         // Skip days after termination
         if (terminationDate && dayDate > terminationDate) return;
+
+        // Skip future dates (upcoming week offs/holidays should not be counted yet)
+        if (dayDate > currentDate) return;
 
         const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
         const isSunday = dayDate.getDay() === 0;

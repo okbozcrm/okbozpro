@@ -277,8 +277,23 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         let present = 0, absent = 0, late = 0, halfDay = 0, leave = 0, holidays = 0, weekOff = 0, onField = 0;
         const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
         
+        const joiningDate = selectedEmployee?.joiningDate ? new Date(selectedEmployee.joiningDate + 'T12:00:00') : new Date('2000-01-01');
+        const terminationDate = (selectedEmployee?.status === 'Terminated' && selectedEmployee?.terminationDate) ? new Date(selectedEmployee.terminationDate + 'T12:00:00') : null;
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+
         attendanceData.forEach(day => {
             const dayDate = new Date(day.date + 'T12:00:00');
+            
+            // Skip days before joining
+            if (dayDate < joiningDate) return;
+
+            // Skip days after termination
+            if (terminationDate && dayDate > terminationDate) return;
+
+            // Skip future dates
+            if (dayDate > today) return;
+
             const dayOfWeek = dayDate.getDay();
             const isSunday = dayOfWeek === 0;
             const isCustomWeekOff = selectedEmployee?.weekOff === dayDate.toLocaleDateString('en-US', { weekday: 'long' });
