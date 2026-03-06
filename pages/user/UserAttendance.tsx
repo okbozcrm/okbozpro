@@ -254,7 +254,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   const staffDailyLogs = useMemo(() => {
     if (!isAdmin) return [];
-    const date = new Date(selectedDate);
+    const date = new Date(selectedDate + 'T12:00:00');
     const year = date.getFullYear();
     const month = date.getMonth();
     return filteredStaffList.map(emp => {
@@ -278,9 +278,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
         
         attendanceData.forEach(day => {
-            const dayOfWeek = new Date(day.date).getDay();
+            const dayDate = new Date(day.date + 'T12:00:00');
+            const dayOfWeek = dayDate.getDay();
             const isSunday = dayOfWeek === 0;
-            const isCustomWeekOff = selectedEmployee?.weekOff === new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' });
+            const isCustomWeekOff = selectedEmployee?.weekOff === dayDate.toLocaleDateString('en-US', { weekday: 'long' });
             const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
 
             const isPresent = day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY;

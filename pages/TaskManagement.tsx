@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, CheckCircle, 
   Trash2, Search, MoreHorizontal, X, 
-  Pencil, Building2, BarChart3, List, Bell
+  Pencil, Building2, BarChart3, List, Bell, User
 } from 'lucide-react';
 import { UserRole, Employee, CorporateAccount } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';

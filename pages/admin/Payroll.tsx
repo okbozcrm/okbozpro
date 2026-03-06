@@ -146,7 +146,7 @@ export const Payroll: React.FC = () => {
         
         let payableDays = 0;
         attendance.forEach((day) => {
-            const dayDate = new Date(day.date);
+            const dayDate = new Date(day.date + 'T12:00:00');
             const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
             const isSunday = dayDate.getDay() === 0;
             const isCustomWeekOff = emp.weekOff === dayOfWeek;
@@ -197,7 +197,7 @@ export const Payroll: React.FC = () => {
       
       let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
       attendance.forEach(day => {
-          const dayDate = new Date(day.date);
+          const dayDate = new Date(day.date + 'T12:00:00');
           const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
           const isSunday = dayDate.getDay() === 0;
           const isCustomWeekOff = emp.weekOff === dayOfWeek;
