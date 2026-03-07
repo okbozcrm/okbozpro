@@ -10,6 +10,7 @@ import {
 import { UserRole, CorporateAccount, CallSignal } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';
 import { sendSystemNotification } from '../../services/cloudService';
+import { useNotification } from '../../context/NotificationContext';
 
 interface Message {
   id: string;
@@ -54,6 +55,8 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const myName = sessionStorage.getItem('loggedInUserName') || (role === UserRole.ADMIN ? 'Admin' : 'Staff');
   const isSuperAdmin = role === UserRole.ADMIN;
+  
+  const { notifications, markNotificationAsRead } = useNotification();
   
   // --- State ---
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -143,6 +146,16 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const myOwnerId = me?.owner || (me as any)?.corporateId || 'admin';
         
+        // System Notifications Virtual Contact
+        loadedContacts.push({ 
+            id: 'system-notifications', 
+            name: 'System Notifications', 
+            role: 'Automated', 
+            type: 'Admin', 
+            corporateId: 'system', 
+            online: true 
+        });
+
         loadedContacts.push({ id: 'admin', name: 'Head Office', role: 'Super Admin', type: 'Admin', corporateId: 'admin', phone: '9123456780', online: true });
         if (myOwnerId !== 'admin') {
             const myCorp = corps.find(c => c.email === myOwnerId);
@@ -151,7 +164,8 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
             }
         }
         allStaff.filter(s => s.owner === myOwnerId && s.id !== sessionId).forEach(s => {
-            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: myOwnerId, phone: s.phone, online: isOnline() });
+            // Hide online status for other employees to avoid displaying "login details"
+            loadedContacts.push({ id: s.id, name: s.name, role: s.role, type: 'Employee', corporateId: myOwnerId, phone: s.phone, online: false });
         });
     }
 
@@ -237,23 +251,29 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   useEffect(() => {
     if (activeChatId) {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-        const unreadFromOthers = messages.some(m => 
-            (m.senderId === activeChatId && m.receiverId === sessionId && !m.read) ||
-            (activeChatId.startsWith('GRP-') && m.senderId !== sessionId && !m.read)
-        );
-
-        if (unreadFromOthers) {
-            const currentTotal = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
-            const updatedAll = currentTotal.map((m: Message) => 
-                ((m.senderId === activeChatId && m.receiverId === sessionId) || (activeChatId.startsWith('GRP-') && m.senderId !== sessionId)) 
-                ? { ...m, read: true, delivered: true } : m
+        
+        if (activeChatId === 'system-notifications') {
+            const unreadNotifs = notifications.filter(n => !n.read && (n.type === 'task_assigned' || n.type === 'leave_approval'));
+            unreadNotifs.forEach(n => markNotificationAsRead(n.id));
+        } else {
+            const unreadFromOthers = messages.some(m => 
+                (m.senderId === activeChatId && m.receiverId === sessionId && !m.read) ||
+                (activeChatId.startsWith('GRP-') && m.senderId !== sessionId && !m.read)
             );
-            localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
-            setMessages(updatedAll);
-            window.dispatchEvent(new Event('storage'));
+
+            if (unreadFromOthers) {
+                const currentTotal = JSON.parse(localStorage.getItem('internal_messages_data') || '[]');
+                const updatedAll = currentTotal.map((m: Message) => 
+                    ((m.senderId === activeChatId && m.receiverId === sessionId) || (activeChatId.startsWith('GRP-') && m.senderId !== sessionId)) 
+                    ? { ...m, read: true, delivered: true } : m
+                );
+                localStorage.setItem('internal_messages_data', JSON.stringify(updatedAll));
+                setMessages(updatedAll);
+                window.dispatchEvent(new Event('storage'));
+            }
         }
     }
-  }, [messages, activeChatId, sessionId]);
+  }, [messages, activeChatId, sessionId, notifications, markNotificationAsRead]);
 
   // --- 5. Action Logic ---
   const saveMessage = (newMsg: Message) => {
@@ -530,12 +550,29 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
   const activeMessages = useMemo(() => {
       if (!activeChatId) return [];
       
+      if (activeChatId === 'system-notifications') {
+          // Transform system notifications into message objects for the virtual contact
+          return notifications
+              .filter(n => n.type === 'task_assigned' || n.type === 'leave_approval')
+              .map(n => ({
+                  id: n.id,
+                  senderId: 'system',
+                  senderName: 'System',
+                  receiverId: sessionId,
+                  content: `${n.title}: ${n.message}`,
+                  timestamp: n.timestamp,
+                  delivered: true,
+                  read: n.read,
+                  type: 'text' as const
+              }));
+      }
+
       return messages.filter(m => 
           (m.receiverId === activeChatId) || 
           (m.senderId === sessionId && m.receiverId === activeChatId) || 
           (m.senderId === activeChatId && m.receiverId === sessionId)
       ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  }, [activeChatId, messages, sessionId]);
+  }, [activeChatId, messages, sessionId, notifications]);
 
   const activeContactProfile = displayList.find(c => c.id === activeChatId);
 
@@ -762,61 +799,63 @@ const Messenger: React.FC<MessengerProps> = ({ role }) => {
                     </div>
 
                     {/* Input Area */}
-                    <div className="p-3 bg-white border-t border-gray-200 animate-in slide-in-from-bottom-2 duration-300">
-                        {isRecording ? (
-                            <div className="flex items-center justify-between bg-red-50 rounded-2xl px-4 py-3 border border-red-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                                    <span className="text-red-600 font-medium font-mono text-sm">Recording {formatTime(recordingDuration)}</span>
+                    {activeChatId !== 'system-notifications' && (
+                        <div className="p-3 bg-white border-t border-gray-200 animate-in slide-in-from-bottom-2 duration-300">
+                            {isRecording ? (
+                                <div className="flex items-center justify-between bg-red-50 rounded-2xl px-4 py-3 border border-red-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                                        <span className="text-red-600 font-medium font-mono text-sm">Recording {formatTime(recordingDuration)}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => stopRecording(false)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full" title="Cancel">
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                        <button onClick={() => stopRecording(true)} className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md" title="Send Voice">
+                                            <Send className="w-4 h-4 ml-0.5" />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => stopRecording(false)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full" title="Cancel">
-                                        <X className="w-5 h-5" />
+                            ) : (
+                                <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                                    
+                                    <button type="button" onClick={handleFileSelect} className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
+                                        <Paperclip className="w-5 h-5" />
                                     </button>
-                                    <button onClick={() => stopRecording(true)} className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md" title="Send Voice">
-                                        <Send className="w-4 h-4 ml-0.5" />
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                                <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-                                
-                                <button type="button" onClick={handleFileSelect} className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
-                                    <Paperclip className="w-5 h-5" />
-                                </button>
-                                
-                                <div className="flex-1 bg-gray-100 rounded-2xl flex items-center px-4 py-2">
-                                    <input 
-                                        className="w-full bg-transparent border-none outline-none text-sm max-h-32 resize-none"
-                                        placeholder="Type a message..."
-                                        value={inputText}
-                                        onChange={(e) => setInputText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
-                                                e.preventDefault();
-                                                handleSendMessage(e);
-                                            }
-                                        }}
-                                    />
-                                    {!inputText && (
-                                        <button type="button" onClick={startRecording} className="text-gray-500 hover:text-red-500 transition-colors">
-                                            <Mic className="w-5 h-5" />
+                                    
+                                    <div className="flex-1 bg-gray-100 rounded-2xl flex items-center px-4 py-2">
+                                        <input 
+                                            className="w-full bg-transparent border-none outline-none text-sm max-h-32 resize-none"
+                                            placeholder="Type a message..."
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
+                                                    e.preventDefault();
+                                                    handleSendMessage(e);
+                                                }
+                                            }}
+                                        />
+                                        {!inputText && (
+                                            <button type="button" onClick={startRecording} className="text-gray-500 hover:text-red-500 transition-colors">
+                                                <Mic className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    {inputText && (
+                                        <button 
+                                            type="submit" 
+                                            className="p-3 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 shadow-md transition-transform active:scale-95"
+                                        >
+                                            <Send className="w-5 h-5 ml-0.5" />
                                         </button>
                                     )}
-                                </div>
-                                
-                                {inputText && (
-                                    <button 
-                                        type="submit" 
-                                        className="p-3 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 shadow-md transition-transform active:scale-95"
-                                    >
-                                        <Send className="w-5 h-5 ml-0.5" />
-                                    </button>
-                                )}
-                            </form>
-                        )}
-                    </div>
+                                </form>
+                            )}
+                        </div>
+                    )}
                 </>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 text-center p-8 animate-in zoom-in duration-300">

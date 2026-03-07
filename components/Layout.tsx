@@ -513,13 +513,29 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                     <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-750 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
                         <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center"><h3 className="font-bold text-gray-800 dark:text-white">Notifications ({unreadCount})</h3><button onClick={markAllNotificationsAsRead} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Mark All as Read</button></div>
                         <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-gray-100 dark:divide-gray-700">
-                            {notifications.length === 0 ? <p className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No new notifications.</p> : notifications.map(notif => (
-                                <div key={notif.id} onClick={() => handleNotificationClick(notif.id, notif.link)} className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${notif.read ? 'opacity-70' : 'font-medium bg-blue-50 dark:bg-blue-950'}`}>
-                                    <p className="text-sm text-gray-800 dark:text-white flex items-center gap-2">{notif.type === 'new_enquiry' && <Headset className="w-4 h-4 text-emerald-600" />}{notif.type === 'task_assigned' && <ClipboardList className="w-4 h-4 text-indigo-600" />}{notif.type === 'login' && <UserCircle className="w-4 h-4 text-blue-600" />}{notif.title}</p>
-                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">{notif.message}</p>
-                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{new Date(notif.timestamp).toLocaleString()}</p>
-                                </div>
-                            ))}
+                            {(() => {
+                                const filteredNotifications = role === UserRole.EMPLOYEE 
+                                    ? notifications.filter(n => n.type === 'task_assigned' || n.type === 'leave_approval')
+                                    : notifications;
+
+                                if (filteredNotifications.length === 0) {
+                                    return <p className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No new notifications.</p>;
+                                }
+
+                                return filteredNotifications.map(notif => (
+                                    <div key={notif.id} onClick={() => handleNotificationClick(notif.id, notif.link)} className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${notif.read ? 'opacity-70' : 'font-medium bg-blue-50 dark:bg-blue-950'}`}>
+                                        <p className="text-sm text-gray-800 dark:text-white flex items-center gap-2">
+                                            {notif.type === 'new_enquiry' && <Headset className="w-4 h-4 text-emerald-600" />}
+                                            {notif.type === 'task_assigned' && <ClipboardList className="w-4 h-4 text-indigo-600" />}
+                                            {notif.type === 'login' && <UserCircle className="w-4 h-4 text-blue-600" />}
+                                            {notif.type === 'leave_approval' && <Plane className="w-4 h-4 text-emerald-600" />}
+                                            {notif.title}
+                                        </p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">{notif.message}</p>
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{new Date(notif.timestamp).toLocaleString()}</p>
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     </div>
                 )}

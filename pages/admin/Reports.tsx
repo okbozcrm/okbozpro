@@ -460,66 +460,89 @@ const Reports: React.FC = () => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             
             {/* Overview Card */}
-            <div className="bg-slate-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
+            <div className="bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden border border-white/10">
+                <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+                <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
+                
+                <div className="absolute top-0 right-0 p-4 opacity-5">
                     <LayoutGrid className="w-64 h-64 text-white" />
                 </div>
                 
-                <div className="flex justify-between items-center mb-8 relative z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
-                            <Briefcase className="w-6 h-6" />
+                <div className="flex justify-between items-center mb-10 relative z-10">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl text-emerald-400 border border-white/10 shadow-inner">
+                            <Briefcase className="w-7 h-7" />
                         </div>
-                        <h3 className="text-xl font-bold">Corporate Profit & Expense Overview</h3>
+                        <div>
+                            <h3 className="text-2xl font-bold tracking-tight">Corporate Profit & Expense Overview</h3>
+                            <p className="text-indigo-300/60 text-xs font-medium uppercase tracking-widest mt-0.5">Financial Performance Dashboard</p>
+                        </div>
                     </div>
-                    <div className="px-4 py-1.5 bg-slate-800 rounded-full text-xs font-mono text-slate-400 border border-slate-700">
+                    <div className="px-5 py-2 bg-white/5 backdrop-blur-md rounded-full text-xs font-mono text-indigo-200 border border-white/10 shadow-sm">
                         {dateFilterType === 'Monthly' ? selectedMonth : `${customStartDate} to ${customEndDate}`}
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10">
                     {/* Admin Earnings */}
-                    <div className="space-y-2">
-                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                    <div className="space-y-3 p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] flex items-center gap-2">
                             <TrendingUp className="w-3 h-3" /> Admin Earnings
                         </p>
-                        <h2 className="text-5xl font-bold tracking-tight">₹{totalRevenue.toLocaleString()}</h2>
-                        <p className="text-slate-400 text-sm">Total Trip Commissions</p>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-light text-emerald-500/80">₹</span>
+                            <h2 className="text-5xl font-bold tracking-tighter">{totalRevenue.toLocaleString()}</h2>
+                        </div>
+                        <p className="text-indigo-300/40 text-xs font-medium">Total Trip Commissions</p>
                     </div>
 
                     {/* Total Expense */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
                         <div>
-                            <p className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
+                            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-[0.2em] flex items-center gap-2">
                                 <TrendingDown className="w-3 h-3" /> Total Expense
                             </p>
-                            <h2 className="text-5xl font-bold tracking-tight">₹{totalExpenses.toLocaleString()}</h2>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-light text-rose-500/80">₹</span>
+                                <h2 className="text-5xl font-bold tracking-tighter">{totalExpenses.toLocaleString()}</h2>
+                            </div>
                         </div>
-                        <div className="space-y-2 pt-4 border-t border-slate-800">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-400">Office Expenses:</span>
-                                <span className="font-medium">₹{totalOfficeExpenses.toLocaleString()}</span>
+                        <div className="space-y-2.5 pt-4 border-t border-white/10">
+                            <div className="flex justify-between text-xs">
+                                <span className="text-indigo-300/60">Office Expenses</span>
+                                <span className="font-semibold text-indigo-100">₹{totalOfficeExpenses.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-400">Driver Payments:</span>
-                                <span className="font-medium">₹{totalDriverPayments.toLocaleString()}</span>
+                            <div className="flex justify-between text-xs">
+                                <span className="text-indigo-300/60">Driver Payments</span>
+                                <span className="font-semibold text-indigo-100">₹{totalDriverPayments.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-400">Payroll Payouts:</span>
-                                <span className="font-medium">₹{totalPayroll.toLocaleString()}</span>
+                            <div className="flex justify-between text-xs">
+                                <span className="text-indigo-300/60">Payroll Payouts</span>
+                                <span className="font-semibold text-indigo-100">₹{totalPayroll.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Net Profit Card */}
-                    <div className={`rounded-xl p-6 border ${netProfit >= 0 ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-rose-900/20 border-rose-500/30'} flex flex-col justify-center`}>
-                        <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div className={`rounded-[1.5rem] p-8 border backdrop-blur-md shadow-2xl flex flex-col justify-center relative overflow-hidden ${
+                        netProfit >= 0 
+                        ? 'bg-emerald-500/10 border-emerald-500/20' 
+                        : 'bg-rose-500/10 border-rose-500/20'
+                    }`}>
+                        <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl ${netProfit >= 0 ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`} />
+                        
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             Net Profit
                         </p>
-                        <h2 className={`text-4xl font-bold mb-2 ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {netProfit >= 0 ? '+' : ''}₹{netProfit.toLocaleString()}
-                        </h2>
-                        <p className="text-slate-400 text-xs">Admin Earnings - Total Expenses</p>
+                        <div className="flex items-baseline gap-1 mb-2">
+                            <span className={`text-2xl font-light ${netProfit >= 0 ? 'text-emerald-500/80' : 'text-rose-500/80'}`}>
+                                {netProfit >= 0 ? '+' : ''}₹
+                            </span>
+                            <h2 className={`text-5xl font-black tracking-tighter ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {Math.abs(netProfit).toLocaleString()}
+                            </h2>
+                        </div>
+                        <p className="text-indigo-300/40 text-[10px] font-medium uppercase tracking-wider">Earnings - Expenses</p>
                     </div>
                 </div>
             </div>

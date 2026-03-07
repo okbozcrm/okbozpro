@@ -14,7 +14,7 @@ import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 // Types
 type TripType = 'Local' | 'Rental' | 'Outstation';
 type OutstationSubType = 'RoundTrip' | 'OneWay';
-type VehicleType = 'Sedan' | 'SUV' | '3 Wheeler Auto' | 'Tata Ace' | 'Pickup';
+type VehicleType = 'Sedan' | 'SUV' | '3 Wheeler Auto' | 'Tata Ace' | 'Pickup' | 'BADA DOST';
 type EnquiryCategory = 'Transport' | 'General';
 type OrderStatus = 'Scheduled' | 'Order Accepted' | 'Driver Assigned' | 'Completed' | 'Cancelled' | 'New' | 'In Progress' | 'Converted' | 'Closed' | 'Booked';
 
@@ -28,6 +28,7 @@ interface RentalPackage {
   priceAuto: number;
   priceAce: number;
   pricePickup: number;
+  priceBadaDost: number;
 }
 
 interface PricingRules {
@@ -55,10 +56,10 @@ interface FareItem {
 }
 
 const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
-  { id: '1hr', name: '1 Hr / 10 km', hours: 1, km: 10, priceSedan: 200, priceSuv: 300, priceAuto: 150, priceAce: 400, pricePickup: 500 },
-  { id: '2hr', name: '2 Hr / 20 km', hours: 2, km: 20, priceSedan: 400, priceSuv: 600, priceAuto: 300, priceAce: 750, pricePickup: 900 },
-  { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, priceSedan: 800, priceSuv: 1100, priceAuto: 550, priceAce: 1400, pricePickup: 1700 },
-  { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, priceSedan: 1600, priceSuv: 2200, priceAuto: 1000, priceAce: 2600, pricePickup: 3200 },
+  { id: '1hr', name: '1 Hr / 10 km', hours: 1, km: 10, priceSedan: 200, priceSuv: 300, priceAuto: 150, priceAce: 400, pricePickup: 500, priceBadaDost: 550 },
+  { id: '2hr', name: '2 Hr / 20 km', hours: 2, km: 20, priceSedan: 400, priceSuv: 600, priceAuto: 300, priceAce: 750, pricePickup: 900, priceBadaDost: 1000 },
+  { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, priceSedan: 800, priceSuv: 1100, priceAuto: 550, priceAce: 1400, pricePickup: 1700, priceBadaDost: 1900 },
+  { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, priceSedan: 1600, priceSuv: 2200, priceAuto: 1000, priceAce: 2600, pricePickup: 3200, priceBadaDost: 3600 },
 ];
 
 const DEFAULT_PRICING_SEDAN: PricingRules = {
@@ -99,6 +100,14 @@ const DEFAULT_PRICING_PICKUP: PricingRules = {
   outstationMinKmPerDay: 300, outstationBaseRate: 800, outstationBaseKm: 50, outstationExtraKmRate: 22, outstationOneWayExtraKmRate: 22,
   outstationDriverAllowance: 600, outstationNightAllowance: 500,
   outstationHillsAllowance: 800
+};
+
+const DEFAULT_PRICING_BADA_DOST: PricingRules = {
+  localBaseFare: 700, localBaseKm: 5, localPerKmRate: 45, localWaitingRate: 6,
+  rentalExtraKmRate: 32, rentalExtraHrRate: 300,
+  outstationMinKmPerDay: 300, outstationBaseRate: 1000, outstationBaseKm: 50, outstationExtraKmRate: 25, outstationOneWayExtraKmRate: 25,
+  outstationDriverAllowance: 700, outstationNightAllowance: 600,
+  outstationHillsAllowance: 900
 };
 
 const getInitialEnquiries = (): Enquiry[] => {
@@ -145,22 +154,50 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const [rentalPackages, setRentalPackages] = useState<RentalPackage[]>(() => {
     const saved = localStorage.getItem('transport_rental_packages_v3');
-    return saved ? JSON.parse(saved) : DEFAULT_RENTAL_PACKAGES;
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            // Ensure each package has all price fields to avoid undefined errors
+            return (parsed as RentalPackage[]).map((pkg) => ({
+                ...pkg,
+                priceAuto: pkg.priceAuto ?? 0,
+                priceAce: pkg.priceAce ?? 0,
+                pricePickup: pkg.pricePickup ?? 0,
+                priceBadaDost: pkg.priceBadaDost ?? 0
+            }));
+        } catch (e) {
+            console.error("Error parsing rental packages:", e);
+            return DEFAULT_RENTAL_PACKAGES;
+        }
+    }
+    return DEFAULT_RENTAL_PACKAGES;
   });
 
   const [pricing, setPricing] = useState<Record<VehicleType, PricingRules>>(() => {
     const saved = localStorage.getItem('transport_pricing_rules_v3');
-    return saved ? JSON.parse(saved) : { 
+    const defaults = { 
         Sedan: DEFAULT_PRICING_SEDAN, 
         SUV: DEFAULT_PRICING_SUV,
         '3 Wheeler Auto': DEFAULT_PRICING_AUTO,
         'Tata Ace': DEFAULT_PRICING_ACE,
-        'Pickup': DEFAULT_PRICING_PICKUP
+        'Pickup': DEFAULT_PRICING_PICKUP,
+        'BADA DOST': DEFAULT_PRICING_BADA_DOST
     };
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            // Merge defaults with parsed to ensure all vehicle types exist
+            return { ...defaults, ...parsed };
+        } catch (e) {
+            console.error("Error parsing pricing rules:", e);
+            return defaults;
+        }
+    }
+    return defaults;
   });
 
   const [showAddPackage, setShowAddPackage] = useState(false);
-  const [newPackage, setNewPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '' });
+  const [newPackage, setNewPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '' });
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
   const [generatedMessage, setGeneratedMessage] = useState('');
@@ -282,6 +319,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         priceAuto: parseFloat(newPackage.priceAuto) || 0,
         priceAce: parseFloat(newPackage.priceAce) || 0,
         pricePickup: parseFloat(newPackage.pricePickup) || 0,
+        priceBadaDost: parseFloat(newPackage.priceBadaDost) || 0,
     };
 
     if (editingPackageId) {
@@ -304,14 +342,15 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         priceSuv: pkg.priceSuv.toString(), 
         priceAuto: pkg.priceAuto.toString(),
         priceAce: pkg.priceAce.toString(),
-        pricePickup: pkg.pricePickup.toString()
+        pricePickup: pkg.pricePickup.toString(),
+        priceBadaDost: pkg.priceBadaDost.toString()
     });
     setShowAddPackage(true);
   };
 
   const handleCancelEditPackage = () => {
     setEditingPackageId(null);
-    setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '' });
+    setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '' });
     setShowAddPackage(false);
   };
 
@@ -368,6 +407,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               else if (vehicleType === '3 Wheeler Auto') total = pkg.priceAuto;
               else if (vehicleType === 'Tata Ace') total = pkg.priceAce;
               else if (vehicleType === 'Pickup') total = pkg.pricePickup;
+              else if (vehicleType === 'BADA DOST') total = pkg.priceBadaDost;
 
               breakup.push({ label: 'Package Rate', value: total, description: pkg.name, type: 'base' });
 
@@ -615,7 +655,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                             <Truck className={`w-8 h-8 ${settingsVehicleType === 'Pickup' ? 'text-blue-600' : 'text-gray-300'}`} />
                             <span className={`text-xs font-black uppercase tracking-widest ${settingsVehicleType === 'Pickup' ? 'text-blue-700' : 'text-gray-400'}`}>Pickup</span>
                         </button>
-                        <div className="flex-1"></div> {/* Spacer */}
+                        <button 
+                            onClick={() => setSettingsVehicleType('BADA DOST')} 
+                            className={`flex-1 py-6 px-4 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 ${settingsVehicleType === 'BADA DOST' ? 'border-blue-500 bg-blue-50 shadow-xl shadow-blue-500/10' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
+                        >
+                            <Truck className={`w-8 h-8 ${settingsVehicleType === 'BADA DOST' ? 'text-blue-600' : 'text-gray-300'}`} />
+                            <span className={`text-xs font-black uppercase tracking-widest ${settingsVehicleType === 'BADA DOST' ? 'text-blue-700' : 'text-gray-400'}`}>BADA DOST</span>
+                        </button>
                     </div>
                  </div>
               </div>
@@ -735,7 +781,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                         ₹{settingsVehicleType === 'Sedan' ? pkg.priceSedan : 
                                           settingsVehicleType === 'SUV' ? pkg.priceSuv :
                                           settingsVehicleType === '3 Wheeler Auto' ? pkg.priceAuto :
-                                          settingsVehicleType === 'Tata Ace' ? pkg.priceAce : pkg.pricePickup}
+                                          settingsVehicleType === 'Tata Ace' ? pkg.priceAce : 
+                                          settingsVehicleType === 'Pickup' ? pkg.pricePickup : pkg.priceBadaDost}
                                     </span>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => handleEditPackage(pkg)} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -787,6 +834,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">Auto</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.priceAuto} onChange={e => setNewPackage({...newPackage, priceAuto: e.target.value})} /></div>
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">Tata Ace</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.priceAce} onChange={e => setNewPackage({...newPackage, priceAce: e.target.value})} /></div>
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">Pickup</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.pricePickup} onChange={e => setNewPackage({...newPackage, pricePickup: e.target.value})} /></div>
+                            <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">BADA DOST</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.priceBadaDost} onChange={e => setNewPackage({...newPackage, priceBadaDost: e.target.value})} /></div>
                         </div>
                       </div>
 
@@ -879,6 +927,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                           <Truck className="w-6 h-6" />
                                           <span className="text-[10px] font-black uppercase">Pickup</span>
                                       </button>
+                                      <button 
+                                          onClick={() => setVehicleType('BADA DOST')} 
+                                          className={`flex-1 py-4 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 ${vehicleType === 'BADA DOST' ? 'border-blue-500 bg-blue-50 shadow-lg text-blue-700' : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-gray-200'}`}
+                                      >
+                                          <Truck className="w-6 h-6" />
+                                          <span className="text-[10px] font-black uppercase">BADA DOST</span>
+                                      </button>
                                   </div>
                               </div>
                           </div>
@@ -927,6 +982,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                       else if (vehicleType === '3 Wheeler Auto') price = pkg.priceAuto;
                                       else if (vehicleType === 'Tata Ace') price = pkg.priceAce;
                                       else if (vehicleType === 'Pickup') price = pkg.pricePickup;
+                                      else if (vehicleType === 'BADA DOST') price = pkg.priceBadaDost;
 
                                       return (
                                           <button key={pkg.id} onClick={() => setTransportDetails({...transportDetails, packageId: pkg.id})} className={`p-6 border-2 rounded-[2.5rem] text-left transition-all relative overflow-hidden group ${transportDetails.packageId === pkg.id ? 'border-emerald-500 bg-emerald-50 shadow-xl shadow-emerald-500/10' : 'border-gray-50 bg-gray-50/50 hover:bg-white hover:border-gray-200'}`}>

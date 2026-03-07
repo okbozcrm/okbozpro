@@ -204,7 +204,7 @@ export interface Enquiry {
   date?: string; 
   enquiryCategory?: 'Transport' | 'General';
   tripType?: 'Local' | 'Rental' | 'Outstation';
-  vehicleType?: 'Sedan' | 'SUV';
+  vehicleType?: 'Sedan' | 'SUV' | '3 Wheeler Auto' | 'Tata Ace' | 'Pickup' | 'BADA DOST';
   outstationSubType?: 'RoundTrip' | 'OneWay'; 
   transportData?: {
     drop?: string;
