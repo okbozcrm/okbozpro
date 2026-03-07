@@ -380,9 +380,7 @@ export const TripBooking: React.FC = () => {
         updatedStorage = [tripData, ...currentStorage];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const cleanForStorage = updatedStorage.map(({ownerId, ownerName, ...rest}) => rest);
-    localStorage.setItem(storageKey, JSON.stringify(cleanForStorage));
+    localStorage.setItem(storageKey, JSON.stringify(updatedStorage));
 
     saveToGoogleSheet(tripData);
 

@@ -4,6 +4,13 @@ import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, Send, FileText, Pie
 import { LeaveRequest, UserRole } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
 
+interface LeaveType {
+    id: number;
+    name: string;
+    code: string;
+    days: number;
+}
+
 const ApplyLeave: React.FC = () => {
   const [formData, setFormData] = useState({
     type: 'Casual Leave (CL)',
@@ -33,11 +40,72 @@ const ApplyLeave: React.FC = () => {
     return () => window.removeEventListener('storage', loadLeaveHistory);
   }, [sessionId]);
 
-  const balances = [
-    { type: 'Casual Leave', code: 'CL', available: 8, total: 12, color: 'text-blue-600', bg: 'bg-blue-50', bar: 'bg-blue-500' },
-    { type: 'Sick Leave', code: 'SL', available: 8, total: 10, color: 'text-red-600', bg: 'bg-red-50', bar: 'bg-red-500' },
-    { type: 'Privilege Leave', code: 'PL', available: 9, total: 15, color: 'text-emerald-600', bg: 'bg-emerald-50', bar: 'bg-emerald-500' },
-  ];
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [balances, setBalances] = useState<{ type: string, code: string, available: number, total: number, color: string, bg: string, bar: string }[]>([]);
+
+  useEffect(() => {
+    const loadLeaveSettings = () => {
+        const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+        const LEAVE_KEY = corporateId === 'admin' ? 'company_leave_types' : `company_leave_types_${corporateId}`;
+        
+        let configuredLeaves: LeaveType[] = [];
+        const defaults: LeaveType[] = [
+            { id: 1, name: 'Casual Leave', code: 'CL', days: 12 },
+            { id: 2, name: 'Sick Leave', code: 'SL', days: 10 },
+        ];
+
+        try {
+            const saved = localStorage.getItem(LEAVE_KEY);
+            configuredLeaves = saved ? JSON.parse(saved) : defaults;
+            if (!Array.isArray(configuredLeaves)) configuredLeaves = defaults;
+        } catch {
+            configuredLeaves = defaults;
+        }
+        setLeaveTypes(configuredLeaves);
+
+        // Calculate Balances
+        const colors = [
+            { color: 'text-blue-600', bg: 'bg-blue-50', bar: 'bg-blue-500' },
+            { color: 'text-red-600', bg: 'bg-red-50', bar: 'bg-red-500' },
+            { color: 'text-emerald-600', bg: 'bg-emerald-50', bar: 'bg-emerald-500' },
+            { color: 'text-purple-600', bg: 'bg-purple-50', bar: 'bg-purple-500' },
+            { color: 'text-orange-600', bg: 'bg-orange-50', bar: 'bg-orange-500' },
+        ];
+
+        const calculatedBalances = configuredLeaves.map((leave: LeaveType, index: number) => {
+            const used = history
+                .filter(h => h.type.includes(leave.code) && h.status === 'Approved')
+                .reduce((sum, h) => sum + (h.days || 0), 0);
+            
+            const style = colors[index % colors.length];
+            
+            return {
+                type: leave.name,
+                code: leave.code,
+                available: Math.max(0, leave.days - used),
+                total: leave.days,
+                ...style
+            };
+        });
+        setBalances(calculatedBalances);
+        
+        // Ensure valid default selection using functional update to access latest state
+        setFormData(prev => {
+            const currentTypeValid = configuredLeaves.some((l: LeaveType) => `${l.name} (${l.code})` === prev.type) 
+                || prev.type === 'Permission' 
+                || prev.type === 'Loss of Pay (LWP)';
+
+            if (!currentTypeValid && configuredLeaves.length > 0) {
+                return { ...prev, type: `${configuredLeaves[0].name} (${configuredLeaves[0].code})` };
+            }
+            return prev;
+        });
+    };
+
+    loadLeaveSettings();
+    window.addEventListener('storage', loadLeaveSettings);
+    return () => window.removeEventListener('storage', loadLeaveSettings);
+  }, [history]); // Re-run when history changes to update used counts
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -149,8 +217,15 @@ const ApplyLeave: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div>
-        <h2 className="text-2xl font-bold text-gray-800">Leave Management</h2>
-        <p className="text-gray-500">Check your balances and apply for new leaves</p>
+        <div className="flex justify-between items-center">
+            <div>
+                <h2 className="text-2xl font-bold text-gray-800">Leave Management</h2>
+                <p className="text-gray-500">Check your balances and apply for new leaves</p>
+            </div>
+            <button onClick={() => window.dispatchEvent(new Event('storage'))} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors" title="Refresh Data">
+                <Clock className="w-5 h-5 text-gray-600" />
+            </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -198,11 +273,11 @@ const ApplyLeave: React.FC = () => {
                   onChange={handleInputChange}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                 >
-                  <option>Casual Leave (CL)</option>
-                  <option>Sick Leave (SL)</option>
-                  <option>Privilege Leave (PL)</option>
-                  <option>Loss of Pay (LWP)</option>
-                  <option>Permission</option>
+                  {leaveTypes.map(leave => (
+                      <option key={leave.id} value={`${leave.name} (${leave.code})`}>{leave.name} ({leave.code})</option>
+                  ))}
+                  <option value="Loss of Pay (LWP)">Loss of Pay (LWP)</option>
+                  <option value="Permission">Permission</option>
                 </select>
               </div>
 

@@ -105,6 +105,7 @@ export interface Employee {
     workMode?: 'Remote' | 'Office';
   };
   moduleAccess: string[]; 
+  corporateId?: string;
 }
 
 export interface LeaveRequest {
@@ -348,6 +349,7 @@ export interface Trip {
   remarks?: string;
   ownerId?: string;
   ownerName?: string;
+  corporateId?: string;
 }
 
 declare global {

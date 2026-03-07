@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight,
   Info, Download, Loader2,
   Check, DollarSign, Trash2,
-  Users, Clock, CheckCircle2
+  Users, Clock, CheckCircle2, Save
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry, CorporateAccount } from '../../types';
@@ -448,6 +448,33 @@ export const Payroll: React.FC = () => {
                     }} className="p-2 text-indigo-600 font-black hover:bg-indigo-200 bg-indigo-100 rounded-lg transition-colors border border-indigo-200"><ChevronRight className="w-4 h-4" /></button>
                 </div>
                 <button onClick={() => setRefreshToggle(v => v + 1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2"><RefreshCw className={`w-4 h-4 ${isCalculating ? 'animate-spin' : ''}`} /> Recalculate</button>
+                <button onClick={() => {
+                    if (window.confirm("Are you sure you want to process payroll for this month? This will save the current calculation to history.")) {
+                        const record: PayrollHistoryRecord = {
+                            id: `PAY-${Date.now()}`,
+                            name: new Date(selectedMonth + '-01').toLocaleDateString('default', { month: 'long', year: 'numeric' }),
+                            date: new Date().toISOString(),
+                            totalAmount: stats.totalCost,
+                            employeeCount: stats.employeeCount,
+                            data: payrollData
+                        };
+                        
+                        let targetKey = 'payroll_history';
+                        if (isSuperAdmin) {
+                             if (selectedCorporate !== 'All') {
+                                 targetKey = `payroll_history_${selectedCorporate}`;
+                             }
+                        } else {
+                            targetKey = `payroll_history_${sessionId}`;
+                        }
+                        
+                        const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+                        localStorage.setItem(targetKey, JSON.stringify([record, ...existing]));
+                        
+                        alert("Payroll processed and saved to history!");
+                        loadData();
+                    }
+                }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"><Save className="w-4 h-4" /> Process Payroll</button>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
