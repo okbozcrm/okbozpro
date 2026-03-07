@@ -41,7 +41,7 @@ import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { Loader2 } from 'lucide-react'; 
-import { autoLoadFromCloud, syncToCloud, HARDCODED_FIREBASE_CONFIG } from './services/cloudService';
+import { autoLoadFromCloud, syncToCloud, HARDCODED_FIREBASE_CONFIG, sendSystemNotification } from './services/cloudService';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -80,7 +80,38 @@ const App: React.FC = () => {
   }, [isAuthenticated]);
 
   const handleLogin = (role: UserRole) => { setUserRole(role); setIsAuthenticated(true); };
-  const handleLogout = () => { setIsAuthenticated(false); setUserRole(UserRole.ADMIN); localStorage.removeItem('app_session_id'); localStorage.removeItem('user_role'); };
+
+  const handleLogout = async () => { 
+      // Send Logout Notification if Employee
+      const role = localStorage.getItem('user_role');
+      if (role === UserRole.EMPLOYEE) {
+          const empId = localStorage.getItem('logged_in_employee_id');
+          const empName = localStorage.getItem('logged_in_employee_name');
+          const corpId = localStorage.getItem('logged_in_employee_corporate_id');
+          
+          if (empId && empName) {
+             // Fire and forget notification
+             sendSystemNotification({
+                type: 'login', // Reusing login type for icon consistency or add 'logout' if supported
+                title: 'Employee Logged Out',
+                message: `${empName} (${empId}) has logged out.`,
+                targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+                corporateId: corpId === 'admin' ? undefined : corpId,
+                employeeId: empId,
+                link: `/admin/staff`
+             }).catch(console.error);
+          }
+      }
+
+      setIsAuthenticated(false); 
+      setUserRole(UserRole.ADMIN); 
+      localStorage.removeItem('app_session_id'); 
+      localStorage.removeItem('user_role'); 
+      // Clear employee specific keys to prevent stale data
+      localStorage.removeItem('logged_in_employee_name');
+      localStorage.removeItem('logged_in_employee_id');
+      localStorage.removeItem('logged_in_employee_corporate_id');
+  };
 
   if (isInitializing) {
       return (

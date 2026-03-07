@@ -282,6 +282,7 @@ export interface PayrollEntry {
   bonus: number;
   manualDeductions: number; // Replaced 'deductions' with explicit manual deductions
   manualDeductionReason?: string; // NEW: Reason for manual deduction
+  lateDeduction?: number; // NEW: Deduction for late arrivals exceeding limit
   advanceDeduction: number; // Auto-calculated from advances
   payableDays: number;
   totalDays: number;

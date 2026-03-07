@@ -313,16 +313,28 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
       }
 
       // 4. Employee (Staff): Strict Check
-      // Only show if the notification is explicitly assigned to their ID (e.g. Tasks, Leave Updates)
       if (userRole === UserRole.EMPLOYEE) {
-          return notif.employeeId === sessionId;
+          // 1. Must be targeted to them specifically
+          if (notif.employeeId !== sessionId) return false;
+
+          // 2. Explicitly Block Login/Logout notifications
+          if (notif.type === 'login') return false;
+
+          // 3. Allow only specific types
+          // 'system' is used for advance approvals in Payroll.tsx
+          // 'custom_message' is for chat
+          const allowedTypes = ['task_assigned', 'leave_approval', 'custom_message', 'system', 'advance_request', 'leave_request'];
+          if (!allowedTypes.includes(notif.type)) return false;
+
+          return true;
       }
 
       // 5. Corporate (Franchisee): Strict Check
-      // Only show if the notification is explicitly assigned to their Corporate ID
-      // (e.g. Staff Logins under their franchise, Leads assigned to their franchise)
       if (userRole === UserRole.CORPORATE) {
-          return notif.corporateId === sessionId;
+          // Must match their corporate ID
+          if (notif.corporateId !== sessionId) return false;
+          
+          return true;
       }
 
       return false;

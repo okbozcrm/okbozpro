@@ -607,25 +607,32 @@ const PermissionSettings = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
   const PERMISSION_KEY = isSuperAdmin ? 'company_permission_limit' : `company_permission_limit_${sessionId}`;
+  const GRACE_KEY = isSuperAdmin ? 'company_grace_minutes' : `company_grace_minutes_${sessionId}`;
 
   const [limit, setLimit] = useState<string>(() => {
     return localStorage.getItem(PERMISSION_KEY) || '2';
   });
 
+  const [grace, setGrace] = useState<string>(() => {
+    return localStorage.getItem(GRACE_KEY) || '15';
+  });
+
   const handleSave = () => {
     localStorage.setItem(PERMISSION_KEY, limit);
+    localStorage.setItem(GRACE_KEY, grace);
     if (isSuperAdmin) {
        localStorage.setItem('company_permission_limit', limit);
+       localStorage.setItem('company_grace_minutes', grace);
     }
-    alert("Permission limit saved!");
+    alert("Permission settings saved!");
   };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-      <SectionHeader title="Permission Settings" icon={Clock} desc="Configure monthly permission limits for employees." />
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 max-w-lg">
+      <SectionHeader title="Permission Settings" icon={Clock} desc="Configure monthly permission limits and grace periods." />
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6 max-w-lg">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Permission Limit</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Permission Limit (Days)</label>
             <input 
                 type="number" 
                 value={limit} 
@@ -634,10 +641,24 @@ const PermissionSettings = () => {
                 placeholder="e.g. 2"
                 min="0"
             />
-            <p className="text-xs text-gray-500 mt-2">Maximum number of permissions allowed per employee per month.</p>
+            <p className="text-xs text-gray-500 mt-2">Number of days an employee can be late without penalty.</p>
           </div>
-          <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors">
-              Save Limit
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Grace Period (Minutes)</label>
+            <input 
+                type="number" 
+                value={grace} 
+                onChange={(e) => setGrace(e.target.value)} 
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800"
+                placeholder="e.g. 15"
+                min="0"
+            />
+            <p className="text-xs text-gray-500 mt-2">Allowed delay in minutes before marking as late.</p>
+          </div>
+
+          <button onClick={handleSave} className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-700 transition-colors w-full">
+              Save Settings
           </button>
       </div>
     </div>

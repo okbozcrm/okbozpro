@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Building2, Mail, Phone, Lock, Trash2, X, MapPin, Eye, EyeOff, Download, Upload, AlertTriangle, Edit2, Percent, Users } from 'lucide-react';
-import { CorporateAccount, Partner } from '../../types';
+import { CorporateAccount, Partner, UserRole } from '../../types';
 
 const Corporate: React.FC = () => {
   // 1. Safe Initialization
@@ -23,6 +23,11 @@ const Corporate: React.FC = () => {
   const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  // Session Context
+  const userRole = localStorage.getItem('user_role') as UserRole;
+  const sessionId = localStorage.getItem('app_session_id') || '';
+  const isSuperAdmin = userRole === UserRole.ADMIN;
 
   // Form State
   const initialFormState = {
@@ -224,11 +229,19 @@ const Corporate: React.FC = () => {
     }));
   };
 
-  const filteredAccounts = accounts.filter(acc => 
-    acc.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    acc.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (acc.city && acc.city.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredAccounts = accounts.filter(acc => {
+    // Role-based filtering
+    if (!isSuperAdmin && userRole === UserRole.CORPORATE) {
+        if (acc.email !== sessionId && acc.id !== sessionId) return false;
+    }
+
+    // Search filtering
+    return (
+        acc.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (acc.city && acc.city.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
 
   // --- Export/Import Handlers ---
   const handleExportAccounts = () => {
@@ -289,27 +302,31 @@ const Corporate: React.FC = () => {
           <p className="text-gray-500">Create and manage Franchise/Corporate accounts</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-            <button 
-                onClick={handleOpenAdd}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
-            >
-                <Plus className="w-5 h-5" />
-                Add Corporate
-            </button>
-            <button 
-                onClick={handleExportAccounts}
-                className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors border border-gray-300"
-            >
-                <Download className="w-5 h-5" />
-                Backup Data
-            </button>
-            <button 
-                onClick={() => setIsImportModalOpen(true)}
-                className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors border border-gray-300"
-            >
-                <Upload className="w-5 h-5" />
-                Restore
-            </button>
+            {isSuperAdmin && (
+                <>
+                    <button 
+                        onClick={handleOpenAdd}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Add Corporate
+                    </button>
+                    <button 
+                        onClick={handleExportAccounts}
+                        className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors border border-gray-300"
+                    >
+                        <Download className="w-5 h-5" />
+                        Backup Data
+                    </button>
+                    <button 
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition-colors border border-gray-300"
+                    >
+                        <Upload className="w-5 h-5" />
+                        Restore
+                    </button>
+                </>
+            )}
         </div>
       </div>
 

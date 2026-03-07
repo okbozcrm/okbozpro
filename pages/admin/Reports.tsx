@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, TrendingDown, 
   Download, DollarSign, 
-  CreditCard, Briefcase, ArrowUpRight, ArrowDownRight
+  CreditCard, Briefcase, ArrowUpRight, ArrowDownRight, X
 } from 'lucide-react';
 import { 
   PieChart as RechartsPie, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -50,6 +50,7 @@ const Reports: React.FC = () => {
   const [driverPayments, setDriverPayments] = useState<DriverPayment[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [activeBreakup, setActiveBreakup] = useState<'revenue' | 'expenses' | 'profit' | null>(null);
 
   // Load Data
   useEffect(() => {
@@ -250,7 +251,7 @@ const Reports: React.FC = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Revenue Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
+        <div onClick={() => setActiveBreakup('revenue')} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group cursor-pointer hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start z-10 relative">
             <div>
               <p className="text-sm font-medium text-gray-500 mb-1">Total Revenue</p>
@@ -267,7 +268,7 @@ const Reports: React.FC = () => {
         </div>
 
         {/* Expenses Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
+        <div onClick={() => setActiveBreakup('expenses')} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group cursor-pointer hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start z-10 relative">
             <div>
               <p className="text-sm font-medium text-gray-500 mb-1">Total Expenses</p>
@@ -284,7 +285,7 @@ const Reports: React.FC = () => {
         </div>
 
         {/* Net Profit Card */}
-        <div className={`bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group ${netProfit >= 0 ? 'bg-gradient-to-br from-white to-emerald-50/30' : 'bg-gradient-to-br from-white to-rose-50/30'}`}>
+        <div onClick={() => setActiveBreakup('profit')} className={`bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group cursor-pointer hover:shadow-md transition-shadow ${netProfit >= 0 ? 'bg-gradient-to-br from-white to-emerald-50/30' : 'bg-gradient-to-br from-white to-rose-50/30'}`}>
           <div className="flex justify-between items-start z-10 relative">
             <div>
               <p className="text-sm font-medium text-gray-500 mb-1">Net Profit</p>
@@ -401,6 +402,169 @@ const Reports: React.FC = () => {
           </table>
         </div>
       </div>
+      {/* Breakup Modal */}
+      {activeBreakup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                 <h3 className="font-bold text-lg text-gray-800">
+                    {activeBreakup === 'revenue' && 'Revenue Breakdown'}
+                    {activeBreakup === 'expenses' && 'Expense Breakdown'}
+                    {activeBreakup === 'profit' && 'Net Profit Analysis'}
+                 </h3>
+                 <button onClick={() => setActiveBreakup(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition-colors"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                 {/* REVENUE BREAKDOWN */}
+                 {activeBreakup === 'revenue' && (
+                  <div className="space-y-6">
+                     <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                        <span className="font-medium text-emerald-800">Total Revenue</span>
+                        <span className="font-bold text-2xl text-emerald-700">₹{totalRevenue.toLocaleString()}</span>
+                     </div>
+                     
+                     <div>
+                        <h4 className="font-bold text-gray-400 text-xs uppercase tracking-wider mb-3">Revenue Sources</h4>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
+                               <div className="flex items-center gap-3">
+                                   <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><TrendingUp className="w-4 h-4" /></div>
+                                   <span className="font-medium text-gray-700">Trip Commissions</span>
+                               </div>
+                               <span className="font-bold text-gray-900">₹{totalRevenue.toLocaleString()}</span>
+                            </div>
+                        </div>
+                     </div>
+
+                     {isSuperAdmin && (
+                       <div>
+                          <h4 className="font-bold text-gray-400 text-xs uppercase tracking-wider mb-3">By Corporate / Franchise</h4>
+                          <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                              <div className="max-h-48 overflow-y-auto divide-y divide-gray-100">
+                                 {Object.entries(filteredTrips.reduce((acc, t) => {
+                                    const name = t.ownerName || 'Head Office'; // Default to Head Office if undefined
+                                    acc[name] = (acc[name] || 0) + (t.adminCommission || 0);
+                                    return acc;
+                                 }, {} as Record<string, number>)).sort((a,b) => b[1] - a[1]).map(([name, amount]) => (
+                                    <div key={name} className="flex justify-between items-center p-3 text-sm hover:bg-gray-100 transition-colors">
+                                       <span className="text-gray-600 font-medium">{name}</span>
+                                       <span className="font-bold text-gray-800">₹{amount.toLocaleString()}</span>
+                                    </div>
+                                 ))}
+                                 {filteredTrips.length === 0 && <div className="p-4 text-center text-gray-400 text-xs">No trip data available</div>}
+                              </div>
+                          </div>
+                       </div>
+                     )}
+                  </div>
+                 )}
+
+                 {/* EXPENSE BREAKDOWN */}
+                 {activeBreakup === 'expenses' && (
+                  <div className="space-y-6">
+                     <div className="flex justify-between items-center bg-rose-50 p-4 rounded-xl border border-rose-100">
+                        <span className="font-medium text-rose-800">Total Expenses</span>
+                        <span className="font-bold text-2xl text-rose-700">₹{totalExpenses.toLocaleString()}</span>
+                     </div>
+
+                     <div className="space-y-3">
+                        {/* Office Expenses */}
+                        <div className="border border-gray-100 rounded-xl overflow-hidden">
+                            <div className="flex justify-between items-center p-3 bg-gray-50 border-b border-gray-100">
+                               <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                  <span className="font-bold text-gray-700">Office Expenses</span>
+                               </div>
+                               <span className="font-bold text-gray-900">₹{totalOfficeExpenses.toLocaleString()}</span>
+                            </div>
+                            <div className="bg-white p-3 space-y-2">
+                               {Object.entries(filteredOfficeExpenses.reduce((acc, e) => {
+                                  acc[e.category] = (acc[e.category] || 0) + e.amount;
+                                  return acc;
+                               }, {} as Record<string, number>)).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => (
+                                  <div key={cat} className="flex justify-between text-xs">
+                                     <span className="text-gray-500">{cat}</span>
+                                     <span className="font-medium text-gray-700">₹{amt.toLocaleString()}</span>
+                                  </div>
+                               ))}
+                               {filteredOfficeExpenses.length === 0 && <div className="text-center text-gray-400 text-xs italic">No office expenses recorded</div>}
+                            </div>
+                        </div>
+
+                        {/* Payroll */}
+                        <div className="flex justify-between items-center p-4 border border-gray-100 rounded-xl bg-white shadow-sm">
+                           <div className="flex items-center gap-3">
+                              <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><Briefcase className="w-4 h-4" /></div>
+                              <div>
+                                  <p className="font-bold text-gray-700">Payroll</p>
+                                  <p className="text-xs text-gray-400">Staff Salaries</p>
+                              </div>
+                           </div>
+                           <span className="font-bold text-gray-900">₹{totalPayroll.toLocaleString()}</span>
+                        </div>
+
+                        {/* Driver Payouts */}
+                        <div className="flex justify-between items-center p-4 border border-gray-100 rounded-xl bg-white shadow-sm">
+                           <div className="flex items-center gap-3">
+                              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><CreditCard className="w-4 h-4" /></div>
+                              <div>
+                                  <p className="font-bold text-gray-700">Driver Payouts</p>
+                                  <p className="text-xs text-gray-400">Incentives & Claims</p>
+                              </div>
+                           </div>
+                           <span className="font-bold text-gray-900">₹{totalDriverPayments.toLocaleString()}</span>
+                        </div>
+                     </div>
+                  </div>
+                 )}
+
+                 {/* PROFIT BREAKDOWN */}
+                 {activeBreakup === 'profit' && (
+                  <div className="space-y-6">
+                     <div className={`flex justify-between items-center p-4 rounded-xl border ${netProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                        <span className={`font-medium ${netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>Net Profit</span>
+                        <span className={`font-bold text-2xl ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>₹{netProfit.toLocaleString()}</span>
+                     </div>
+
+                     <div className="space-y-2 relative">
+                        {/* Connecting Line */}
+                        <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-100 -z-10"></div>
+
+                        <div className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm z-10 relative">
+                           <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">+</div>
+                               <span className="text-gray-600 font-medium">Total Revenue</span>
+                           </div>
+                           <span className="font-bold text-emerald-600">+₹{totalRevenue.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm z-10 relative">
+                           <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 font-bold text-xs">-</div>
+                               <span className="text-gray-600 font-medium">Total Expenses</span>
+                           </div>
+                           <span className="font-bold text-rose-600">-₹{totalExpenses.toLocaleString()}</span>
+                        </div>
+                        
+                        <div className="pt-4 mt-2 border-t border-dashed border-gray-200">
+                            <div className="flex justify-between items-center px-3">
+                               <span className="font-bold text-gray-800 uppercase tracking-wider text-sm">Final Result</span>
+                               <span className={`font-black text-lg ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {netProfit >= 0 ? 'PROFIT' : 'LOSS'}
+                               </span>
+                            </div>
+                        </div>
+                     </div>
+                  </div>
+                 )}
+              </div>
+              <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
+                  <button onClick={() => setActiveBreakup(null)} className="text-sm font-bold text-gray-500 hover:text-gray-800">Close Breakdown</button>
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 };

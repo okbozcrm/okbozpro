@@ -121,6 +121,17 @@ export const Payroll: React.FC = () => {
     const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
     const daysInMonth = new Date(year, monthStr, 0).getDate();
 
+    // Get Permission Settings
+    const PERMISSION_KEY = isSuperAdmin ? 'company_permission_limit' : `company_permission_limit_${sessionId}`;
+    const GRACE_KEY = isSuperAdmin ? 'company_grace_minutes' : `company_grace_minutes_${sessionId}`;
+    const permissionLimit = parseInt(localStorage.getItem(PERMISSION_KEY) || '2');
+    const graceMinutes = parseInt(localStorage.getItem(GRACE_KEY) || '15');
+
+    const parseTime = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+    };
+
     employees.forEach(emp => {
         const monthlyCtc = parseFloat(emp.salary || '0');
         const key = `attendance_data_${emp.id}_${year}_${monthStr-1}`;
@@ -128,6 +139,9 @@ export const Payroll: React.FC = () => {
         const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(emp, year, monthStr - 1);
         
         let payableDays = 0;
+        let lateDaysCount = 0;
+        let totalLateDeduction = 0;
+
         const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : new Date('2000-01-01');
         const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
         const today = new Date();
@@ -152,6 +166,35 @@ export const Payroll: React.FC = () => {
 
             if ([AttendanceStatus.PRESENT, AttendanceStatus.WEEK_OFF, AttendanceStatus.PAID_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.ALTERNATE_DAY].includes(day.status) || isImplicitWeekOff) payableDays += 1;
             else if (day.status === AttendanceStatus.HALF_DAY) payableDays += 0.5;
+
+            // Late Deduction Logic
+            if ((day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.HALF_DAY) && emp.shift) {
+                const punchIn = day.punches?.[0]?.in || day.checkIn;
+                if (punchIn) {
+                    const match = emp.shift.match(/\((\d{2}:\d{2}) - (\d{2}:\d{2})\)/);
+                    if (match) {
+                        const [, startStr, endStr] = match;
+                        const shiftStart = parseTime(startStr);
+                        const shiftEnd = parseTime(endStr);
+                        const punchInTime = parseTime(punchIn);
+                        
+                        const diff = punchInTime - shiftStart;
+                        if (diff > graceMinutes) {
+                            lateDaysCount++;
+                            if (lateDaysCount > permissionLimit) {
+                                let shiftDuration = shiftEnd - shiftStart;
+                                if (shiftDuration < 0) shiftDuration += 24 * 60; // Handle overnight
+                                
+                                if (shiftDuration > 0) {
+                                    const dailySalary = (monthlyCtc / daysInMonth);
+                                    const deduction = (diff / shiftDuration) * dailySalary;
+                                    totalLateDeduction += deduction;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
@@ -170,6 +213,7 @@ export const Payroll: React.FC = () => {
             advanceDeduction: unpaidAdvances,
             manualDeductions: existingEntry?.manualDeductions || 0,
             manualDeductionReason: existingEntry?.manualDeductionReason || '',
+            lateDeduction: Math.round(totalLateDeduction),
             payableDays,
             totalDays: daysInMonth,
             status: existingEntry?.status || 'Pending',
@@ -183,7 +227,7 @@ export const Payroll: React.FC = () => {
   }, [employees, advances, kmClaims, selectedMonth, refreshToggle]);
 
   const calculateNetPay = (entry: PayrollEntry): number => 
-    (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.advanceDeduction + entry.manualDeductions);
+    (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.advanceDeduction + entry.manualDeductions + (entry.lateDeduction || 0));
 
   const getAttendanceBreakup = (empId: string) => {
       const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
@@ -370,6 +414,7 @@ export const Payroll: React.FC = () => {
                     <p>• <b>Alternate Day:</b> 100% Pay</p>
                     <p>• <b>Half Day:</b> 50% Pay</p>
                     <p>• <b>Absent:</b> No Pay</p>
+                    <p className="col-span-2 text-rose-600">• <b>Late Policy:</b> Pro-rata deduction after limit exceeded</p>
                 </div>
             </div>
         </div>
@@ -429,7 +474,7 @@ export const Payroll: React.FC = () => {
                                     <td className="px-4 py-5 text-center font-black text-gray-600">{data.payableDays}/{data.totalDays}</td>
                                     <td className="px-4 py-5 text-right font-bold text-gray-900">₹{(data.basicSalary + data.allowances).toLocaleString()}</td>
                                     <td className="px-4 py-5 text-right text-blue-600 font-bold">₹{data.travelAllowance.toLocaleString()}</td>
-                                    <td className="px-4 py-5 text-right text-red-500 font-bold">-₹{(data.advanceDeduction + data.manualDeductions).toLocaleString()}</td>
+                                    <td className="px-4 py-5 text-right text-red-500 font-bold">-₹{(data.advanceDeduction + data.manualDeductions + (data.lateDeduction || 0)).toLocaleString()}</td>
                                     <td className="px-8 py-5 text-right font-black text-gray-900 text-lg">₹{net.toLocaleString()}</td>
                                     <td className="px-6 py-5 text-center">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>{data.status}</span>
@@ -656,6 +701,9 @@ export const Payroll: React.FC = () => {
                             <tbody className="divide-y divide-gray-50">
                                 <tr><td className="px-6 py-4 text-gray-700">Basic & Allowances</td><td className="px-6 py-4 text-right font-mono">₹{(activeSlip.data.basicSalary + activeSlip.data.allowances).toLocaleString()}</td></tr>
                                 <tr><td className="px-6 py-4 text-gray-700">Travel TA (Approved)</td><td className="px-6 py-4 text-right font-mono">₹{activeSlip.data.travelAllowance.toLocaleString()}</td></tr>
+                                {(activeSlip.data.lateDeduction && activeSlip.data.lateDeduction > 0) ? (
+                                    <tr><td className="px-6 py-4 text-rose-500">Late Deduction (-)</td><td className="px-6 py-4 text-right font-mono text-rose-500">- ₹{activeSlip.data.lateDeduction.toLocaleString()}</td></tr>
+                                ) : null}
                                 {(activeSlip.data.advanceDeduction > 0) && (
                                     <tr><td className="px-6 py-4 text-rose-500">Advance Recovery (-)</td><td className="px-6 py-4 text-right font-mono text-rose-500">- ₹{activeSlip.data.advanceDeduction.toLocaleString()}</td></tr>
                                 )}

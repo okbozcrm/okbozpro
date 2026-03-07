@@ -61,7 +61,12 @@ const downloadCSV = (content: string, filename: string) => {
 export const TripBooking: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const role = localStorage.getItem('user_role') as UserRole;
-  const corporateId = localStorage.getItem('logged_in_employee_corporate_id') || sessionId;
+  
+  // FIX: Prioritize sessionId for CORPORATE role to avoid stale employee data
+  const corporateId = (role === UserRole.CORPORATE) 
+    ? sessionId 
+    : (localStorage.getItem('logged_in_employee_corporate_id') || sessionId);
+
   const isSuperAdmin = role === UserRole.ADMIN;
   
   const [trips, setTrips] = useState<Trip[]>([]);

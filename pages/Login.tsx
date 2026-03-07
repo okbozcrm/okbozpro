@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserRole, SubAdmin, CorporateAccount, Employee } from '../types';
 import { Lock, Mail, ArrowRight, Eye, EyeOff, AlertTriangle, Cloud, Download } from 'lucide-react';
 import { useBranding } from '../context/BrandingContext';
-import { sendSystemNotification, HARDCODED_FIREBASE_CONFIG } from '../services/cloudService'; // Import sendSystemNotification
+import { sendSystemNotification, HARDCODED_FIREBASE_CONFIG, restoreFromCloud } from '../services/cloudService'; // Import sendSystemNotification
 import { BozNotification } from '../types'; 
 
 interface BeforeInstallPromptEvent extends Event {
@@ -117,6 +117,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
             }
         } 
         else if (activeTab === 'employee') {
+            // Ensure corporate data is loaded to correctly identify franchise employees
+            if (!localStorage.getItem('corporate_accounts')) {
+                try {
+                    await restoreFromCloud();
+                } catch (e) {
+                    console.warn("Failed to restore cloud data during login", e);
+                }
+            }
+
             // 1. Search Admin Staff
             let foundEmp = null;
             try {
