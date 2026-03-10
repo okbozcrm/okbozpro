@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Phone, Cloud, Settings, FileText, Plus, Upload, 
-  Search, Filter, Download, Trash2, Play, MapPin, 
+  Search, Filter, Trash2, Play, MapPin, 
   User, Clock, Calendar
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -53,9 +53,28 @@ const AutoDialer: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>('1');
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Lead['status'] | 'ALL'>('ALL');
+  const [locationFilter, setLocationFilter] = useState<string>('ALL');
   const [note, setNote] = useState('');
 
   const selectedLead = leads.find(l => l.id === selectedLeadId);
+
+  // Filtered Leads
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           lead.phone.includes(searchTerm);
+      const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
+      const matchesLocation = locationFilter === 'ALL' || lead.location === locationFilter;
+      return matchesSearch && matchesStatus && matchesLocation;
+    });
+  }, [leads, searchTerm, statusFilter, locationFilter]);
+
+  // Unique Locations for Filter
+  const locations = useMemo(() => {
+    const locs = Array.from(new Set(leads.map(l => l.location)));
+    return ['ALL', ...locs];
+  }, [leads]);
 
   // Stats Calculation
   const stats = useMemo(() => {
@@ -67,9 +86,12 @@ const AutoDialer: React.FC = () => {
     const total = leads.length;
     const handled = total - pending;
     const completionRate = total > 0 ? Math.round((handled / total) * 100) : 0;
+    const conversionRate = handled > 0 ? Math.round((interested / handled) * 100) : 0;
+    const callbackRate = handled > 0 ? Math.round((callback / handled) * 100) : 0;
 
     return {
       interested, callback, noMatch, pending, total, handled, completionRate,
+      conversionRate, callbackRate,
       chartData: [
         { name: 'Interested', value: interested },
         { name: 'Callback', value: callback },
@@ -364,6 +386,46 @@ const AutoDialer: React.FC = () => {
         </div>
       )}
 
+      {/* KPI Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Leads</p>
+          <div className="flex items-end justify-between">
+            <h3 className="text-3xl font-black text-slate-900">{stats.total}</h3>
+            <div className="p-2 bg-indigo-50 rounded-lg">
+              <User className="w-5 h-5 text-indigo-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Conversion Rate</p>
+          <div className="flex items-end justify-between">
+            <h3 className="text-3xl font-black text-slate-900">{stats.conversionRate}%</h3>
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <Play className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Callback Rate</p>
+          <div className="flex items-end justify-between">
+            <h3 className="text-3xl font-black text-slate-900">{stats.callbackRate}%</h3>
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Clock className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Pending Leads</p>
+          <div className="flex items-end justify-between">
+            <h3 className="text-3xl font-black text-slate-900">{stats.pending}</h3>
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <Filter className="w-5 h-5 text-amber-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Top Stats Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -452,20 +514,43 @@ const AutoDialer: React.FC = () => {
         {/* Left: Lead List */}
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
            {/* Toolbar */}
-           <div className="p-4 border-b border-gray-100 flex gap-3">
-              <div className="relative flex-1">
+            <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+              <div className="relative flex-1 min-w-[200px]">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                  <input 
                     type="text" 
-                    placeholder="Search..." 
+                    placeholder="Search name or phone..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10"
                  />
               </div>
-              <button className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50"><Filter className="w-4 h-4" /></button>
-              <button className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50"><Download className="w-4 h-4" /></button>
-              <button className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50"><Trash2 className="w-4 h-4" /></button>
+              
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as Lead['status'] | 'ALL')}
+                className="px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/10"
+              >
+                <option value="ALL">All Status</option>
+                <option value="PENDING">Pending</option>
+                <option value="CALLBACK">Callback</option>
+                <option value="INTERESTED">Interested</option>
+                <option value="NO_ANSWER">No Answer</option>
+                <option value="NOT_INTERESTED">Not Interested</option>
+                <option value="NO_MATCH">No Match</option>
+              </select>
+
+              <select 
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/10"
+              >
+                {locations.map(loc => (
+                  <option key={loc} value={loc}>{loc === 'ALL' ? 'All Locations' : loc}</option>
+                ))}
+              </select>
+
+              <button onClick={() => {setSearchTerm(''); setStatusFilter('ALL'); setLocationFilter('ALL');}} className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50" title="Clear Filters"><Trash2 className="w-4 h-4" /></button>
            </div>
 
            {/* Table Header */}
@@ -479,7 +564,7 @@ const AutoDialer: React.FC = () => {
 
            {/* List Items */}
            <div className="flex-1 overflow-y-auto">
-              {leads.map((lead, index) => (
+              {filteredLeads.map((lead, index) => (
                  <div 
                     key={lead.id}
                     onClick={() => setSelectedLeadId(lead.id)}

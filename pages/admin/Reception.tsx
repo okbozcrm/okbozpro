@@ -1,15 +1,15 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  PhoneIncoming, PhoneOutgoing, ArrowRight, Search, Clock, User, Car, 
-  Edit2, X, Save, UserPlus, History, Filter, Download, Truck, Calculator, 
-  MessageCircle, Mail, Copy, MapPin, Calendar as CalendarIcon, RefreshCcw, 
-  Sparkles, Wand2, Loader2, Building2, CheckCircle, ChevronDown, Bell,
-  MoreHorizontal, Phone, CheckSquare, ArrowRightLeft, Plus, Trash2, AlertTriangle
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+// import { 
+//   PhoneIncoming, PhoneOutgoing, ArrowRight, Search, Clock, User, Car, 
+//   Edit2, X, Save, UserPlus, History, Filter, Download, Truck, Calculator, 
+//   MessageCircle, Mail, Copy, MapPin, Calendar as CalendarIcon, RefreshCcw, 
+//   Sparkles, Wand2, Loader2, Building2, CheckCircle, ChevronDown, Bell,
+//   MoreHorizontal, Phone, CheckSquare, ArrowRightLeft, Plus, Trash2, AlertTriangle
+// } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
-import { MOCK_EMPLOYEES } from '../../constants';
-import { Employee, Enquiry, HistoryLog, Vendor, CorporateAccount } from '../../types';
+import { Employee, Enquiry, Vendor, CorporateAccount } from '../../types';
 
 interface HistoryItem {
   id: number;

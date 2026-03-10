@@ -146,9 +146,20 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             allStaff = JSON.parse(localStorage.getItem(key) || '[]').map((e: any) => ({...e, corporateId: ownerId}));
         }
         setEmployees(allStaff);
-        if (!selectedEmployee && allStaff.length > 0) {
-            const defaultEmp = isAdmin ? allStaff[0] : allStaff.find(e => e.id === currentSessionId);
-            setSelectedEmployee(defaultEmp || allStaff[0]);
+        
+        // For non-admin (employee) view, strictly filter to only their own record
+        let staffToDisplay = allStaff;
+        if (!isAdmin) {
+            const loggedInId = localStorage.getItem('logged_in_employee_id') || currentSessionId;
+            staffToDisplay = allStaff.filter(e => e.id === loggedInId);
+            // Update employees state as well to prevent other users appearing in filtered lists
+            setEmployees(staffToDisplay);
+        }
+
+        if (staffToDisplay.length > 0) {
+            const loggedInId = localStorage.getItem('logged_in_employee_id') || currentSessionId;
+            const defaultEmp = isAdmin ? staffToDisplay[0] : staffToDisplay.find(e => e.id === loggedInId);
+            setSelectedEmployee(defaultEmp || staffToDisplay[0]);
         }
 
         // Load Leave Requests
@@ -960,7 +971,9 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
                             <div className="text-center md:text-left space-y-10">
                                 <div className="space-y-2">
-                                    <h3 className="text-5xl font-black text-gray-900 tracking-tighter">Hello, {selectedEmployee.name.split(' ')[0]}! 👋</h3>
+                                    <h3 className="text-5xl font-black text-gray-900 tracking-tighter">
+                                        Hello, {(localStorage.getItem('logged_in_employee_name') || selectedEmployee?.name || 'User').split(' ')[0]}! 👋
+                                    </h3>
                                     <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Welcome to your attendance portal</p>
                                 </div>
                                 
