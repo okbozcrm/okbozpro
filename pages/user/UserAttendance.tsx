@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, List, CheckCircle, XCircle, 
   User, MapPin, Clock, Fingerprint, Download, X, 
@@ -9,7 +9,7 @@ import {
   TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
   Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
   History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield,
-  Coffee, RefreshCw, AlertCircle, Check, Undo, Redo
+  Coffee, RefreshCw, AlertCircle, Check, Undo, Redo, Map as MapIcon, Power
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -98,6 +98,109 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const isSuperAdmin = currentSessionId === 'admin';
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [isPunching, setIsPunching] = useState(false); 
+  const [isTracking, setIsTracking] = useState(false);
+  const watchId = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Check if already tracking on mount
+    if (!isAdmin && selectedEmployee) {
+        const allActive = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+        const isAlreadyTracking = allActive.some((s: any) => s.employeeId === selectedEmployee.id);
+        if (isAlreadyTracking) {
+            setIsTracking(true);
+            // Re-establish watcher if needed, or just keep state. 
+            // For simplicity, we'll let the user toggle it back on if they refresh, 
+            // but the record stays in localStorage until they toggle off or it times out (if we had timeout).
+            // Actually, better to re-start if it was on.
+            handleTrackingToggle(true);
+        }
+    }
+    return () => {
+        if (watchId.current) {
+            navigator.geolocation.clearWatch(watchId.current);
+        }
+    };
+  }, [selectedEmployee, isAdmin]);
+
+  const handleTrackingToggle = (forceOn = false) => {
+    if (isTracking && !forceOn) {
+      if (watchId.current) {
+        navigator.geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+      }
+      setIsTracking(false);
+      // Remove from localStorage
+      const allActive = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+      const updated = allActive.filter((s: any) => s.employeeId !== selectedEmployee?.id);
+      localStorage.setItem('active_staff_locations', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+      
+      sendSystemNotification({
+          type: 'system',
+          title: 'Live Tracking Disabled',
+          message: `${selectedEmployee?.name} has stopped live tracking.`,
+          targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+          corporateId: localStorage.getItem('logged_in_employee_corporate_id') || undefined,
+          employeeId: selectedEmployee?.id,
+          link: '/admin/tracking'
+      }).catch(console.error);
+    } else {
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser");
+        return;
+      }
+      setIsTracking(true);
+      const id = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const allActive = JSON.parse(localStorage.getItem('active_staff_locations') || '[]');
+          const empId = selectedEmployee?.id;
+          const corpId = localStorage.getItem('logged_in_employee_corporate_id') || 'admin';
+          
+          const newLoc = {
+            employeeId: empId,
+            corporateId: corpId,
+            lat: latitude,
+            lng: longitude,
+            name: selectedEmployee?.name || 'Unknown',
+            role: selectedEmployee?.role || 'Staff',
+            lastUpdate: new Date().toLocaleTimeString()
+          };
+
+          const existingIdx = allActive.findIndex((s: any) => s.employeeId === empId);
+          if (existingIdx >= 0) {
+            allActive[existingIdx] = newLoc;
+          } else {
+            allActive.push(newLoc);
+          }
+          localStorage.setItem('active_staff_locations', JSON.stringify(allActive));
+          window.dispatchEvent(new Event('storage'));
+        },
+        (error) => {
+          console.error("Tracking error:", error);
+          setIsTracking(false);
+          if (watchId.current) {
+            navigator.geolocation.clearWatch(watchId.current);
+            watchId.current = null;
+          }
+        },
+        { enableHighAccuracy: true }
+      );
+      watchId.current = id;
+
+      if (!forceOn) {
+          sendSystemNotification({
+              type: 'system',
+              title: 'Live Tracking Enabled',
+              message: `${selectedEmployee?.name} has started live tracking.`,
+              targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
+              corporateId: localStorage.getItem('logged_in_employee_corporate_id') || undefined,
+              employeeId: selectedEmployee?.id,
+              link: '/admin/tracking'
+          }).catch(console.error);
+      }
+    }
+  };
 
   useEffect(() => {
     const triggerRefresh = () => {
@@ -978,13 +1081,41 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 </div>
                                 
                                 <div className="flex flex-col items-center md:items-start gap-10 w-full">
-                                    <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
-                                        <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-                                            <Clock className="w-10 h-10 text-emerald-600" />
+                                    <div className="flex flex-wrap items-center gap-6">
+                                        <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
+                                            <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
+                                                <Clock className="w-10 h-10 text-emerald-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
+                                                <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
-                                            <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+
+                                        {/* Live Tracking Toggle */}
+                                        <div className={`flex items-center gap-6 px-8 py-6 rounded-[2.5rem] border transition-all duration-500 ${isTracking ? 'bg-indigo-50 border-indigo-100 shadow-indigo-100/50' : 'bg-gray-50 border-gray-100 shadow-inner'}`}>
+                                            <div className={`p-4 rounded-2xl shadow-sm border transition-colors ${isTracking ? 'bg-white text-indigo-600 border-indigo-100' : 'bg-white text-gray-400 border-gray-100'}`}>
+                                                <MapIcon className={`w-8 h-8 ${isTracking ? 'animate-pulse' : ''}`} />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Live Tracking</p>
+                                                    <span className={`text-sm font-black uppercase tracking-widest ${isTracking ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                                        {isTracking ? 'ACTIVE' : 'INACTIVE'}
+                                                    </span>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleTrackingToggle()}
+                                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all transform active:scale-95 ${
+                                                        isTracking 
+                                                        ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' 
+                                                        : 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                                                    }`}
+                                                >
+                                                    <Power className="w-3 h-3" />
+                                                    {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
