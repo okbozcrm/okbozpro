@@ -203,39 +203,110 @@ export const Payroll: React.FC = () => {
             .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth))
             .reduce((sum, r) => sum + r.totalAmount, 0);
 
-        const existingEntry = payrollData[emp.id];
+        // Load persisted adjustments
+        const empAdjKey = emp.corporateId === 'admin' ? `payroll_adj_${selectedMonth}` : `payroll_adj_${selectedMonth}_${emp.corporateId}`;
+        const empAdjustments = JSON.parse(localStorage.getItem(empAdjKey) || '{}');
+        const adj = empAdjustments[emp.id] || {};
+
         newPayrollData[emp.id] = {
             employeeId: emp.id,
             basicSalary: Math.round(grossEarned * 0.5),
             allowances: Math.round(grossEarned * 0.5),
             travelAllowance: travelIncentive,
-            bonus: 0,
+            bonus: adj.bonus || 0,
             advanceDeduction: unpaidAdvances,
-            manualDeductions: existingEntry?.manualDeductions || 0,
-            manualDeductionReason: existingEntry?.manualDeductionReason || '',
+            manualDeductions: adj.manualDeductions || 0,
+            manualDeductionReason: adj.manualDeductionReason || '',
             lateDeduction: Math.round(totalLateDeduction),
             payableDays,
             totalDays: daysInMonth,
-            status: existingEntry?.status || 'Pending',
-            paidDate: existingEntry?.paidDate,
-            paymentMode: existingEntry?.paymentMode,
-            remarks: existingEntry?.remarks, 
+            status: adj.status || 'Pending',
+            paidDate: adj.paidDate,
+            paymentMode: adj.paymentMode,
+            remarks: adj.remarks || '', 
         };
     });
     setPayrollData(newPayrollData);
     setIsCalculating(false);
   }, [employees, advances, kmClaims, selectedMonth, refreshToggle]);
 
+  const updatePayrollEntry = (empId: string, updates: Partial<PayrollEntry>) => {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) return;
+
+      const empAdjKey = emp.corporateId === 'admin' ? `payroll_adj_${selectedMonth}` : `payroll_adj_${selectedMonth}_${emp.corporateId}`;
+      const empAdjustments = JSON.parse(localStorage.getItem(empAdjKey) || '{}');
+      empAdjustments[empId] = { ...empAdjustments[empId], ...updates };
+      localStorage.setItem(empAdjKey, JSON.stringify(empAdjustments));
+      
+      if (updates.status === 'Paid') {
+          const rootAdv = JSON.parse(localStorage.getItem('salary_advances') || '[]');
+          const updatedAdv = rootAdv.map((a: SalaryAdvanceRequest) => 
+              (a.employeeId === empId && a.status === 'Approved') ? { ...a, status: 'Paid', paymentDate: new Date().toISOString() } : a
+          );
+          localStorage.setItem('salary_advances', JSON.stringify(updatedAdv));
+      }
+
+      setRefreshToggle(v => v + 1);
+  };
+
+  const bulkUpdatePayrollEntries = (updates: { empId: string, updates: Partial<PayrollEntry> }[]) => {
+      const corpGroups: Record<string, Record<string, any>> = {};
+      
+      updates.forEach(({ empId, updates: empUpdates }) => {
+          const emp = employees.find(e => e.id === empId);
+          if (!emp) return;
+          
+          const empAdjKey = emp.corporateId === 'admin' ? `payroll_adj_${selectedMonth}` : `payroll_adj_${selectedMonth}_${emp.corporateId}`;
+          if (!corpGroups[empAdjKey]) {
+              corpGroups[empAdjKey] = JSON.parse(localStorage.getItem(empAdjKey) || '{}');
+          }
+          corpGroups[empAdjKey][empId] = { ...corpGroups[empAdjKey][empId], ...empUpdates };
+      });
+
+      Object.entries(corpGroups).forEach(([key, data]) => {
+          localStorage.setItem(key, JSON.stringify(data));
+      });
+
+      const paidEmpIds = updates.filter(u => u.updates.status === 'Paid').map(u => u.empId);
+      if (paidEmpIds.length > 0) {
+          const rootAdv = JSON.parse(localStorage.getItem('salary_advances') || '[]');
+          const updatedAdv = rootAdv.map((a: SalaryAdvanceRequest) => 
+              (paidEmpIds.includes(a.employeeId) && a.status === 'Approved') ? { ...a, status: 'Paid', paymentDate: new Date().toISOString() } : a
+          );
+          localStorage.setItem('salary_advances', JSON.stringify(updatedAdv));
+      }
+
+      setRefreshToggle(v => v + 1);
+  };
+
   const calculateNetPay = (entry: PayrollEntry): number => 
     (entry.basicSalary + entry.allowances + entry.travelAllowance + entry.bonus) - (entry.advanceDeduction + entry.manualDeductions + (entry.lateDeduction || 0));
 
   const getAttendanceBreakup = (empId: string) => {
+      const counts: AttendanceCounts = {
+          present: 0,
+          half: 0,
+          leave: 0,
+          off: 0,
+          holiday: 0,
+          alternate: 0,
+          absent: 0
+      };
+
       const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
       const key = `attendance_data_${empId}_${year}_${monthStr-1}`;
       const saved = localStorage.getItem(key);
       const emp = employees.find(e => e.id === empId);
-      if (!emp) return null;
-      const attendance: DailyAttendance[] = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
+      if (!emp) return counts;
+      let attendance: DailyAttendance[] = [];
+      try {
+          attendance = saved ? JSON.parse(saved) : getEmployeeAttendance(emp, year, monthStr - 1);
+          if (!Array.isArray(attendance)) attendance = [];
+      } catch (e) {
+          console.error("Error parsing attendance data", e);
+          attendance = getEmployeeAttendance(emp, year, monthStr - 1);
+      }
       
       const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : new Date('2000-01-01');
       const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
@@ -482,11 +553,28 @@ export const Payroll: React.FC = () => {
                         <tr>
                             <th className="px-8 py-5">Staff Member</th>
                             <th className="px-4 py-5 text-center">Pay Days</th>
-                            <th className="px-4 py-5 text-right">Gross</th>
+                            <th className="px-4 py-5 text-right">Gross + Bonus</th>
                             <th className="px-4 py-5 text-right text-blue-600">Travel TA</th>
                             <th className="px-4 py-5 text-right text-red-500">Recovery</th>
                             <th className="px-8 py-5 text-right">Net Payout</th>
-                            <th className="px-6 py-5 text-center">Status</th>
+                            <th className="px-6 py-5 text-center">
+                                <div className="flex flex-col items-center gap-1">
+                                    <span>Status</span>
+                                    <button 
+                                        onClick={() => {
+                                            if (window.confirm("Mark all employees in this list as Paid?")) {
+                                                const updates = filteredEmployees
+                                                    .filter(emp => payrollData[emp.id]?.status === 'Pending')
+                                                    .map(emp => ({ empId: emp.id, updates: { status: 'Paid' as const, paidDate: new Date().toISOString() } }));
+                                                bulkUpdatePayrollEntries(updates);
+                                            }
+                                        }}
+                                        className="text-[8px] font-bold text-indigo-600 hover:underline uppercase"
+                                    >
+                                        Mark All
+                                    </button>
+                                </div>
+                            </th>
                             <th className="px-6 py-5 text-center">Slip</th>
                         </tr>
                     </thead>
@@ -499,12 +587,60 @@ export const Payroll: React.FC = () => {
                                 <tr key={emp.id} className="hover:bg-gray-50/50 transition-all">
                                     <td className="px-8 py-5"><div className="font-bold text-gray-900">{emp.name}</div><div className="text-[10px] text-gray-400 font-bold uppercase">{emp.role}</div></td>
                                     <td className="px-4 py-5 text-center font-black text-gray-600">{data.payableDays}/{data.totalDays}</td>
-                                    <td className="px-4 py-5 text-right font-bold text-gray-900">₹{(data.basicSalary + data.allowances).toLocaleString()}</td>
+                                    <td className="px-4 py-5 text-right font-bold text-gray-900">
+                                        <div className="flex flex-col items-end">
+                                            <span>₹{(data.basicSalary + data.allowances + (data.bonus || 0)).toLocaleString()}</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const amount = prompt("Enter bonus amount:", (data.bonus || 0).toString());
+                                                    if (amount !== null) {
+                                                        updatePayrollEntry(emp.id, { bonus: parseFloat(amount) || 0 });
+                                                    }
+                                                }}
+                                                className="text-[9px] font-bold text-gray-400 hover:text-indigo-600 hover:underline uppercase tracking-tighter"
+                                            >
+                                                + Bonus
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td className="px-4 py-5 text-right text-blue-600 font-bold">₹{data.travelAllowance.toLocaleString()}</td>
-                                    <td className="px-4 py-5 text-right text-red-500 font-bold">-₹{(data.advanceDeduction + data.manualDeductions + (data.lateDeduction || 0)).toLocaleString()}</td>
+                                    <td className="px-4 py-5 text-right text-red-500 font-bold">
+                                        <div className="flex flex-col items-end">
+                                            <span>-₹{(data.advanceDeduction + data.manualDeductions + (data.lateDeduction || 0)).toLocaleString()}</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const amount = prompt("Enter manual deduction amount:", data.manualDeductions.toString());
+                                                    if (amount !== null) {
+                                                        const reason = prompt("Enter reason for deduction:", data.manualDeductionReason || "");
+                                                        updatePayrollEntry(emp.id, { 
+                                                            manualDeductions: parseFloat(amount) || 0,
+                                                            manualDeductionReason: reason || ""
+                                                        });
+                                                    }
+                                                }}
+                                                className="text-[9px] font-bold text-gray-400 hover:text-indigo-600 hover:underline uppercase tracking-tighter"
+                                            >
+                                                Adjust
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td className="px-8 py-5 text-right font-black text-gray-900 text-lg">₹{net.toLocaleString()}</td>
                                     <td className="px-6 py-5 text-center">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>{data.status}</span>
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${data.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>{data.status}</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const newStatus = data.status === 'Paid' ? 'Pending' : 'Paid';
+                                                    updatePayrollEntry(emp.id, { 
+                                                        status: newStatus,
+                                                        paidDate: newStatus === 'Paid' ? new Date().toISOString() : undefined
+                                                    });
+                                                }}
+                                                className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline uppercase tracking-tighter"
+                                            >
+                                                {data.status === 'Paid' ? 'Mark Pending' : 'Mark Paid'}
+                                            </button>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-5 text-center"><button onClick={() => handleOpenSlip(emp, data)} className="text-xs font-bold text-indigo-600 hover:underline">View Slip</button></td>
                                 </tr>
@@ -690,23 +826,23 @@ export const Payroll: React.FC = () => {
                             <div className="text-[10px] space-y-1 font-bold text-gray-600">
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase">Working Days (Pres.)</span>
-                                    <span className="text-gray-900">{activeSlip.counts.present + activeSlip.counts.alternate}</span>
+                                    <span className="text-gray-900">{(activeSlip.counts?.present || 0) + (activeSlip.counts?.alternate || 0)}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase">Week Offs</span>
-                                    <span className="text-gray-900">{activeSlip.counts.off}</span>
+                                    <span className="text-gray-900">{activeSlip.counts?.off || 0}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase">Holidays/Paid Lve</span>
-                                    <span className="text-gray-900">{activeSlip.counts.holiday + activeSlip.counts.leave}</span>
+                                    <span className="text-gray-900">{(activeSlip.counts?.holiday || 0) + (activeSlip.counts?.leave || 0)}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase">Half Days (0.5x)</span>
-                                    <span className="text-amber-600">{activeSlip.counts.half}</span>
+                                    <span className="text-amber-600">{activeSlip.counts?.half || 0}</span>
                                 </div>
                                 <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
                                     <span className="text-rose-500 uppercase">Absent Days</span>
-                                    <span className="text-rose-600">{activeSlip.counts.absent}</span>
+                                    <span className="text-rose-600">{activeSlip.counts?.absent || 0}</span>
                                 </div>
                                 <div className="h-px bg-indigo-50 my-1"></div>
                                 <div className="flex justify-between gap-4">

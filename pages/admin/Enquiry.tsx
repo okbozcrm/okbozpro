@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, Phone, User, MapPin, 
   MessageCircle, Mail, Calendar, 
-  CheckCircle, X, Car, AlertCircle, PhoneIncoming, UserPlus, PhoneOutgoing 
+  CheckCircle, X, Car, AlertCircle, PhoneIncoming, UserPlus, PhoneOutgoing, Send 
 } from 'lucide-react';
 import { Enquiry, HistoryLog, Employee, Vendor, CorporateAccount } from '../../types';
 import { MOCK_EMPLOYEES } from '../../constants';

@@ -145,15 +145,21 @@ const UserSalary: React.FC = () => {
     let paidAdvances = 0;
     let travelIncentive = 0;
 
-    const savedAttendance = localStorage.getItem(`attendance_data_${user.id}_${year}_${month}`);
-    const attendance: DailyAttendance[] = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
+    let attendance: DailyAttendance[] = [];
+    try {
+        attendance = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
+        if (!Array.isArray(attendance)) attendance = [];
+    } catch (e) {
+        console.error("Error parsing attendance data", e);
+        attendance = getEmployeeAttendance(user, year, month);
+    }
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const joiningDate = user.joiningDate ? new Date(user.joiningDate + 'T12:00:00') : new Date('2000-01-01');
     const terminationDate = (user.status === 'Terminated' && user.terminationDate) ? new Date(user.terminationDate + 'T12:00:00') : null;
     const currentDate = new Date();
     currentDate.setHours(12, 0, 0, 0);
 
-    let counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
+    const counts = { present: 0, half: 0, leave: 0, off: 0, holiday: 0, alternate: 0, absent: 0 };
     
     attendance.forEach(day => {
         const dayDate = new Date(day.date + 'T12:00:00');
@@ -411,7 +417,7 @@ const UserSalary: React.FC = () => {
                     <div key={req.id} className="p-5 bg-gray-50/50 rounded-2xl border border-gray-100 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-black text-gray-800 truncate">₹{req.amountRequested.toLocaleString()}</p>
-                            <p className="text-[10px] text-gray-500 truncate italic mt-0.5">"{req.reason}"</p>
+                            <p className="text-[10px] text-gray-500 truncate italic mt-0.5">&quot;{req.reason}&quot;</p>
                         </div>
                         <div className="text-right ml-4">
                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase border ${

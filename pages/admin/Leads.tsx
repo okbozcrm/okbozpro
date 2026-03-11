@@ -7,7 +7,7 @@ import {
   Settings, CheckCircle, Filter, ArrowUpRight, ChevronDown, Users, 
   Activity, Building2, PhoneOutgoing, Wallet, ArrowRight, ThumbsUp, 
   ThumbsDown, PhoneMissed, Timer, LayoutGrid, List as ListIcon,
-  Target, Phone, ChevronRight
+  Target, Phone, ChevronRight, Upload
 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
 import { uploadFileToCloud } from '../../services/cloudService';

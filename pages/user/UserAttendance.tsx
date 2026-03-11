@@ -37,7 +37,9 @@ const parseToMinutes = (t: string) => {
 const convertTo24Hour = (time12h?: string) => {
   if (!time12h || time12h === '--:--') return '';
   const [time, modifier] = time12h.split(' ');
-  let [hours, minutes] = time.split(':');
+  const parts = time.split(':');
+  let hours = parts[0];
+  const minutes = parts[1];
   if (hours === '12') hours = '00';
   if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
   return `${hours.padStart(2, '0')}:${minutes}`;
@@ -45,7 +47,7 @@ const convertTo24Hour = (time12h?: string) => {
 
 const convertTo12Hour = (time24h?: string) => {
   if (!time24h) return '';
-  let [hours, minutes] = time24h.split(':');
+  const [hours, minutes] = time24h.split(':');
   const h = parseInt(hours, 10);
   const modifier = h >= 12 ? 'PM' : 'AM';
   const displayHours = h % 12 || 12;
