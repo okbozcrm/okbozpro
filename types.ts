@@ -249,6 +249,7 @@ export interface SalaryAdvanceRequest {
   paymentDate?: string;
   paymentMode?: string; 
   corporateId?: string; 
+  deductionMonth?: string; // NEW: Month to deduct from salary (YYYY-MM)
 }
 
 export interface BozNotification {

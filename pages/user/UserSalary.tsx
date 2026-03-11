@@ -1,7 +1,6 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Download, TrendingUp, DollarSign, FileText, CheckCircle, Clock, Plus, AlertCircle, X, Send, Timer, Bike, Loader2, MessageCircle, Mail, MapPin, Building, User, ReceiptIndianRupee, Calendar, Wallet } from 'lucide-react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Download, DollarSign, Clock, X, Send, Bike, Loader2 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
@@ -24,7 +23,7 @@ const UserSalary: React.FC = () => {
   const [user, setUser] = useState<Employee | null>(null);
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [advanceForm, setAdvanceForm] = useState({ amount: '', reason: '' });
+  const [advanceForm, setAdvanceForm] = useState({ amount: '', reason: '', deductionMonth: new Date().toISOString().slice(0, 7) });
   const [advanceHistory, setAdvanceHistory] = useState<SalaryAdvanceRequest[]>([]);
   const [kmClaims, setKmClaims] = useState<TravelAllowanceRequest[]>([]);
   const [refreshToggle, setRefreshToggle] = useState(0);
@@ -62,7 +61,6 @@ const UserSalary: React.FC = () => {
               setUser(found || null);
 
               if (found) {
-                  const currentMonthYear = new Date().toISOString().slice(0, 7);
                   const payrollKey = corporateOwnerId === 'admin' ? 'payroll_data' : `payroll_data_${corporateOwnerId}`;
                   const currentPayrollState = JSON.parse(localStorage.getItem(payrollKey) || '{}');
                   setCurrentMonthPayrollEntry(currentPayrollState[found.id] || null);
@@ -111,7 +109,8 @@ const UserSalary: React.FC = () => {
           reason: advanceForm.reason,
           status: 'Pending',
           requestDate: new Date().toISOString(),
-          corporateId: corporateId
+          corporateId: corporateId,
+          deductionMonth: advanceForm.deductionMonth
       };
       const existingAdvances = JSON.parse(localStorage.getItem('salary_advances') || '[]');
       localStorage.setItem('salary_advances', JSON.stringify([newRequest, ...existingAdvances]));
@@ -126,7 +125,7 @@ const UserSalary: React.FC = () => {
       });
       setAdvanceHistory([newRequest, ...advanceHistory]);
       setIsAdvanceModalOpen(false);
-      setAdvanceForm({ amount: '', reason: '' });
+      setAdvanceForm({ amount: '', reason: '', deductionMonth: new Date().toISOString().slice(0, 7) });
       setIsSubmitting(false);
       alert("Request submitted successfully!");
   };
@@ -218,7 +217,10 @@ const UserSalary: React.FC = () => {
     } else {
         const perDaySalary = monthlyCtc / daysInMonth;
         grossEarned = Math.round(perDaySalary * payableDays);
-        paidAdvances = advanceHistory.filter(a => a.status === 'Approved').reduce((sum, item) => sum + (item.amountApproved || 0), 0);
+        paidAdvances = advanceHistory.filter(a => 
+            a.status === 'Approved' && 
+            (!a.deductionMonth || a.deductionMonth === currentMonthStr)
+        ).reduce((sum, item) => sum + (item.amountApproved || 0), 0);
         travelIncentive = kmClaims.filter(c => (c.status === 'Approved' || c.status === 'Paid') && c.date.startsWith(currentMonthStr)).reduce((sum, c) => sum + c.totalAmount, 0);
     }
 
@@ -447,6 +449,11 @@ const UserSalary: React.FC = () => {
                     <input type="number" required min="1" max={salaryData.monthlyCtc / 2} value={advanceForm.amount} onChange={e => setAdvanceForm({...advanceForm, amount: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none" placeholder="0.00" />
                 </div>
                 <p className="text-[10px] text-gray-400 font-medium ml-1">Max eligible: ₹{(salaryData.monthlyCtc / 2).toLocaleString()}</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Deduction Month</label>
+                <input type="month" required value={advanceForm.deductionMonth} onChange={e => setAdvanceForm({...advanceForm, deductionMonth: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none" />
+                <p className="text-[10px] text-gray-400 font-medium ml-1">The month this advance will be deducted from your salary</p>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Reason for Advance</label>

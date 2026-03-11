@@ -5,7 +5,7 @@ import {
   BarChart3,
   ChevronLeft, ChevronRight,
   Info, Download, Loader2,
-  Check, DollarSign, Trash2,
+  Check, DollarSign, Trash2, Plus,
   Users, Clock, CheckCircle2, Save
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
@@ -54,6 +54,8 @@ export const Payroll: React.FC = () => {
   const [refreshToggle, setRefreshToggle] = useState(0);
 
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [newAdvance, setNewAdvance] = useState({ employeeId: '', amount: '', reason: '', deductionMonth: selectedMonth });
   const [activeSlip, setActiveSlip] = useState<{ emp: ExtendedEmployee, data: PayrollEntry, counts?: AttendanceCounts } | null>(null);
   const slipRef = useRef<HTMLDivElement>(null);
   const [isExportingSlip, setIsExportingSlip] = useState(false);
@@ -198,7 +200,11 @@ export const Payroll: React.FC = () => {
         });
 
         const grossEarned = Math.round((monthlyCtc / daysInMonth) * payableDays);
-        const unpaidAdvances = advances.filter(a => a.employeeId === emp.id && a.status === 'Approved').reduce((s, i) => s + (i.amountApproved || 0), 0);
+        const unpaidAdvances = advances.filter(a => 
+            a.employeeId === emp.id && 
+            a.status === 'Approved' && 
+            (!a.deductionMonth || a.deductionMonth === selectedMonth)
+        ).reduce((s, i) => s + (i.amountApproved || 0), 0);
         const travelIncentive = kmClaims
             .filter(r => r.employeeId === emp.id && (r.status === 'Approved' || r.status === 'Paid') && r.date.startsWith(selectedMonth))
             .reduce((sum, r) => sum + r.totalAmount, 0);
@@ -251,7 +257,7 @@ export const Payroll: React.FC = () => {
   };
 
   const bulkUpdatePayrollEntries = (updates: { empId: string, updates: Partial<PayrollEntry> }[]) => {
-      const corpGroups: Record<string, Record<string, any>> = {};
+      const corpGroups: Record<string, Record<string, Partial<PayrollEntry>>> = {};
       
       updates.forEach(({ empId, updates: empUpdates }) => {
           const emp = employees.find(e => e.id === empId);
@@ -367,6 +373,32 @@ export const Payroll: React.FC = () => {
           localStorage.setItem('salary_advances', JSON.stringify(updated));
           setAdvances(updated);
       }
+  };
+
+  const handleCreateAdvance = (e: React.FormEvent) => {
+      e.preventDefault();
+      const emp = employees.find(e => e.id === newAdvance.employeeId);
+      if (!emp) return;
+
+      const request: SalaryAdvanceRequest = {
+          id: `ADV-${Date.now()}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          amountRequested: parseFloat(newAdvance.amount),
+          amountApproved: parseFloat(newAdvance.amount),
+          reason: newAdvance.reason,
+          status: 'Approved', // Admin added advances are auto-approved
+          requestDate: new Date().toISOString(),
+          corporateId: emp.corporateId,
+          deductionMonth: newAdvance.deductionMonth
+      };
+
+      const updated = [request, ...advances];
+      localStorage.setItem('salary_advances', JSON.stringify(updated));
+      setAdvances(updated);
+      setIsAdvanceModalOpen(false);
+      setNewAdvance({ employeeId: '', amount: '', reason: '', deductionMonth: selectedMonth });
+      setRefreshToggle(v => v + 1);
   };
 
   const handleOpenSlip = (emp: ExtendedEmployee, data: PayrollEntry) => {
@@ -654,8 +686,18 @@ export const Payroll: React.FC = () => {
       )}
 
       {activeTab === 'Advances' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="font-bold text-gray-700">Advance Requests</h3>
+                <button 
+                    onClick={() => setIsAdvanceModalOpen(true)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
+                >
+                    <Plus className="w-4 h-4" /> New Advance
+                </button>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-100">
                         <tr>
@@ -706,6 +748,7 @@ export const Payroll: React.FC = () => {
                 </table>
             </div>
         </div>
+      </div>
       )}
 
       {activeTab === 'KM Claims (TA)' && (
@@ -788,6 +831,70 @@ export const Payroll: React.FC = () => {
                     </tbody>
                 </table>
             </div>
+        </div>
+      )}
+
+      {isAdvanceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 className="font-bold text-gray-800">Create Advance Request</h3>
+                <button onClick={() => setIsAdvanceModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreateAdvance} className="p-6 space-y-4">
+                <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Select Employee</label>
+                    <select 
+                        required
+                        value={newAdvance.employeeId}
+                        onChange={(e) => setNewAdvance({ ...newAdvance, employeeId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    >
+                        <option value="">Choose Staff...</option>
+                        {employees.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Amount (₹)</label>
+                    <input 
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="e.g. 5000"
+                        value={newAdvance.amount}
+                        onChange={(e) => setNewAdvance({ ...newAdvance, amount: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Deduction Month</label>
+                    <input 
+                        type="month"
+                        required
+                        value={newAdvance.deductionMonth}
+                        onChange={(e) => setNewAdvance({ ...newAdvance, deductionMonth: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1 italic">Advance will be deducted from this month&apos;s salary</p>
+                </div>
+                <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Reason / Note</label>
+                    <textarea 
+                        required
+                        placeholder="Purpose of advance..."
+                        value={newAdvance.reason}
+                        onChange={(e) => setNewAdvance({ ...newAdvance, reason: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none h-24 resize-none"
+                    />
+                </div>
+                <div className="pt-2 flex gap-3">
+                    <button type="submit" className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black text-sm shadow-lg hover:bg-indigo-700 transition-all">Create & Approve</button>
+                    <button type="button" onClick={() => setIsAdvanceModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-black text-sm hover:bg-gray-200 transition-all">Cancel</button>
+                </div>
+            </form>
+          </div>
         </div>
       )}
 
