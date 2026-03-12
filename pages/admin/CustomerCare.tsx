@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
 import { Enquiry, UserRole } from '../../types';
-import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
+import { HARDCODED_MAPS_API_KEY, syncToCloud } from '../../services/cloudService';
 
 // Types
 type TripType = 'Local' | 'Rental' | 'Outstation';
@@ -212,8 +212,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const isSuperAdmin = sessionId === 'admin';
   const isEmployee = role === UserRole.EMPLOYEE;
 
+  // Determine corporate context
+  const corporateEmail = isEmployee 
+    ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
+    : (role === UserRole.CORPORATE ? sessionId : 'admin');
+
   const [assignment] = useState({
-    corporateId: isSuperAdmin ? 'admin' : sessionId,
+    corporateId: isSuperAdmin ? 'admin' : corporateEmail,
     branchName: '',
     staffId: ''
   });
@@ -517,8 +522,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           city: 'Coimbatore',
           details: detailsText,
           status: status,
-          assignedTo: assignment.staffId,
-          assignedCorporate: isSuperAdmin ? assignment.corporateId : sessionId,
+          assignedTo: isEmployee ? sessionId : assignment.staffId,
+          assignedCorporate: isSuperAdmin ? assignment.corporateId : corporateEmail,
           assignedBranch: assignment.branchName,
           createdAt: new Date().toLocaleString(),
           history: [{ id: Date.now(), type: 'Note', message: `Order ${status}. Est: ₹${estimatedCost}`, date: new Date().toLocaleString(), outcome: 'Completed' }],
@@ -533,6 +538,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       const updatedList = editingOrderId ? enquiries.map(e => e.id === editingOrderId ? newEnquiry : e) : [newEnquiry, ...enquiries];
       setEnquiries(updatedList);
       localStorage.setItem('global_enquiries_data', JSON.stringify(updatedList));
+      syncToCloud();
       alert(`Success: ${status}`);
       handleCancelForm();
   };
@@ -572,11 +578,32 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const filteredOrders = useMemo(() => {
       return enquiries.filter(order => {
+          // 1. Role-Based Access Control (RBAC)
+          let hasAccess = false;
+          if (isSuperAdmin) {
+              hasAccess = true; // Admin sees all
+          } else if (role === UserRole.CORPORATE) {
+              // Franchise sees only their own corporate leads
+              hasAccess = order.assignedCorporate === sessionId;
+          } else if (role === UserRole.EMPLOYEE) {
+              // Employee sees only leads assigned to them
+              hasAccess = order.assignedTo === sessionId;
+          } else if (role === UserRole.SUB_ADMIN) {
+              // Sub-admin context check (Head Office sees all, others see their context)
+              hasAccess = sessionId === 'admin' || order.assignedCorporate === sessionId;
+          }
+
+          if (!hasAccess) return false;
+
+          // 2. Filters
           const matchesSearch = order.name.toLowerCase().includes(filterSearch.toLowerCase()) || 
                                 order.phone.includes(filterSearch) || 
                                 order.id.toLowerCase().includes(filterSearch.toLowerCase());
           const matchesStatus = filterStatus === 'All' || order.status === filterStatus;
+          
+          // Corporate Filter (only relevant for Super Admin)
           const matchesCorp = isSuperAdmin ? (filterCorporate === 'All' || order.assignedCorporate === filterCorporate) : true;
+          
           const matchesBranch = filterBranch === 'All' || order.assignedBranch === filterBranch;
           
           let matchesDate = true;
@@ -588,7 +615,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
           return matchesSearch && matchesStatus && matchesCorp && matchesBranch && matchesDate;
       });
-  }, [enquiries, filterSearch, filterStatus, filterCorporate, filterBranch, filterDateType, filterDate, filterMonth, isSuperAdmin]);
+  }, [enquiries, filterSearch, filterStatus, filterCorporate, filterBranch, filterDateType, filterDate, filterMonth, isSuperAdmin, role, sessionId]);
 
   const getAssignedStaff = (id?: string) => {
       if (!id) return null;
@@ -1122,11 +1149,75 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                         const assigned = getAssignedStaff(order.assignedTo);
                         return (
                         <tr key={i} className="hover:bg-gray-50/80 transition-all group animate-in slide-in-from-bottom-2 duration-300">
-                            <td className="px-12 py-10"><div className="flex items-center gap-6"><div className="w-14 h-14 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl border border-indigo-100 shadow-inner">{order.name.charAt(0)}</div><div><p className="font-black text-gray-900 text-lg tracking-tighter leading-none mb-2">{order.name}</p><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2 font-mono"><Phone className="w-3 h-3" /> {order.phone}</p></div></div></td>
-                            <td className="px-12 py-10"><div className="max-w-xs space-y-2"><p className="text-sm text-gray-600 font-black line-clamp-1 truncate leading-tight uppercase tracking-tight" title={order.details}>{order.details}</p><div className="flex gap-2 flex-wrap">{order.enquiryCategory === 'Transport' && <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black border border-emerald-100 tracking-tighter uppercase">Dispatched</span>}{order.priority === 'Hot' && <span className="bg-rose-50 text-rose-700 px-3 py-1 rounded-lg text-[9px] font-black border border-rose-100 tracking-tighter uppercase">High Priority</span>}</div></div></td>
-                            <td className="px-12 py-10">{assigned ? (<div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 w-fit pr-4 shadow-sm"><img src={assigned.avatar} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" /><div className="text-[10px] font-black text-gray-700 uppercase tracking-widest">{assigned.name}</div></div>) : <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] italic border-b border-gray-100 pb-1">Operational Pending</span>}</td>
-                            <td className="px-12 py-10 text-center"><span className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm ${order.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : order.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>{order.status}</span></td>
-                            <td className="px-12 py-10 text-right"><div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => handleEditOrder(order)} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-indigo-600 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95"><Edit2 className="w-5 h-5"/></button><button onClick={() => { if(window.confirm('Delete Permanent?')) setEnquiries(enquiries.filter(e => e.id !== order.id)) }} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95"><Trash2 className="w-5 h-5"/></button></div></td>
+                            <td className="px-12 py-10">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-14 h-14 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl border border-indigo-100 shadow-inner">
+                                        {order.name.charAt(0)}
+                                    </div>
+                                    <div 
+                                        className="cursor-pointer group/name" 
+                                        onClick={() => handleEditOrder(order)}
+                                    >
+                                        <p className="font-black text-gray-900 text-lg tracking-tighter leading-none mb-2 group-hover/name:text-indigo-600 transition-colors">
+                                            {order.name}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2 font-mono">
+                                            <Phone className="w-3 h-3" /> {order.phone}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-12 py-10">
+                                <div className="max-w-xs space-y-2">
+                                    <p className="text-sm text-gray-600 font-black line-clamp-1 truncate leading-tight uppercase tracking-tight" title={order.details}>
+                                        {order.details}
+                                    </p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {order.enquiryCategory === 'Transport' && (
+                                            <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black border border-emerald-100 tracking-tighter uppercase">
+                                                DISPATCHED
+                                            </span>
+                                        )}
+                                        {order.priority === 'Hot' && (
+                                            <span className="bg-rose-50 text-rose-700 px-3 py-1 rounded-lg text-[9px] font-black border border-rose-100 tracking-tighter uppercase">
+                                                High Priority
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-12 py-10">
+                                {assigned ? (
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 w-fit pr-4 shadow-sm">
+                                        <img src={assigned.avatar} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" />
+                                        <div className="text-[10px] font-black text-gray-700 uppercase tracking-widest">{assigned.name}</div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] italic">OPERATIONAL</span>
+                                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] italic">PENDING</span>
+                                    </div>
+                                )}
+                            </td>
+                            <td className="px-12 py-10 text-center">
+                                <span className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm ${
+                                    order.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                                    order.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 
+                                    'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                }`}>
+                                    {order.status}
+                                </span>
+                            </td>
+                            <td className="px-12 py-10 text-right">
+                                <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEditOrder(order)} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-indigo-600 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95">
+                                        <Edit2 className="w-5 h-5"/>
+                                    </button>
+                                    <button onClick={() => { if(window.confirm('Delete Permanent?')) setEnquiries(enquiries.filter(e => e.id !== order.id)) }} className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-2xl shadow-xl transition-all hover:scale-110 active:scale-95">
+                                        <Trash2 className="w-5 h-5"/>
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                         );
                     })}

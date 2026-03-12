@@ -10,8 +10,9 @@ import {
   Target, Phone, ChevronRight, Upload
 } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
-import { uploadFileToCloud } from '../../services/cloudService';
+import { uploadFileToCloud, syncToCloud } from '../../services/cloudService';
 import ContactDisplay from '../../components/ContactDisplay';
+import { UserRole } from '../../types';
 
 interface HistoryLog {
   date: string;
@@ -40,6 +41,8 @@ interface Lead {
   createdAt: string;
   history: HistoryLog[];
   outcome?: 'Interest' | 'Not Interest' | 'Call Back' | 'No Answer';
+  corporateId?: string;
+  assignedTo?: string;
 }
 
 interface MessageTemplate {
@@ -51,6 +54,16 @@ interface MessageTemplate {
 }
 
 const Leads = () => {
+  const role = localStorage.getItem('user_role') as UserRole;
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const isEmployee = role === UserRole.EMPLOYEE;
+
+  // Determine corporate context
+  const corporateEmail = isEmployee 
+    ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
+    : (role === UserRole.CORPORATE ? sessionId : 'admin');
+
   const [leads, setLeads] = useState<Lead[]>(() => {
     const saved = localStorage.getItem('leads_data');
     return saved ? JSON.parse(saved) : [];
@@ -83,6 +96,7 @@ const Leads = () => {
 
   useEffect(() => {
     localStorage.setItem('leads_data', JSON.stringify(leads));
+    syncToCloud();
   }, [leads]);
 
   useEffect(() => {
@@ -268,6 +282,8 @@ const Leads = () => {
             nextCallTime: formData.outcome === 'Not Interest' ? '' : formData.nextCallTime,
             status: newStatus,
             outcome: formData.outcome,
+            corporateId: lead.corporateId || corporateEmail,
+            assignedTo: lead.assignedTo || sessionId,
             history: [newHistoryEntry, ...(lead.history || [])]
           };
         }
@@ -295,7 +311,9 @@ const Leads = () => {
             tags: [formData.priority],
             createdAt: new Date().toISOString().split('T')[0],
             history: [newHistoryEntry],
-            outcome: formData.outcome
+            outcome: formData.outcome,
+            corporateId: corporateEmail,
+            assignedTo: sessionId
         };
         setLeads([newLead, ...leads]);
     }
@@ -304,6 +322,19 @@ const Leads = () => {
 
   const filteredLeads = useMemo(() => {
       return leads.filter(l => {
+          // 1. Role-Based Access Control
+          let hasAccess = false;
+          if (isSuperAdmin) {
+              hasAccess = true;
+          } else if (role === UserRole.CORPORATE) {
+              hasAccess = l.corporateId === corporateEmail;
+          } else if (role === UserRole.EMPLOYEE) {
+              hasAccess = l.assignedTo === sessionId;
+          }
+          
+          if (!hasAccess) return false;
+
+          // 2. UI Filters
           const matchesSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                l.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                l.phone?.includes(searchTerm);
@@ -318,7 +349,7 @@ const Leads = () => {
           
           return matchesSearch && matchesStatus && matchesPriority && matchesKpi;
       });
-  }, [leads, searchTerm, statusFilter, priorityFilter, activeKpi, kpiRefDate]);
+  }, [leads, searchTerm, statusFilter, priorityFilter, activeKpi, kpiRefDate, isSuperAdmin, role, sessionId, corporateEmail]);
 
   const stats = useMemo(() => {
       const total = leads.length;
@@ -741,7 +772,7 @@ const Leads = () => {
                                      <ThumbsDown className="w-10 h-10" />
                                  </div>
                                  <h4 className="text-xl font-black text-gray-900 tracking-tighter">Engagement Terminated</h4>
-                                 <p className="text-sm text-gray-500 mt-2">Lead marked as 'Not Interested'. No further outreach assets are available for this status to maintain compliance.</p>
+                                 <p className="text-sm text-gray-500 mt-2">Lead marked as &apos;Not Interested&apos;. No further outreach assets are available for this status to maintain compliance.</p>
                              </div>
                          )}
                      </div>
@@ -837,7 +868,7 @@ const Leads = () => {
                                               <button onClick={() => deleteTemplate(t.id)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"><Trash2 className="w-4 h-4"/></button>
                                           </div>
                                       </div>
-                                      <p className="text-xs text-gray-600 line-clamp-2 italic font-bold leading-relaxed opacity-70">"{t.content}"</p>
+                                      <p className="text-xs text-gray-600 line-clamp-2 italic font-bold leading-relaxed opacity-70">&quot;{t.content}&quot;</p>
                                   </div>
                               ))}
                               {templates.length === 0 && <p className="text-center py-32 text-gray-300 font-black uppercase text-xs tracking-[0.3em]">No registered assets</p>}

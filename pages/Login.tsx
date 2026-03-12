@@ -150,6 +150,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
             }
 
             if (foundEmp) {
+                if (foundEmp.status === 'Terminated') {
+                    setError('Your account has been terminated. Please contact admin.');
+                    setIsLoading(false);
+                    return;
+                }
                 success = true;
                 role = UserRole.EMPLOYEE;
                 sessionId = foundEmp.id;

@@ -423,12 +423,25 @@ export const Payroll: React.FC = () => {
   };
 
   const filteredEmployees = useMemo(() => {
+      const [year, monthStr] = selectedMonth.split('-').map(n => parseInt(n));
+      const startOfMonth = new Date(year, monthStr - 1, 1);
+      const endOfMonth = new Date(year, monthStr, 0);
+
       return employees.filter(emp => {
           const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase());
           const matchesCorp = selectedCorporate === 'All' || emp.corporateId === selectedCorporate;
-          return matchesSearch && matchesCorp;
+
+          // Joining Date Logic: Staff must have joined on or before the end of the selected month
+          const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : null;
+          const hasJoined = !joiningDate || joiningDate <= endOfMonth;
+
+          // Termination Date Logic: Staff must not have been terminated before the start of the selected month
+          const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
+          const isNotTerminatedYet = !terminationDate || terminationDate >= startOfMonth;
+
+          return matchesSearch && matchesCorp && hasJoined && isNotTerminatedYet;
       });
-  }, [employees, searchTerm, selectedCorporate]);
+  }, [employees, searchTerm, selectedCorporate, selectedMonth]);
 
   const stats = useMemo(() => {
       let totalCost = 0;

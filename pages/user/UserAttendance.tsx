@@ -340,6 +340,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   };
 
   const filteredStaffList = useMemo(() => {
+    // Get start and end of selected month for filtering
+    const startOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+    const endOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+
     return employees.filter(emp => {
         const matchesSearch = filterSearch ? emp.name.toLowerCase().includes(filterSearch.toLowerCase()) : true;
         
@@ -351,9 +355,17 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         // If filterBranch is specific, we strictly match the employee's branch.
         const matchesBranch = filterBranch === 'All' || emp.branch === filterBranch;
 
-        return matchesSearch && matchesCorp && matchesBranch;
+        // Joining Date Logic: Staff must have joined on or before the end of the selected month
+        const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : null;
+        const hasJoined = !joiningDate || joiningDate <= endOfMonth;
+
+        // Termination Date Logic: Staff must not have been terminated before the start of the selected month
+        const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
+        const isNotTerminatedYet = !terminationDate || terminationDate >= startOfMonth;
+
+        return matchesSearch && matchesCorp && matchesBranch && hasJoined && isNotTerminatedYet;
     });
-  }, [employees, filterCorporate, filterBranch, filterSearch, refreshToggle]);
+  }, [employees, filterCorporate, filterBranch, filterSearch, refreshToggle, selectedMonth]);
 
   // Effect to update selectedEmployee when filtered list changes
   useEffect(() => {

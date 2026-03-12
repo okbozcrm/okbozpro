@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Phone, Cloud, Settings, FileText, Plus, Upload, 
   Search, Filter, Trash2, Play, MapPin, 
   User, Clock, Calendar
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { UserRole } from '../../types';
+import { syncToCloud } from '../../services/cloudService';
 
 // --- Types ---
 interface Lead {
@@ -14,61 +16,103 @@ interface Lead {
   location: string;
   addedBy: string;
   addedByEmail: string;
+  addedById?: string; // Added to track specific employee ID
   status: 'PENDING' | 'CALLBACK' | 'INTERESTED' | 'NO_ANSWER' | 'NOT_INTERESTED' | 'NO_MATCH';
   schedule?: string;
   history: { date: string; note: string }[];
 }
 
-// --- Mock Data ---
-const MOCK_LEADS: Lead[] = [
-  {
-    id: '1',
-    name: 'SENTHIL KUMAR',
-    phone: '9566348085',
-    location: 'COIMBATORE',
-    addedBy: 'shailaja',
-    addedByEmail: 'okbozmadurai@gmail.com',
-    status: 'CALLBACK',
-    schedule: '21 Feb, 03:02',
-    history: [
-      { date: '2024-02-21', note: 'Requested a follow-up call at a later time.' }
-    ]
-  },
-  {
-    id: '2',
-    name: 'SENTHIL KUMAR',
-    phone: '95667348085',
-    location: 'COIMBATORE',
-    addedBy: 'shailaja',
-    addedByEmail: 'okbozmadurai@gmail.com',
-    status: 'PENDING',
-    history: []
-  },
-  // Add more mock data if needed to fill the list
-];
-
+// --- Constants ---
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#E5E7EB']; // Emerald, Amber, Red, Gray
 
 const AutoDialer: React.FC = () => {
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>('1');
+  const role = localStorage.getItem('user_role') as UserRole;
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const isEmployee = role === UserRole.EMPLOYEE;
+  
+  // Determine corporate context
+  const corporateEmail = isEmployee 
+    ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
+    : (role === UserRole.CORPORATE ? sessionId : 'admin');
+
+  const storageKey = `auto_dialer_data_${corporateEmail}`;
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<Lead['status'] | 'ALL'>('ALL');
   const [locationFilter, setLocationFilter] = useState<string>('ALL');
   const [note, setNote] = useState('');
 
+  // Load data
+  useEffect(() => {
+    const loadLeads = () => {
+        if (isSuperAdmin) {
+            // Admin sees ALL leads from ALL corporates
+            const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+            let allLeads: Lead[] = [];
+            
+            // Add admin's own leads
+            const adminLeads = JSON.parse(localStorage.getItem('auto_dialer_data_admin') || '[]');
+            allLeads = [...adminLeads];
+            
+            // Add each corporate's leads
+            corps.forEach((c: { email: string }) => {
+                const cLeads = JSON.parse(localStorage.getItem(`auto_dialer_data_${c.email}`) || '[]');
+                allLeads = [...allLeads, ...cLeads];
+            });
+            setLeads(allLeads);
+        } else {
+            // Franchise or Employee sees their corporate's leads
+            const saved = localStorage.getItem(storageKey);
+            setLeads(saved ? JSON.parse(saved) : []);
+        }
+    };
+    loadLeads();
+  }, [isSuperAdmin, storageKey]);
+
+  // Save data helper
+  const saveLeads = (updatedLeads: Lead[]) => {
+    setLeads(updatedLeads);
+    
+    if (isSuperAdmin) {
+        // Admin saving might be complex if they edit a corporate lead
+        // For now, assume admin only adds/edits their own leads in 'admin' namespace
+        // or we just save to the current context
+        localStorage.setItem(storageKey, JSON.stringify(updatedLeads.filter(l => l.addedByEmail === 'admin@okboz.com' || !l.addedByEmail)));
+    } else {
+        localStorage.setItem(storageKey, JSON.stringify(updatedLeads));
+    }
+    syncToCloud();
+  };
+
   const selectedLead = leads.find(l => l.id === selectedLeadId);
 
-  // Filtered Leads
+  // Filtered Leads with RBAC
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
+      // 1. Role-Based Access Control
+      let hasAccess = false;
+      if (isSuperAdmin) {
+          hasAccess = true;
+      } else if (role === UserRole.CORPORATE) {
+          hasAccess = true; // Franchise sees all leads in their namespace
+      } else if (role === UserRole.EMPLOYEE) {
+          // Employee sees only leads they added
+          hasAccess = lead.addedById === sessionId;
+      }
+      
+      if (!hasAccess) return false;
+
+      // 2. UI Filters
       const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            lead.phone.includes(searchTerm);
       const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
       const matchesLocation = locationFilter === 'ALL' || lead.location === locationFilter;
       return matchesSearch && matchesStatus && matchesLocation;
     });
-  }, [leads, searchTerm, statusFilter, locationFilter]);
+  }, [leads, searchTerm, statusFilter, locationFilter, isSuperAdmin, role, sessionId]);
 
   // Unique Locations for Filter
   const locations = useMemo(() => {
@@ -153,8 +197,9 @@ const AutoDialer: React.FC = () => {
                     name,
                     phone,
                     location: location || 'Unknown',
-                    addedBy: 'Import',
-                    addedByEmail: 'admin@okboz.com',
+                    addedBy: isEmployee ? localStorage.getItem('loggedInUserName') || 'Staff' : (isSuperAdmin ? 'Admin' : 'Franchise'),
+                    addedByEmail: isSuperAdmin ? 'admin@okboz.com' : corporateEmail,
+                    addedById: sessionId,
                     status: 'PENDING',
                     history: []
                 });
@@ -162,7 +207,7 @@ const AutoDialer: React.FC = () => {
         }
         
         if (importedLeads.length > 0) {
-            setLeads(prev => [...prev, ...importedLeads]);
+            saveLeads([...leads, ...importedLeads]);
             alert(`Successfully imported ${importedLeads.length} leads.`);
         } else {
             alert("No valid leads found in file.");
@@ -182,12 +227,13 @@ const AutoDialer: React.FC = () => {
         name: newLead.name,
         phone: newLead.phone,
         location: newLead.location || 'Unknown',
-        addedBy: 'Admin',
-        addedByEmail: 'admin@okboz.com',
+        addedBy: isEmployee ? localStorage.getItem('loggedInUserName') || 'Staff' : (isSuperAdmin ? 'Admin' : 'Franchise'),
+        addedByEmail: isSuperAdmin ? 'admin@okboz.com' : corporateEmail,
+        addedById: sessionId,
         status: 'PENDING',
         history: []
     };
-    setLeads(prev => [lead, ...prev]);
+    saveLeads([lead, ...leads]);
     setIsAddLeadModalOpen(false);
     setNewLead({ name: '', phone: '', location: '' });
   };
@@ -219,7 +265,7 @@ const AutoDialer: React.FC = () => {
       }
       return l;
     });
-    setLeads(updatedLeads);
+    saveLeads(updatedLeads);
     setNote('');
   };
 

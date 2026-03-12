@@ -1,6 +1,6 @@
 {
-  "name": "OK BOZ SUPER APP ",
-  "description": "A system for managing product prices across multiple franchises, allowing admin to set defaults and franchises to customize their own pricing.",
+  "name": "OK BOZ Attendance & Payroll",
+  "description": "Enterprise-grade attendance management and payroll system with advanced filtering for joining and termination dates.",
   "requestFramePermissions": [
     "camera",
     "geolocation",
