@@ -433,7 +433,7 @@ const AutoLiveTrack = () => {
         <ToggleSwitch label="Enable Global Auto Tracking" checked={enabled} onChange={handleToggle} />
         <div className="p-4 bg-blue-50 text-blue-700 text-xs flex items-start gap-2 border-t border-blue-100">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>When active, all staff profiles will default to "Live Tracking Enabled". You can still override this on individual staff profiles.</p>
+          <p>When active, all staff profiles will default to &quot;Live Tracking Enabled&quot;. You can still override this on individual staff profiles.</p>
         </div>
       </div>
     </div>

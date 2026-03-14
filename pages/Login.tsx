@@ -187,6 +187,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                     targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
                     corporateId: corporateOwnerId, // Admin sees all, Corporate only sees their own staff's logins
                     employeeId: employeeId,
+                    branchId: foundEmp?.branch,
                     link: `/admin/staff` // Admin and Corporate can go to staff list
                 };
                 sendSystemNotification(loginNotification);

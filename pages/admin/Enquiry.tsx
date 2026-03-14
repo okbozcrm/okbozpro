@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Phone, User, MapPin, 
+  Search, Phone, User, MapPin, 
   MessageCircle, Mail, Calendar, 
   CheckCircle, X, Car, AlertCircle, PhoneIncoming, UserPlus, PhoneOutgoing, Send 
 } from 'lucide-react';
@@ -28,7 +28,7 @@ const EnquiryPage: React.FC = () => {
   const [vendors] = useState<Vendor[]>(getExistingVendors());
   
   // Load Corporate Accounts for City Dropdown
-  const [corporateAccounts, setCorporateAccounts] = useState<CorporateAccount[]>(() => {
+  const [corporateAccounts] = useState<CorporateAccount[]>(() => {
     const saved = localStorage.getItem('corporate_accounts');
     return saved ? JSON.parse(saved) : [];
   });
@@ -37,7 +37,7 @@ const EnquiryPage: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
-  const [employees, setEmployees] = useState<Employee[]>(() => {
+  const [employees] = useState<Employee[]>(() => {
     if (isSuperAdmin) {
        // Super Admin sees standard mock employees + any they added
        const saved = localStorage.getItem('staff_data');
@@ -305,7 +305,7 @@ const EnquiryPage: React.FC = () => {
                              <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {enquiry.city}</span>
                           </div>
                           <p className="text-sm text-gray-600 mt-2 line-clamp-1 border-l-2 border-gray-200 pl-2 italic">
-                             "{enquiry.details}"
+                             &quot;{enquiry.details}&quot;
                           </p>
                        </div>
                     </div>
@@ -416,7 +416,7 @@ const EnquiryPage: React.FC = () => {
                       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Enquiry Details</h4>
                          <p className="text-sm text-gray-700 leading-relaxed italic">
-                            "{selectedEnquiry.details}"
+                            &quot;{selectedEnquiry.details}&quot;
                          </p>
                          <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-50">
                             Created: {selectedEnquiry.createdAt}

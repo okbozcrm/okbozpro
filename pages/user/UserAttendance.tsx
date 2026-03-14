@@ -633,12 +633,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     const isFranchiseLogin = currentSessionId.includes('@') && currentSessionId !== 'admin';
     const ownerId = isFranchiseLogin ? currentSessionId : (localStorage.getItem('logged_in_employee_corporate_id') || 'admin');
     await sendSystemNotification({
-        type: 'system',
+        type: action === 'In' ? 'punch_in' : 'punch_out',
         title: `Employee Punched ${action}`,
         message: `${selectedEmployee.name} punched ${action.toLowerCase()} at ${time}.`,
         targetRoles: [UserRole.ADMIN, UserRole.CORPORATE],
         corporateId: ownerId === 'admin' ? undefined : ownerId,
         employeeId: selectedEmployee.id,
+        branchId: selectedEmployee.branch,
         link: '/admin/attendance'
     });
 
@@ -679,7 +680,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                         <p className="font-bold text-gray-800 text-sm">{new Date(req.from).toLocaleDateString()} - {new Date(req.to).toLocaleDateString()}</p>
                                         <p className="text-[10px] text-gray-400 font-black">{req.days} Day(s)</p>
                                     </td>
-                                    <td className="px-10 py-8 max-w-xs"><p className="text-sm text-gray-600 truncate italic" title={req.reason}>"{req.reason}"</p></td>
+                                    <td className="px-10 py-8 max-w-xs"><p className="text-sm text-gray-600 truncate italic" title={req.reason}>&quot;{req.reason}&quot;</p></td>
                                     <td className="px-10 py-8 text-right">
                                         <div className="flex justify-end gap-2">
                                             <button onClick={() => handleLeaveAction(req.id, 'Approved')} className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all transform active:scale-90"><Check className="w-5 h-5"/></button>

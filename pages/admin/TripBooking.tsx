@@ -577,6 +577,17 @@ export const TripBooking: React.FC = () => {
 
   return (
     <div className="max-w-full mx-auto space-y-8 pb-10">
+      {mapError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5" /> 
+          <div>
+            <p className="font-bold">Map Error: {mapError}</p>
+            {mapError.includes("Billing") && (
+                <a href="https://console.cloud.google.com/project/_/billing/enable" target="_blank" rel="noreferrer" className="text-xs underline hover:text-red-900">Click to Enable Billing</a>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-800 tracking-tight">Trip Booking Terminal</h2>

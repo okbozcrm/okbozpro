@@ -254,7 +254,7 @@ export interface SalaryAdvanceRequest {
 
 export interface BozNotification {
   id: string;
-  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry' | 'leave_approval';
+  type: 'system' | 'login' | 'leave_request' | 'advance_request' | 'task_assigned' | 'custom_message' | 'new_enquiry' | 'leave_approval' | 'punch_in' | 'punch_out';
   title: string;
   message: string;
   timestamp: string; 
@@ -262,6 +262,7 @@ export interface BozNotification {
   targetRoles: UserRole[]; 
   corporateId?: string; 
   employeeId?: string;  
+  branchId?: string;
   link?: string;        
 }
 

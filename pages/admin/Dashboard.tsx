@@ -240,12 +240,15 @@ const Dashboard = () => {
 
               // Send Notification
               if (targetItem) {
+                  const emp = employees.find(e => e.id === targetItem.employeeId);
                   await sendSystemNotification({
                       type: notificationType as 'system' | 'leave_approval' | 'payment_success' | 'trip_update',
                       title: notificationTitle,
                       message: notificationMessage,
                       targetRoles: [UserRole.EMPLOYEE],
                       employeeId: targetItem.employeeId,
+                      corporateId: emp?.corporateId === 'admin' ? undefined : emp?.corporateId,
+                      branchId: emp?.branch,
                       link: notificationLink
                   });
               }

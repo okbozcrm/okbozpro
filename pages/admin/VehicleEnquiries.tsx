@@ -176,7 +176,7 @@ export const VehicleEnquiries: React.FC = () => {
       setMapError("Billing Not Enabled: Enable billing on Google Cloud.");
       return;
     }
-    const apiKey = localStorage.getItem('maps_api_key');
+    const apiKey = HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key');
     if (!apiKey) {
       setMapError("API Key is missing. Add in Settings > Integrations.");
       return;
@@ -353,7 +353,7 @@ ${tripType === 'Outstation' ? `🌍 Destination: ${transportDetails.destination}
 ${tripType === 'Local' ? `⏳ Waiting Time: ${transportDetails.waitingMins} mins` : ''}
 ${tripType === 'Rental' ? `📦 Package: ${pkg?.name || 'Custom'}` : ''}
 
-💰 *Base Fare: ₹${total.toFixed(0)}*
+💰 *Base Fare: ₹${total.toFixed(2)}*
 (Includes ${tripType === 'Local' ? 'Base Fare + Km' : tripType === 'Rental' ? 'Package Rate' : 'Driver Allowance + Km'})
 
 *Toll and Parking Extra.*
@@ -442,6 +442,17 @@ Book now with OK BOZ Transport!`;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {mapError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5" /> 
+          <div>
+            <p className="font-bold">Map Error: {mapError}</p>
+            {mapError.includes("Billing") && (
+                <a href="https://console.cloud.google.com/project/_/billing/enable" target="_blank" rel="noreferrer" className="text-xs underline hover:text-red-900">Click to Enable Billing</a>
+            )}
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

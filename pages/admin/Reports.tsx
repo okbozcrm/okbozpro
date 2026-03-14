@@ -172,7 +172,7 @@ const Reports: React.FC = () => {
 
   // --- CALCULATIONS ---
 
-  // 1. Office Expenses
+  // 1. Office Expenses & Other Income
   const filteredOfficeExpenses = useMemo(() => {
     return officeExpenses.filter(e => 
       e.type === 'Expense' && 
@@ -183,6 +183,17 @@ const Reports: React.FC = () => {
   }, [officeExpenses, dateFilterType, selectedMonth, customStartDate, customEndDate, selectedCorporate, selectedBranch]);
 
   const totalOfficeExpenses = filteredOfficeExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const filteredOtherIncome = useMemo(() => {
+    return officeExpenses.filter(e => 
+      e.type === 'Income' && 
+      filterDataByDate(e.date) && 
+      filterByCorporate(e.corporateId) &&
+      filterByBranch(e.branchId) 
+    );
+  }, [officeExpenses, dateFilterType, selectedMonth, customStartDate, customEndDate, selectedCorporate, selectedBranch]);
+
+  const totalOtherIncome = filteredOtherIncome.reduce((sum, e) => sum + e.amount, 0);
 
   // 2. Payroll
   const filteredPayroll = useMemo(() => {
@@ -208,7 +219,7 @@ const Reports: React.FC = () => {
   // --- TOTAL EXPENSES ---
   const totalExpenses = totalOfficeExpenses + totalPayroll + totalDriverPayments;
 
-  // 4. Revenue (Admin Commission from Trips)
+  // 4. Revenue (Admin Commission from Trips + Other Income)
   const filteredTrips = useMemo(() => {
     return trips.filter(t => 
       filterDataByDate(t.date) && 
@@ -217,7 +228,8 @@ const Reports: React.FC = () => {
     );
   }, [trips, dateFilterType, selectedMonth, customStartDate, customEndDate, selectedCorporate, selectedBranch]);
 
-  const totalRevenue = filteredTrips.reduce((sum, t) => sum + (t.adminCommission || 0), 0);
+  const totalTripCommission = filteredTrips.reduce((sum, t) => sum + (t.adminCommission || 0), 0);
+  const totalRevenue = totalTripCommission + totalOtherIncome;
 
   // --- NET PROFIT ---
   const netProfit = totalRevenue - totalExpenses;
@@ -251,12 +263,37 @@ const Reports: React.FC = () => {
       };
 
       filteredTrips.forEach(t => addToMap(t.date, 'income', t.adminCommission || 0));
+      filteredOtherIncome.forEach(e => addToMap(e.date, 'income', e.amount));
       filteredOfficeExpenses.forEach(e => addToMap(e.date, 'expense', e.amount));
       filteredPayroll.forEach(p => addToMap(p.date, 'expense', p.totalAmount));
       filteredDriverPayments.filter(p => p.status === 'Paid').forEach(p => addToMap(p.date, 'expense', p.amount));
 
       return Object.values(dataMap).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [filteredTrips, filteredOfficeExpenses, filteredPayroll, filteredDriverPayments, dateFilterType]);
+  }, [filteredTrips, filteredOtherIncome, filteredOfficeExpenses, filteredPayroll, filteredDriverPayments, dateFilterType]);
+
+  // Chart Data: Trip Revenue Trend (Only Trip Commissions)
+  const tripTrendData = useMemo(() => {
+    const dataMap: Record<string, { date: string, income: number }> = {};
+
+    const addToMap = (dateStr: string, amount: number) => {
+        const date = new Date(dateStr);
+        const key = dateFilterType === 'Monthly' 
+            ? `${date.getDate()}` 
+            : date.toISOString().split('T')[0]; 
+
+        if (!dataMap[key]) {
+            dataMap[key] = { 
+                date: dateFilterType === 'Monthly' ? `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })}` : date.toLocaleDateString(), 
+                income: 0
+            };
+        }
+        dataMap[key].income += amount;
+    };
+
+    filteredTrips.forEach(t => addToMap(t.date, t.adminCommission || 0));
+
+    return Object.values(dataMap).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [filteredTrips, dateFilterType]);
 
   // --- ATTENDANCE AGGREGATION ---
   const attendanceStats = useMemo(() => {
@@ -485,15 +522,26 @@ const Reports: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10">
                     {/* Admin Earnings */}
-                    <div className="space-y-3 p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
-                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                            <TrendingUp className="w-3 h-3" /> Admin Earnings
-                        </p>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-light text-emerald-500/80">₹</span>
-                            <h2 className="text-5xl font-bold tracking-tighter">{totalRevenue.toLocaleString()}</h2>
+                    <div className="space-y-4 p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm">
+                        <div>
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <TrendingUp className="w-3 h-3" /> Admin Earnings
+                            </p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-light text-emerald-500/80">₹</span>
+                                <h2 className="text-5xl font-bold tracking-tighter">{totalRevenue.toLocaleString()}</h2>
+                            </div>
                         </div>
-                        <p className="text-indigo-300/40 text-xs font-medium">Total Trip Commissions</p>
+                        <div className="space-y-2.5 pt-4 border-t border-white/10">
+                            <div className="flex justify-between text-xs">
+                                <span className="text-indigo-300/60">Trip Booking Comm.</span>
+                                <span className="font-semibold text-indigo-100">₹{totalTripCommission.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                                <span className="text-indigo-300/60">Other Income</span>
+                                <span className="font-semibold text-indigo-100">₹{totalOtherIncome.toLocaleString()}</span>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Total Expense */}
@@ -847,7 +895,7 @@ const Reports: React.FC = () => {
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <p className="text-sm text-gray-500">Total Revenue</p>
-                    <h3 className="text-2xl font-bold text-emerald-600">₹{totalRevenue.toLocaleString()}</h3>
+                    <h3 className="text-2xl font-bold text-emerald-600">₹{totalTripCommission.toLocaleString()}</h3>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <p className="text-sm text-gray-500">Completed Trips</p>
@@ -861,7 +909,7 @@ const Reports: React.FC = () => {
                 <h3 className="text-lg font-bold text-gray-800 mb-6">Trip Revenue Trend</h3>
                 <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendData}>
+                        <LineChart data={tripTrendData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="date" />
                             <YAxis />

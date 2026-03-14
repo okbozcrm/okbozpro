@@ -261,19 +261,59 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
 
   useEffect(() => {
-    if (window.gm_authFailure_detected) { setMapError("Map API Error"); return; }
+    if (window.gm_authFailure_detected) { 
+      setMapError("Billing Not Enabled: Enable billing on Google Cloud."); 
+      return; 
+    }
     const apiKey = HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key');
-    if (!apiKey) { setMapError("API Key is missing."); return; }
-    if (window.google && window.google.maps && window.google.maps.places) { setIsMapReady(true); return; }
+    if (!apiKey) { 
+      setMapError("API Key is missing. Add in Settings > Integrations."); 
+      return; 
+    }
+
+    const originalAuthFailure = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      window.gm_authFailure_detected = true;
+      setMapError("Billing Not Enabled: Google Maps requires billing enabled.");
+      if (originalAuthFailure) originalAuthFailure();
+    };
+
+    if (window.google && window.google.maps && window.google.maps.places) { 
+      setIsMapReady(true); 
+      return; 
+    }
+
     const scriptId = 'google-maps-script';
     let script = document.getElementById(scriptId) as HTMLScriptElement;
+    
     if (!script) {
         script = document.createElement('script');
         script.id = scriptId;
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
         script.async = true;
-        script.onload = () => setIsMapReady(true);
+        script.defer = true;
+        script.onload = () => {
+            if (window.google && window.google.maps && window.google.maps.places) {
+                setIsMapReady(true);
+            } else {
+                setMapError("Google Maps 'places' library failed to load.");
+            }
+        };
+        script.onerror = () => setMapError("Network error: Failed to load Google Maps script.");
         document.head.appendChild(script);
+    } else {
+        script.addEventListener('load', () => {
+            if (window.google && window.google.maps && window.google.maps.places) {
+                setIsMapReady(true);
+            }
+        });
+        // If script exists but onload hasn't fired yet, the listener above handles it.
+        // If it's already loaded but window.google wasn't ready when we checked, 
+        // we can check again after a short delay or just rely on the fact that 
+        // if it's loaded, window.google should be there.
+        if (window.google && window.google.maps && window.google.maps.places) {
+            setIsMapReady(true);
+        }
     }
   }, []);
 
@@ -401,9 +441,9 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                 `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                 `${transportDetails.drops.filter(d => d.address).map((d, i) => `📍 Drop ${i+1}: ${d.address}`).join('\n')}\n\n` +
                 `*Fare Breakdown:*\n` +
-                `• Base Fare: ₹${base} (Upto ${rules.localBaseKm} KM)\n` +
-                `• Extra KM: ₹${extraKmCost} (${extraKmVal.toFixed(1)} KM @ ₹${rules.localPerKmRate})\n` +
-                `• Waiting: ₹${waitCost} (${transportDetails.waitingMins} Mins @ ₹${rules.localWaitingRate}/min)\n`;
+                `• Base Fare: ₹${base.toFixed(2)} (Upto ${rules.localBaseKm} KM)\n` +
+                `• Extra KM: ₹${extraKmCost.toFixed(2)} (${extraKmVal.toFixed(1)} KM @ ₹${rules.localPerKmRate})\n` +
+                `• Waiting: ₹${waitCost.toFixed(2)} (${transportDetails.waitingMins} Mins @ ₹${rules.localWaitingRate}/min)\n`;
       } else if (tripType === 'Rental') {
           const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
           if (pkg) {
@@ -421,7 +461,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                     `📦 Package: ${pkg.name}\n\n` +
                     `*Fare Breakdown:*\n` +
-                    `• Package Price: ₹${total}\n`;
+                    `• Package Price: ₹${total.toFixed(2)}\n`;
           }
       } else {
           const days = parseFloat(transportDetails.days) || 1;
@@ -454,12 +494,12 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     `• Days: ${days}\n` +
                     `• Approx KM: ${km} KM\n` +
                     `• Min KM/Day: ${minKmPerDay} KM\n` +
-                    `• Per KM Rate: ₹${perKmRate}\n\n` +
+                    `• Per KM Rate: ₹${perKmRate.toFixed(2)}\n\n` +
                     `*Fare Breakdown:*\n` +
-                    `• KM Charges: ₹${kmCharges} (${chargeKm.toFixed(1)} KM)\n` +
-                    `• Driver Allw.: ₹${driverAllowance} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
-                    (nightAllowance > 0 ? `• Night Allw.: ₹${nightAllowance} (${transportDetails.nights} Nights)\n` : '') +
-                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
+                    `• KM Charges: ₹${kmCharges.toFixed(2)} (${chargeKm.toFixed(1)} KM)\n` +
+                    `• Driver Allw.: ₹${driverAllowance.toFixed(2)} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
+                    (nightAllowance > 0 ? `• Night Allw.: ₹${nightAllowance.toFixed(2)} (${transportDetails.nights} Nights)\n` : '') +
+                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance.toFixed(2)} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           } else {
               const baseFare = rules.outstationBaseRate;
               const baseKm = rules.outstationBaseKm || 0;
@@ -481,13 +521,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     `🌍 Destination: ${transportDetails.destination}\n\n` +
                     `*Trip Parameters:*\n` +
                     `• Approx KM: ${km} KM\n` +
-                    `• Base Fare: ₹${baseFare} (upto ${baseKm} KM)\n` +
-                    `• Extra KM Rate: ₹${perKmRate}/KM\n\n` +
+                    `• Base Fare: ₹${baseFare.toFixed(2)} (upto ${baseKm} KM)\n` +
+                    `• Extra KM Rate: ₹${perKmRate.toFixed(2)}/KM\n\n` +
                     `*Fare Breakdown:*\n` +
-                    (baseFare > 0 ? `• Base Fare: ₹${baseFare}\n` : '') +
-                    (kmCharges > 0 ? `• Extra KM: ₹${kmCharges} (${extraKm.toFixed(1)} KM)\n` : '') +
-                    `• Driver Allw.: ₹${driverAllowance} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
-                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
+                    (baseFare > 0 ? `• Base Fare: ₹${baseFare.toFixed(2)}\n` : '') +
+                    (kmCharges > 0 ? `• Extra KM: ₹${kmCharges.toFixed(2)} (${extraKm.toFixed(1)} KM)\n` : '') +
+                    `• Driver Allw.: ₹${driverAllowance.toFixed(2)} (${days} Days @ ₹${rules.outstationDriverAllowance})\n` +
+                    (hillsAllowance > 0 ? `• Hills Allw.: ₹${hillsAllowance.toFixed(2)} (${days} Days @ ₹${hillsAllowanceRate})\n` : '');
           }
       }
 
@@ -496,9 +536,9 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               const gst = Math.round(total * 0.05); // 5% GST
               breakup.push({ label: 'GST (5%)', value: gst, type: 'tax' });
               total += gst;
-              msg += `• GST (5%): ₹${gst}\n\n`;
+              msg += `• GST (5%): ₹${gst.toFixed(2)}\n\n`;
           }
-          msg += `💰 *Total Estimate: ₹${total.toFixed(0)}*\n`;
+          msg += `💰 *Total Estimate: ₹${total.toFixed(2)}*\n`;
           msg += `(Tolls & Parking Charges Extra as per actuals.)\n\nBook now with OK BOZ!`;
       }
 
@@ -969,7 +1009,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                           
                           <div className="space-y-2">
                               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Pickup Origin</label>
-                              {isMapReady ? (<Autocomplete placeholder="Search Google Maps for Pickup" onAddressSelect={(addr, coords) => { setCustomerDetails(prev => ({ ...prev, pickup: addr })); setPickupCoords(coords); }} setNewPlace={(place) => setPickupCoords(place)} defaultValue={customerDetails.pickup} />) : <div className="p-4 bg-gray-50 rounded-2xl border text-xs font-bold text-gray-400 animate-pulse">CONNECTING TO SAT...</div>}
+                              {isMapReady ? (
+                                <Autocomplete 
+                                  placeholder="Search Google Maps for Pickup" 
+                                  onAddressSelect={(addr) => setCustomerDetails(prev => ({ ...prev, pickup: addr }))} 
+                                  setNewPlace={(place) => setPickupCoords(place)} 
+                                  defaultValue={customerDetails.pickup} 
+                                />
+                              ) : (
+                                <div className="p-4 bg-gray-50 rounded-2xl border text-xs font-bold text-gray-400 animate-pulse">CONNECTING TO SAT...</div>
+                              )}
                               {mapError && (
                                 <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 animate-in fade-in slide-in-from-top-2">
                                     <AlertCircle className="w-4 h-4" />
@@ -988,7 +1037,18 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                       {transportDetails.drops.map((drop, idx) => (
                                           <div key={idx} className="flex items-start gap-3 group animate-in slide-in-from-left-2 duration-200">
                                               <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-[10px] mt-1.5 shrink-0 shadow-lg">{idx + 1}</div>
-                                              <div className="flex-1">{isMapReady ? <Autocomplete placeholder={`Drop Destination ${idx + 1}`} onAddressSelect={(addr, coords) => handleDropChange(idx, addr, coords)} setNewPlace={(place) => handleDropChange(idx, drop.address, place)} defaultValue={drop.address} /> : <div className="p-3 bg-gray-50 border rounded-xl">...</div>}</div>
+                                              <div className="flex-1">
+                                                {isMapReady ? (
+                                                  <Autocomplete 
+                                                    placeholder={`Drop Destination ${idx + 1}`} 
+                                                    onAddressSelect={(addr) => handleDropChange(idx, addr, drop.coords)} 
+                                                    setNewPlace={(place) => handleDropChange(idx, drop.address, place)} 
+                                                    defaultValue={drop.address} 
+                                                  />
+                                                ) : (
+                                                  <div className="p-3 bg-gray-50 border rounded-xl">...</div>
+                                                )}
+                                              </div>
                                               {transportDetails.drops.length > 1 && <button onClick={() => handleRemoveDrop(idx)} className="p-3 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4.5 h-4.5"/></button>}
                                           </div>
                                       ))}
@@ -1032,7 +1092,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                   </div>
                                   <div className="space-y-2">
                                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Destination City</label>
-                                      {isMapReady ? <Autocomplete placeholder="Search Destination Hub" onAddressSelect={(addr, coords) => { setTransportDetails(prev => ({ ...prev, destination: addr })); setDestCoords(coords); }} setNewPlace={(place) => setDestCoords(place)} defaultValue={transportDetails.destination} /> : <div className="p-4 border rounded-2xl bg-gray-50 text-[10px] font-black text-gray-300 animate-pulse">HUB LOADING...</div>}
+                                      {isMapReady ? (
+                                        <Autocomplete 
+                                          placeholder="Search Destination Hub" 
+                                          onAddressSelect={(addr) => setTransportDetails(prev => ({ ...prev, destination: addr }))} 
+                                          setNewPlace={(place) => setDestCoords(place)} 
+                                          defaultValue={transportDetails.destination} 
+                                        />
+                                      ) : (
+                                        <div className="p-4 border rounded-2xl bg-gray-50 text-[10px] font-black text-gray-300 animate-pulse">HUB LOADING...</div>
+                                      )}
                                   </div>
                                   <div className="grid grid-cols-3 gap-4">
                                       <div className="space-y-1.5"><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Days</label><input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.days} onChange={e => setTransportDetails({...transportDetails, days: e.target.value})} /></div>
@@ -1084,13 +1153,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                               <p className={`text-sm font-black tracking-tight ${item.type === 'tax' ? 'text-blue-400' : item.type === 'allowance' ? 'text-indigo-300' : 'text-slate-100'}`}>{item.label}</p>
                                               {item.description && <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-0.5">{item.description}</p>}
                                           </div>
-                                          <p className={`font-mono text-sm font-black ${item.type === 'tax' ? 'text-blue-400' : 'text-slate-100'}`}>₹{item.value.toLocaleString()}</p>
+                                          <p className={`font-mono text-sm font-black ${item.type === 'tax' ? 'text-blue-400' : 'text-slate-100'}`}>₹{item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                       </div>
                                   ))}
                                   <div className="h-px bg-slate-800 my-4"></div>
                                   <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">
                                       <p className="text-xs font-black text-emerald-400 uppercase tracking-[0.2em]">Net Final Estimate</p>
-                                      <p className="text-2xl font-black text-emerald-400 tracking-tighter">₹{estimatedCost.toLocaleString()}</p>
+                                      <p className="text-2xl font-black text-emerald-400 tracking-tighter">₹{estimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                   </div>
                               </div>
                           </div>

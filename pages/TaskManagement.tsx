@@ -261,12 +261,15 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
       setTasks([newTask, ...tasks]);
 
       if (formData.assignedTo && formData.assignedTo !== currentSessionId) {
+          const assignedStaff = allStaff.find(s => s.id === formData.assignedTo);
           sendSystemNotification({
               type: 'task_assigned',
               title: `New Task: ${newTask.title}`,
               message: `You have been assigned a new task.`,
               targetRoles: [UserRole.EMPLOYEE],
               employeeId: formData.assignedTo,
+              corporateId: formData.corporateId === 'admin' ? undefined : formData.corporateId,
+              branchId: assignedStaff?.branch,
               link: `/user/tasks`
           });
       }

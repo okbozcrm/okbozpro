@@ -60,6 +60,10 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   }, []);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (window.gm_authFailure_detected) {
+        setErrorMsg("Billing Not Enabled: Check Settings > Integrations.");
+        return;
+    }
     setValue(e.target.value);
     setShowSuggestions(true);
     setErrorMsg(null);

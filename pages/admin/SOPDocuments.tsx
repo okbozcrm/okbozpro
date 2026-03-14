@@ -52,7 +52,7 @@ const SOPDocuments: React.FC = () => {
             <div>
               <p className="font-bold mb-2">For Super Admin:</p>
               <p className="text-sm">
-                To manage SOP documents (add, edit, delete), please click "Manage SOPs in Drive". This will open the designated Google Drive folder in a new tab where you can perform all necessary administrative tasks directly.
+                To manage SOP documents (add, edit, delete), please click &quot;Manage SOPs in Drive&quot;. This will open the designated Google Drive folder in a new tab where you can perform all necessary administrative tasks directly.
                 Ensure SOPs are clearly categorized and up-to-date for all franchise partners.
               </p>
             </div>

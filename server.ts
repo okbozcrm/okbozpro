@@ -16,7 +16,7 @@ async function startServer() {
   // Placeholder for price management API routes
   interface PriceData {
     defaultPrice: number;
-    franchisePrices: { [key: string]: number };
+    franchisePrices: Record<string, number>;
   }
 
   const priceData: PriceData = {

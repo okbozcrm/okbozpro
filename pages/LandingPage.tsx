@@ -102,20 +102,54 @@ const LandingPage: React.FC = () => {
 
   // --- Google Maps Script ---
   useEffect(() => {
+    if (window.gm_authFailure_detected) {
+      setMapError("Billing Not Enabled: Enable billing on Google Cloud.");
+      return;
+    }
+    const apiKey = HARDCODED_MAPS_API_KEY || localStorage.getItem('maps_api_key');
+    if (!apiKey) {
+      setMapError("API Key is missing.");
+      return;
+    }
+    const originalAuthFailure = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      window.gm_authFailure_detected = true;
+      setMapError("Billing Not Enabled: Google Maps requires billing enabled.");
+      if (originalAuthFailure) originalAuthFailure();
+    };
+
+    const scriptId = 'google-maps-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsMapReady(true);
       return;
     }
-    const scriptId = 'google-maps-script-landing-v2';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
+
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${HARDCODED_MAPS_API_KEY}&libraries=places`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
       script.async = true;
-      script.onload = () => setIsMapReady(true);
-      script.onerror = () => setMapError("Map Load Error");
+      script.defer = true;
+      script.onload = () => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          setIsMapReady(true);
+        } else {
+          setMapError("Google Maps 'places' library failed to load.");
+        }
+      };
+      script.onerror = () => setMapError("Network error: Failed to load Google Maps script.");
       document.head.appendChild(script);
+    } else {
+      script.addEventListener('load', () => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          setIsMapReady(true);
+        }
+      });
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setIsMapReady(true);
+      }
     }
   }, []);
 
@@ -396,9 +430,14 @@ const LandingPage: React.FC = () => {
                                 </div>
                             )}
                             {mapError && (
-                                <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 animate-in fade-in slide-in-from-top-2">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <span className="text-xs font-bold">{mapError}</span>
+                                <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl flex flex-col gap-1 text-red-600 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" />
+                                        <span className="text-xs font-bold">{mapError}</span>
+                                    </div>
+                                    {mapError.includes("Billing") && (
+                                        <a href="https://console.cloud.google.com/project/_/billing/enable" target="_blank" rel="noreferrer" className="text-[10px] font-black underline ml-6 uppercase tracking-widest hover:text-red-800">Enable Billing on Google Cloud →</a>
+                                    )}
                                 </div>
                             )}
                         </div>

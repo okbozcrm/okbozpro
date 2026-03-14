@@ -1,12 +1,12 @@
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Settings, ExternalLink, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 
 declare global {
   interface Window {
-    google: any;
+    google: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     gm_authFailure?: () => void;
     gm_authFailure_detected?: boolean;
   }
@@ -26,8 +26,8 @@ const LiveTracking: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [mapInstance, setMapInstance] = useState<any>(null);
-  const markersRef = useRef<any[]>([]); // Store marker instances to clear them later
+  const [mapInstance, setMapInstance] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
   
   // Determine Session Context
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -117,11 +117,21 @@ const LiveTracking: React.FC = () => {
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
-        script.onload = () => setIsMapReady(true);
+        script.onload = () => {
+            if (window.google && window.google.maps) {
+                setIsMapReady(true);
+            } else {
+                setMapError("Google Maps failed to initialize.");
+            }
+        };
         script.onerror = () => setMapError("Failed to load Google Maps script. Check network.");
         document.head.appendChild(script);
     } else {
-        script.addEventListener('load', () => setIsMapReady(true));
+        script.addEventListener('load', () => {
+            if (window.google && window.google.maps) {
+                setIsMapReady(true);
+            }
+        });
         if (window.google && window.google.maps) setIsMapReady(true);
     }
 
@@ -245,8 +255,8 @@ const LiveTracking: React.FC = () => {
                        <strong>Troubleshooting:</strong>
                        <ul className="list-disc list-inside mt-1 space-y-1">
                           <li>Go to Google Cloud Console</li>
-                          <li className="font-bold">Enable "Billing" on the Project (Required)</li>
-                          <li>Enable "Maps JavaScript API" & "Places API"</li>
+                          <li className="font-bold">Enable &quot;Billing&quot; on the Project (Required)</li>
+                          <li>Enable &quot;Maps JavaScript API&quot; &amp; &quot;Places API&quot;</li>
                        </ul>
                 </div>
 

@@ -8,7 +8,7 @@ import {
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
   DollarSign, HardDrive, Building2, Bike, X, EyeOff, Plane, TrendingUp,
-  FileSpreadsheet, BookOpen
+  FileSpreadsheet, BookOpen, AlertTriangle
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, getCloudDatabaseStats,
@@ -22,14 +22,14 @@ interface CollectionStat {
     label: string;
     icon: React.ElementType;
     local: number;
-    localContent: any;
+    localContent: unknown;
     cloud: string | number;
     status: string;
 }
 
 const Settings: React.FC = () => {
   const { companyName, primaryColor, updateBranding } = useBranding();
-  const [stats, setStats] = useState<Record<string, any> | null>(null);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [dbStatus, setDbStatus] = useState<'Connected' | 'Disconnected' | 'Error'>('Disconnected');
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -39,11 +39,12 @@ const Settings: React.FC = () => {
   const [brandColor, setBrandColor] = useState(primaryColor);
   const [sheetUrl, setSheetUrl] = useState('');
   const [sopFolderUrl, setSopFolderUrl] = useState(''); // NEW: State for SOPs Folder URL
+  const [mapsApiKey, setMapsApiKey] = useState(''); // NEW: State for Google Maps API Key
   const [kmRate, setKmRate] = useState('5'); // Default KM Rate
 
   const [showCollectionViewer, setShowCollectionViewer] = useState(false);
   const [currentViewingCollection, setCurrentViewingCollection] = useState<string | null>(null);
-  const [collectionContent, setCollectionContent] = useState<any[] | string | null | Record<string, any>>(null);
+  const [collectionContent, setCollectionContent] = useState<unknown[] | string | null | Record<string, unknown>>(null);
   const [collectionError, setCollectionError] = useState<string | null>(null);
 
   const [adminPasswords, setAdminPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -60,6 +61,7 @@ const Settings: React.FC = () => {
       checkConnection();
       setSheetUrl(localStorage.getItem('google_sheet_script_url') || '');
       setSopFolderUrl(localStorage.getItem('google_sop_folder_url') || ''); // NEW: Load SOPs URL
+      setMapsApiKey(localStorage.getItem('maps_api_key') || ''); // NEW: Load Maps API Key
       setKmRate(localStorage.getItem('company_km_rate') || '5');
     } catch (e) {
       console.error("Connection check failed on mount", e);
@@ -105,7 +107,7 @@ const Settings: React.FC = () => {
     return count;
   };
 
-  const generateCollectionStats = (cloudData: Record<string, any>) => {
+  const generateCollectionStats = (cloudData: Record<string, unknown>) => {
     const collections = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
@@ -195,8 +197,13 @@ const Settings: React.FC = () => {
   const handleSaveIntegrations = () => {
     localStorage.setItem('google_sheet_script_url', sheetUrl);
     localStorage.setItem('google_sop_folder_url', sopFolderUrl); // NEW: Save SOPs URL
+    localStorage.setItem('maps_api_key', mapsApiKey); // NEW: Save Maps API Key
     localStorage.setItem('company_km_rate', kmRate);
     alert("Integration & Policy settings saved!");
+    // Trigger reload to re-initialize maps if key changed
+    if (window.confirm("Settings saved. Reload app to apply new API keys?")) {
+        window.location.reload();
+    }
   };
 
   const handleBackup = async () => {
@@ -364,6 +371,48 @@ const Settings: React.FC = () => {
             <FileSpreadsheet className="w-5 h-5 text-green-600" /> External Integrations
          </h3>
          <div className="space-y-6">
+            {/* NEW: Google Maps API Key */}
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+               <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600">
+                     <Map className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest">Google Maps Platform</h4>
+               </div>
+               <div className="space-y-4">
+                  <div>
+                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Google Maps API Key</label>
+                     <div className="relative">
+                        <input 
+                           type="password" 
+                           value={mapsApiKey}
+                           onChange={(e) => setMapsApiKey(e.target.value)}
+                           className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-gray-800"
+                           placeholder="AIza..."
+                        />
+                     </div>
+                  </div>
+                  
+                  {window.gm_authFailure_detected && (
+                     <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3 text-rose-700 animate-pulse">
+                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                        <div className="text-xs space-y-1">
+                           <p className="font-black uppercase tracking-tight">Billing Not Enabled / Invalid Key</p>
+                           <p className="opacity-80">Google Maps requires an active billing account. Even the free tier requires a credit card linked to your project.</p>
+                           <a 
+                              href="https://console.cloud.google.com/project/_/billing/enable" 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="inline-block mt-2 font-black underline hover:text-rose-900"
+                           >
+                              Enable Billing on Google Cloud →
+                           </a>
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
+
             <div>
                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Trip Booking Google Sheet Script URL</label>
                <input 

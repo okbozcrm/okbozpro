@@ -650,9 +650,10 @@ const Leads = () => {
 
                      <section className="space-y-6">
                         <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-3"><User className="w-4 h-4" /> identity & contact</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Full Name</label><input required name="name" value={formData.name} onChange={handleInputChange} className="w-full px-6 py-4 bg-gray-100 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-gray-800 shadow-inner" /></div>
                             <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Primary Mobile</label><input name="phone" value={formData.phone} onChange={handleInputChange} className="w-full px-6 py-4 bg-gray-100 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-gray-800 shadow-inner" /></div>
+                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">City Name</label><input name="city" value={formData.city} onChange={handleInputChange} className="w-full px-6 py-4 bg-gray-100 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-gray-800 shadow-inner" /></div>
                         </div>
                      </section>
 

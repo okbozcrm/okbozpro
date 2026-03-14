@@ -296,7 +296,7 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
     const sessionId = localStorage.getItem('app_session_id') || 'admin';
     
     const snapshot = await getDocs(collection(db, NOTIFICATION_COLLECTION));
-    let allNotifications: BozNotification[] = [];
+    const allNotifications: BozNotification[] = [];
     snapshot.forEach(doc => { allNotifications.push(doc.data() as BozNotification); });
     
     const relevantNotifications = allNotifications.filter(notif => {
@@ -323,7 +323,7 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
           // 3. Allow only specific types
           // 'system' is used for advance approvals in Payroll.tsx
           // 'custom_message' is for chat
-          const allowedTypes = ['task_assigned', 'leave_approval', 'custom_message', 'system', 'advance_request', 'leave_request'];
+          const allowedTypes = ['task_assigned', 'leave_approval', 'custom_message', 'system', 'advance_request', 'leave_request', 'punch_in', 'punch_out'];
           if (!allowedTypes.includes(notif.type)) return false;
 
           return true;
@@ -335,6 +335,32 @@ export const fetchSystemNotifications = async (): Promise<BozNotification[]> => 
           if (notif.corporateId !== sessionId) return false;
           
           return true;
+      }
+
+      // 6. Sub Admin: Branch-level Check
+      if (userRole === UserRole.SUB_ADMIN) {
+          const subAdminId = localStorage.getItem('sub_admin_id');
+          // We need to find the sub-admin's branch access
+          // Since we are in cloudService, we might not have easy access to all local storage data if it's not synced
+          // But sub_admins_data is usually there.
+          try {
+              const subAdmins = JSON.parse(localStorage.getItem('sub_admins_data') || '[]');
+              const currentSub = subAdmins.find((s: any) => s.id === subAdminId);
+              
+              if (!currentSub) return false;
+              
+              // Check context (Head Office or Corporate)
+              if (currentSub.context !== 'Head Office' && notif.corporateId !== currentSub.context) return false;
+              
+              // Check branch access
+              if (currentSub.branchAccess !== 'All') {
+                  if (!notif.branchId || !currentSub.branchAccess.includes(notif.branchId)) return false;
+              }
+              
+              return true;
+          } catch (e) {
+              return false;
+          }
       }
 
       return false;

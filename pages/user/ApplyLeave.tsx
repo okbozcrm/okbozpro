@@ -391,7 +391,7 @@ const ApplyLeave: React.FC = () => {
                    </div>
                    
                    <div className="flex justify-between items-end">
-                      <p className="text-sm text-gray-500 italic">"{item.reason}"</p>
+                      <p className="text-sm text-gray-500 italic">&quot;{item.reason}&quot;</p>
                       <span className="text-xs text-gray-400">Applied on {new Date(item.appliedOn).toLocaleDateString()}</span>
                    </div>
                 </div>

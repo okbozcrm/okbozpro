@@ -128,7 +128,7 @@ const DriverMonitoring: React.FC = () => {
       const end = new Date(endDate);
 
       allDrivers.forEach(driver => {
-        let current = new Date(start.getFullYear(), start.getMonth(), 1);
+        const current = new Date(start.getFullYear(), start.getMonth(), 1);
         while (current <= end) {
           const logsForMonth = generateMockDriverActivity(driver, current.getFullYear(), current.getMonth());
           allLogs = [...allLogs, ...logsForMonth];
