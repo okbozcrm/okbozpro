@@ -87,6 +87,27 @@ const Leads = () => {
   const [statusFilter, setFilterStatus] = useState('All');
   const [priorityFilter, setFilterPriority] = useState('All');
 
+  // Selection State
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.length === filteredLeads.length) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(filteredLeads.map(l => l.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedLeadIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  useEffect(() => {
+    setSelectedLeadIds([]);
+  }, [searchTerm, statusFilter, priorityFilter, activeKpi]);
+
   // Template Management State
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isUploadingTemplateFile, setIsUploadingTemplateFile] = useState(false);
@@ -373,7 +394,19 @@ const Leads = () => {
             </h2>
             <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1 opacity-70">Engagement Terminal & Pipeline Strategy</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+            {selectedLeadIds.length > 0 && (
+                <div className="flex items-center gap-4 bg-indigo-50 px-6 py-3 rounded-2xl border border-indigo-100 animate-in slide-in-from-right-4">
+                    <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">{selectedLeadIds.length} Selected</span>
+                    <button 
+                        onClick={() => { if(window.confirm(`Delete ${selectedLeadIds.length} leads?`)) { setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id))); setSelectedLeadIds([]); } }}
+                        className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-100 transition-all"
+                        title="Bulk Delete"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
             <button 
                 onClick={() => setIsTemplateModalOpen(true)}
                 className="bg-white border border-gray-200 text-gray-600 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm active:scale-95"
@@ -555,6 +588,15 @@ const Leads = () => {
                   <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-gray-50 border-b border-gray-100">
                           <tr>
+                              <th className="px-6 py-8 text-center">
+                                  <input 
+                                      type="checkbox" 
+                                      checked={selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0}
+                                      onChange={toggleSelectAll}
+                                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                              </th>
+                              <th className="px-4 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">#</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Lead Identity</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone Number</th>
                               <th className="px-10 py-8 text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</th>
@@ -565,12 +607,21 @@ const Leads = () => {
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                          {filteredLeads.map(lead => (
+                          {filteredLeads.map((lead, index) => (
                               <tr 
                                 key={lead.id} 
                                 onClick={() => handleEdit(lead)}
-                                className={`hover:bg-gray-50/50 transition-all cursor-pointer ${lead.status === 'Lost' ? 'bg-rose-50/20' : ''}`}
+                                className={`hover:bg-gray-50/50 transition-all cursor-pointer ${lead.status === 'Lost' ? 'bg-rose-50/20' : ''} ${selectedLeadIds.includes(lead.id) ? 'bg-indigo-50/30' : ''}`}
                               >
+                                  <td className="px-6 py-8 text-center" onClick={(e) => e.stopPropagation()}>
+                                      <input 
+                                          type="checkbox" 
+                                          checked={selectedLeadIds.includes(lead.id)}
+                                          onChange={() => toggleSelect(lead.id)}
+                                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      />
+                                  </td>
+                                  <td className="px-4 py-8 text-center text-[10px] font-black text-gray-400">{index + 1}</td>
                                   <td className="px-10 py-8">
                                       <div className="flex items-center gap-4">
                                           <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-white text-sm shadow-lg ${lead.status === 'Lost' ? 'bg-rose-400' : lead.priority === 'Hot' ? 'bg-rose-500' : 'bg-indigo-600'}`}>{lead.name.charAt(0)}</div>
