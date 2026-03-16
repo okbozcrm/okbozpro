@@ -29,6 +29,7 @@ interface Lead {
   billValue: number;
   franchiseValue: number;
   adFee: number;
+  pipelineValuation: number;
   status: 'New' | 'Contacted' | 'Qualified' | 'Converted' | 'Lost';
   source: string;
   priority: 'Hot' | 'Warm' | 'Cold';
@@ -136,6 +137,7 @@ const Leads = () => {
     billValue: '',
     franchiseValue: '',
     adFee: '',
+    pipelineValuation: '',
     source: 'Google Ads',
     priority: 'Warm' as 'Hot' | 'Warm' | 'Cold',
     nextCallDate: new Date().toISOString().split('T')[0],
@@ -167,6 +169,7 @@ const Leads = () => {
       billValue: lead.billValue?.toString() || '0',
       franchiseValue: lead.franchiseValue?.toString() || '0',
       adFee: lead.adFee?.toString() || '0',
+      pipelineValuation: lead.pipelineValuation?.toString() || '0',
       source: lead.source,
       priority: lead.priority,
       nextCallDate: lead.nextCallDate || new Date().toISOString().split('T')[0],
@@ -286,7 +289,7 @@ const Leads = () => {
     if (editingId) {
       setLeads(prev => prev.map(lead => {
         if (lead.id === editingId) {
-          const totalValue = (parseFloat(formData.billValue) || 0) + (parseFloat(formData.franchiseValue) || 0) + (parseFloat(formData.adFee) || 0);
+          const totalValue = (parseFloat(formData.billValue) || 0) + (parseFloat(formData.franchiseValue) || 0) + (parseFloat(formData.adFee) || 0) + (parseFloat(formData.pipelineValuation) || 0);
           return {
             ...lead,
             name: formData.name,
@@ -297,6 +300,7 @@ const Leads = () => {
             billValue: parseFloat(formData.billValue) || 0,
             franchiseValue: parseFloat(formData.franchiseValue) || 0,
             adFee: parseFloat(formData.adFee) || 0,
+            pipelineValuation: parseFloat(formData.pipelineValuation) || 0,
             totalValue: totalValue,
             priority: formData.outcome === 'Not Interest' ? 'Cold' : formData.priority,
             nextCallDate: formData.outcome === 'Not Interest' ? '' : formData.nextCallDate,
@@ -311,7 +315,7 @@ const Leads = () => {
         return lead;
       }));
     } else {
-        const totalValue = (parseFloat(formData.billValue) || 0) + (parseFloat(formData.franchiseValue) || 0) + (parseFloat(formData.adFee) || 0);
+        const totalValue = (parseFloat(formData.billValue) || 0) + (parseFloat(formData.franchiseValue) || 0) + (parseFloat(formData.adFee) || 0) + (parseFloat(formData.pipelineValuation) || 0);
         const newLead: Lead = {
             id: `L${Date.now()}`,
             name: formData.name,
@@ -322,6 +326,7 @@ const Leads = () => {
             billValue: parseFloat(formData.billValue) || 0,
             franchiseValue: parseFloat(formData.franchiseValue) || 0,
             adFee: parseFloat(formData.adFee) || 0,
+            pipelineValuation: parseFloat(formData.pipelineValuation) || 0,
             totalValue: totalValue,
             status: newStatus,
             source: formData.source,
@@ -730,10 +735,44 @@ const Leads = () => {
                                  </div>
                              </div>
                          </section>
-                     )}
+                      )}
 
-                     <section className="space-y-6">
-                        <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-3"><Send className="w-4 h-4" /> conversation brief (notes)</h4>
+                      <section className="space-y-6">
+                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-3"><Wallet className="w-4 h-4" /> Financial Strategy</h4>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Pipeline Valuation (INR)</label>
+                                 <div className="relative">
+                                     <IndianRupee className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                     <input 
+                                         type="number" 
+                                         name="pipelineValuation" 
+                                         value={formData.pipelineValuation} 
+                                         onChange={handleInputChange} 
+                                         placeholder="0.00"
+                                         className="w-full pl-14 pr-6 py-4 bg-gray-100 border-none rounded-2xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-gray-800 shadow-inner" 
+                                     />
+                                 </div>
+                             </div>
+                             <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Franchise Fee (Optional)</label>
+                                 <div className="relative">
+                                     <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                     <input 
+                                         type="number" 
+                                         name="franchiseValue" 
+                                         value={formData.franchiseValue} 
+                                         onChange={handleInputChange} 
+                                         placeholder="0.00"
+                                         className="w-full pl-14 pr-6 py-4 bg-gray-100 border-none rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none font-bold text-gray-800 shadow-inner" 
+                                     />
+                                 </div>
+                             </div>
+                         </div>
+                      </section>
+
+                      <section className="space-y-6">
+                         <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-3"><Send className="w-4 h-4" /> conversation brief (notes)</h4>
                         <textarea 
                             name="currentInteractionNote" 
                             value={formData.currentInteractionNote} 
