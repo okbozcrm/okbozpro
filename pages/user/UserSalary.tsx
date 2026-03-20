@@ -155,6 +155,7 @@ const UserSalary: React.FC = () => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const joiningDate = user.joiningDate ? new Date(user.joiningDate + 'T12:00:00') : new Date('2000-01-01');
     const terminationDate = (user.status === 'Terminated' && user.terminationDate) ? new Date(user.terminationDate + 'T12:00:00') : null;
+    const relievingDate = user.relievingDate ? new Date(user.relievingDate + 'T12:00:00') : null;
     const currentDate = new Date();
     currentDate.setHours(12, 0, 0, 0);
 
@@ -166,8 +167,9 @@ const UserSalary: React.FC = () => {
         // Skip days before joining
         if (dayDate < joiningDate) return;
 
-        // Skip days after termination
+        // Skip days after termination or relieving
         if (terminationDate && dayDate > terminationDate) return;
+        if (relievingDate && dayDate > relievingDate) return;
 
         // Skip future dates (upcoming week offs/holidays should not be counted yet)
         if (dayDate > currentDate) return;

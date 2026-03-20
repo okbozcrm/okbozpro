@@ -13,6 +13,42 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Email Sending API
+  app.post("/api/send-email", async (req, res) => {
+    const { senderName, senderEmail, smtpConfig, recipientEmail, subject, body } = req.body;
+
+    if (!recipientEmail || !subject || !body || !smtpConfig) {
+      return res.status(400).json({ message: "Missing required fields for sending email." });
+    }
+
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: smtpConfig.host,
+        port: parseInt(smtpConfig.port),
+        secure: smtpConfig.port === '465', // true for 465, false for other ports
+        auth: {
+          user: smtpConfig.user,
+          pass: smtpConfig.pass,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${senderName}" <${senderEmail}>`,
+        to: recipientEmail,
+        subject: subject,
+        text: body,
+        html: body.replace(/\n/g, '<br>'), // Simple text to html conversion
+      });
+
+      console.log("Message sent: %s", info.messageId);
+      res.json({ message: "Email sent successfully!", messageId: info.messageId });
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ message: "Failed to send email.", error: error.message });
+    }
+  });
+
   // Placeholder for price management API routes
   interface PriceData {
     defaultPrice: number;

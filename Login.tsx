@@ -82,6 +82,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             }
 
             if (foundEmp) {
+                // Check for relieving date
+                if (foundEmp.relievingDate) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const relieving = new Date(foundEmp.relievingDate);
+                    relieving.setHours(0, 0, 0, 0);
+                    
+                    if (today > relieving) {
+                        setError('Your account has been disabled due to relieving date. Please contact HR.');
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
                 success = true;
                 role = UserRole.EMPLOYEE;
                 sessionId = foundEmp.id;

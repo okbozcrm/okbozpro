@@ -8,6 +8,7 @@ import { CorporateAccount, SubAdmin, ModulePermission, Branch } from '../../type
 
 const MODULES = [
   'Dashboard',
+  'Field Force Tracking',
   'Live Tracking',
   'Boz Chat',
   'Employee Setting',

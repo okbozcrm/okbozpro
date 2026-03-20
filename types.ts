@@ -71,6 +71,7 @@ export interface Employee {
   avatar: string;
   joiningDate: string;
   terminationDate?: string; // Added for payroll calculation
+  relievingDate?: string; // Added for account disable and attendance skip
   email: string;
   phone: string;
   password: string;

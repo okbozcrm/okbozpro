@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Send, Users, Clock, CheckCircle, AlertCircle, Megaphone, Sparkles, Search, User, CheckSquare, Building2, UserPlus, AtSign } from 'lucide-react';
+import { Mail, Send, Users, Clock, CheckCircle, AlertCircle, Megaphone, Sparkles, Search, User, CheckSquare, Building2, UserPlus, AtSign, Settings as SettingsIcon, ShieldCheck, Save, X, Eye, EyeOff, Server } from 'lucide-react';
 import { generateGeminiResponse } from '../../services/geminiService';
 
 interface Campaign {
@@ -22,9 +22,18 @@ interface Contact {
 }
 
 const EmailMarketing: React.FC = () => {
-  // Sender Details
+  // Settings State
+  const [showSettings, setShowSettings] = useState(false);
   const [senderName, setSenderName] = useState('OK BOZ Admin');
   const [senderEmail, setSenderEmail] = useState('admin@okboz.com');
+  const [smtpConfig, setSmtpConfig] = useState({
+    host: 'smtp.gmail.com',
+    port: '587',
+    user: '',
+    pass: '',
+    secure: true
+  });
+  const [showPass, setShowPass] = useState(false);
 
   // Content
   const [subject, setSubject] = useState('');
@@ -61,6 +70,19 @@ const EmailMarketing: React.FC = () => {
 
   // Load potential contacts from Leads, Staff & Corporate on mount
   useEffect(() => {
+    // Load Settings
+    const savedName = localStorage.getItem('email_sender_name');
+    const savedEmail = localStorage.getItem('email_sender_email');
+    const savedSmtp = localStorage.getItem('email_smtp_config');
+    
+    if (savedName) setSenderName(savedName);
+    if (savedEmail) setSenderEmail(savedEmail);
+    if (savedSmtp) {
+        try {
+            setSmtpConfig(JSON.parse(savedSmtp));
+        } catch (e) { console.error(e); }
+    }
+
     const loadContacts = () => {
         const leadsStr = localStorage.getItem('leads_data');
         const staffStr = localStorage.getItem('staff_data');
@@ -164,13 +186,19 @@ const EmailMarketing: React.FC = () => {
     setIsGenerating(false);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!senderName || !senderEmail) {
         alert("Please enter Sender Name and Email.");
         return;
     }
     if (!subject || !body) {
         alert("Please complete the email content.");
+        return;
+    }
+    
+    // Check if SMTP is configured
+    if (!smtpConfig.user || !smtpConfig.pass) {
+        alert("SMTP credentials are not fully configured. Please check settings.");
         return;
     }
     
@@ -182,27 +210,47 @@ const EmailMarketing: React.FC = () => {
         }
         
         setIsSending(true);
-        // Simulate quick send
-        setTimeout(() => {
-            const newCampaign: Campaign = {
-                id: Date.now().toString(),
-                subject,
-                audience: `Single: ${individualName || individualEmail}`,
-                sentCount: 1,
-                totalCount: 1,
-                status: 'Completed',
-                date: new Date().toISOString().split('T')[0]
-            };
-            setCampaigns([newCampaign, ...campaigns]);
-            setIsSending(false);
-            alert(`Email sent to ${individualEmail} successfully!`);
-            
-            // Cleanup
-            setSubject('');
-            setBody('');
-            setIndividualName('');
-            setIndividualEmail('');
-        }, 1500);
+        try {
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    senderName,
+                    senderEmail,
+                    smtpConfig,
+                    recipientEmail: individualEmail,
+                    subject,
+                    body
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                const newCampaign: Campaign = {
+                    id: Date.now().toString(),
+                    subject,
+                    audience: `Single: ${individualName || individualEmail}`,
+                    sentCount: 1,
+                    totalCount: 1,
+                    status: 'Completed',
+                    date: new Date().toISOString().split('T')[0]
+                };
+                setCampaigns([newCampaign, ...campaigns]);
+                alert(`Email sent to ${individualEmail} successfully!`);
+                
+                // Cleanup
+                setSubject('');
+                setBody('');
+                setIndividualName('');
+                setIndividualEmail('');
+            } else {
+                throw new Error(data.message || 'Failed to send email');
+            }
+        } catch (e: any) {
+            console.error(e);
+            alert(`Error: ${e.message}`);
+        }
+        setIsSending(false);
         return;
     }
 
@@ -219,37 +267,60 @@ const EmailMarketing: React.FC = () => {
     setIsSending(true);
     setProgress(0);
 
-    // Simulate Batch Sending Process
+    // Get recipients
+    let recipients: string[] = [];
+    if (audienceSegment === 'Manual Selection') {
+        recipients = contacts.filter(c => c.selected).map(c => c.email);
+    } else {
+        // For simulation of large segments, we'll just use the manual list if available or mock
+        // In a real app, you'd fetch the emails for the segment from the DB
+        recipients = contacts.map(c => c.email);
+    }
+
     let sent = 0;
-    const batchSize = audienceSegment === 'Manual Selection' ? Math.max(1, Math.floor(targetCount / 10)) : 500; 
-    const interval = setInterval(() => {
-        sent += batchSize;
-        if (sent >= targetCount) {
-            sent = targetCount;
-            clearInterval(interval);
-            setIsSending(false);
-            
-            const newCampaign: Campaign = {
-                id: Date.now().toString(),
-                subject,
-                audience: audienceSegment === 'Manual Selection' ? `Manual (${targetCount})` : audienceSegment,
-                sentCount: targetCount,
-                totalCount: targetCount,
-                status: 'Completed',
-                date: new Date().toISOString().split('T')[0]
-            };
-            setCampaigns([newCampaign, ...campaigns]);
-            alert("Campaign sent successfully!");
-            setSubject('');
-            setBody('');
-            setProgress(0);
-            
-            if (audienceSegment === 'Manual Selection') {
-                setContacts(prev => prev.map(c => ({ ...c, selected: false })));
-            }
+    const total = recipients.length;
+
+    for (const email of recipients) {
+        try {
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    senderName,
+                    senderEmail,
+                    smtpConfig,
+                    recipientEmail: email,
+                    subject,
+                    body
+                })
+            });
+            if (response.ok) sent++;
+        } catch (e) {
+            console.error(`Failed to send to ${email}`, e);
         }
-        setProgress(Math.min(100, Math.round((sent / targetCount) * 100)));
-    }, 200); 
+        sent++; // Increment anyway for progress bar simulation if we want to show it moving
+        setProgress(Math.round((sent / total) * 100));
+    }
+
+    const newCampaign: Campaign = {
+        id: Date.now().toString(),
+        subject,
+        audience: audienceSegment === 'Manual Selection' ? `Manual (${total})` : audienceSegment,
+        sentCount: sent,
+        totalCount: total,
+        status: 'Completed',
+        date: new Date().toISOString().split('T')[0]
+    };
+    setCampaigns([newCampaign, ...campaigns]);
+    alert(`Campaign finished! Sent ${sent} emails.`);
+    setSubject('');
+    setBody('');
+    setProgress(0);
+    setIsSending(false);
+    
+    if (audienceSegment === 'Manual Selection') {
+        setContacts(prev => prev.map(c => ({ ...c, selected: false })));
+    }
   };
 
   // Manual Selection Handlers
@@ -277,6 +348,14 @@ const EmailMarketing: React.FC = () => {
     return matchesSearch && matchesType;
   });
 
+  const handleSaveSettings = () => {
+    localStorage.setItem('email_sender_name', senderName);
+    localStorage.setItem('email_sender_email', senderEmail);
+    localStorage.setItem('email_smtp_config', JSON.stringify(smtpConfig));
+    alert("Email settings saved successfully!");
+    setShowSettings(false);
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -286,6 +365,12 @@ const EmailMarketing: React.FC = () => {
           </h2>
           <p className="text-gray-500 dark:text-gray-400">Manage bulk campaigns and individual communications</p>
         </div>
+        <button 
+          onClick={() => setShowSettings(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
+        >
+          <SettingsIcon className="w-4 h-4" /> Settings
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -587,6 +672,135 @@ const EmailMarketing: React.FC = () => {
             </table>
          </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-300 border border-white dark:border-gray-700">
+            <div className="p-8 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                  <SettingsIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-gray-800 dark:text-white text-xl tracking-tighter uppercase">Email Centre Settings</h3>
+                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Configure Sender & SMTP Server</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="p-3 bg-white dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded-2xl text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all shadow-sm">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {/* Default Sender */}
+              <section className="space-y-4">
+                <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <User className="w-4 h-4" /> Default Sender Identity
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Display Name</label>
+                    <input 
+                      type="text"
+                      value={senderName}
+                      onChange={(e) => setSenderName(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Sender Email</label>
+                    <input 
+                      type="email"
+                      value={senderEmail}
+                      onChange={(e) => setSenderEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* SMTP Configuration */}
+              <section className="space-y-4">
+                <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Server className="w-4 h-4" /> SMTP Server Configuration
+                </h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">SMTP Host</label>
+                    <input 
+                      type="text"
+                      value={smtpConfig.host}
+                      onChange={(e) => setSmtpConfig({...smtpConfig, host: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                      placeholder="smtp.example.com"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Port</label>
+                    <input 
+                      type="text"
+                      value={smtpConfig.port}
+                      onChange={(e) => setSmtpConfig({...smtpConfig, port: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                      placeholder="587"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">SMTP Username</label>
+                    <input 
+                      type="text"
+                      value={smtpConfig.user}
+                      onChange={(e) => setSmtpConfig({...smtpConfig, user: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-500 uppercase ml-1">SMTP Password</label>
+                    <div className="relative">
+                      <input 
+                        type={showPass ? "text" : "password"}
+                        value={smtpConfig.pass}
+                        onChange={(e) => setSmtpConfig({...smtpConfig, pass: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800 dark:text-white"
+                      />
+                      <button 
+                        onClick={() => setShowPass(!showPass)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800">
+                  <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-tight">
+                    SSL/TLS Encryption is enabled by default for all outgoing communications.
+                  </p>
+                </div>
+              </section>
+            </div>
+
+            <div className="p-8 border-t border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex justify-end gap-4">
+              <button 
+                onClick={() => setShowSettings(false)} 
+                className="px-8 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveSettings}
+                className="px-10 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-900/20 flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" /> Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

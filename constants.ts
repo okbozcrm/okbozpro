@@ -35,6 +35,16 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
       attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED, punches: [] });
       continue;
     }
+
+    // 1.5 Relieving Date check
+    if (employee.relievingDate) {
+        const relievingDate = new Date(employee.relievingDate);
+        relievingDate.setHours(0, 0, 0, 0);
+        if (currentDayDate > relievingDate) {
+            attendance.push({ date: dateStr, status: AttendanceStatus.NOT_MARKED, punches: [] });
+            continue;
+        }
+    }
     
     // 2. Future check
     if (i > simulatedCurrentDay) {

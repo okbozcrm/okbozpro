@@ -36,6 +36,7 @@ import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
 import SOPDocuments from './pages/admin/SOPDocuments'; 
 import StaffTodo from './pages/admin/StaffTodo';
+import FieldForce from './pages/admin/FieldForce';
 import CallOverlay from './components/CallOverlay'; // Import CallOverlay
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
@@ -157,6 +158,7 @@ const App: React.FC = () => {
                         <Route path="/admin/auto-dialer" element={<AutoDialer />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
                         <Route path="/admin/tracking" element={<LiveTracking />} />
+                        <Route path="/admin/field-force" element={<FieldForce />} />
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
                         <Route path="/admin/leads" element={<Leads />} />
                         <Route path="/admin/tasks" element={<TaskManagement role={userRole} />} />

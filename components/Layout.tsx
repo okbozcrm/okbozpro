@@ -16,6 +16,7 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'field-force', path: '/admin/field-force', label: 'Field Force Tracking', icon: Navigation },
   { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
@@ -315,6 +316,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           // Map link IDs to Module Names used in SubAdminManagement.tsx
           const permKeyMap: Record<string, string> = {
               'dashboard': 'Dashboard',
+              'field-force': 'Field Force Tracking',
               'tracking': 'Live Tracking',
               'chat': 'Boz Chat',
               'employee-settings': 'Employee Setting',
@@ -348,7 +350,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       }
 
       const corporateAllowed = [
-        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
+        'dashboard', 'field-force', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'staff-todo', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
         'auto-dialer', 'sop-documents' // NEW: SOP Documents for Corporate

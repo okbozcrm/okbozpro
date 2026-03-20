@@ -117,6 +117,7 @@ const StaffList: React.FC = () => {
     department: '', role: '', branch: '', status: 'Active', shift: '', weekOff: 'Sunday',
     salary: '', accountNumber: '', ifsc: '', pan: '', aadhar: '', upiId: '',
     joiningDate: new Date().toISOString().split('T')[0],
+    relievingDate: '',
     attendanceConfig: { 
         punchMethod: 'Manual', 
         locationRestriction: 'Branch',
@@ -301,6 +302,9 @@ const StaffList: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
                       <CheckCircle className={`w-3.5 h-3.5 ${emp.status === 'Active' ? 'text-emerald-500' : 'text-gray-300'}`} /> {emp.status}
+                      {emp.relievingDate && new Date(emp.relievingDate + 'T23:59:59') < new Date() && (
+                          <span className="bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">Relieved</span>
+                      )}
                   </div>
               </div>
             </div>
@@ -453,6 +457,10 @@ const StaffList: React.FC = () => {
                                 <div className="relative">
                                     <label className="text-[10px] font-black uppercase text-gray-400 ml-1 mb-1 block">Joining Date</label>
                                     <input type="date" name="joiningDate" value={formData.joiningDate} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700" />
+                                </div>
+                                <div className="relative">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 ml-1 mb-1 block">Relieving Date</label>
+                                    <input type="date" name="relievingDate" value={formData.relievingDate || ''} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700" />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-gray-400 ml-1 mb-1 block">Salary (Monthly CTC)</label>

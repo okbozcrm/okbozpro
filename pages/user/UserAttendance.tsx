@@ -250,22 +250,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             const key = ownerId === 'admin' ? 'staff_data' : `staff_data_${ownerId}`;
             allStaff = JSON.parse(localStorage.getItem(key) || '[]').map((e: any) => ({...e, corporateId: ownerId}));
         }
-        setEmployees(allStaff);
-        
         // For non-admin (employee) view, strictly filter to only their own record
         let staffToDisplay = allStaff;
         if (!isAdmin) {
             const loggedInId = localStorage.getItem('logged_in_employee_id') || currentSessionId;
             staffToDisplay = allStaff.filter(e => e.id === loggedInId);
-            // Update employees state as well to prevent other users appearing in filtered lists
-            setEmployees(staffToDisplay);
         }
-
-        if (staffToDisplay.length > 0) {
-            const loggedInId = localStorage.getItem('logged_in_employee_id') || currentSessionId;
-            const defaultEmp = isAdmin ? staffToDisplay[0] : staffToDisplay.find(e => e.id === loggedInId);
-            setSelectedEmployee(defaultEmp || staffToDisplay[0]);
-        }
+        // Update employees state once to prevent flickering and redundant re-renders
+        setEmployees(staffToDisplay);
 
         // Load Leave Requests
         const leaves = JSON.parse(localStorage.getItem('global_leave_requests') || '[]');
@@ -370,9 +362,16 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   // Effect to update selectedEmployee when filtered list changes
   useEffect(() => {
       if (filteredStaffList.length > 0) {
-          // If currently selected employee is NOT in the filtered list, select the first one from the list
-          if (!selectedEmployee || !filteredStaffList.find(e => e.id === selectedEmployee.id)) {
+          // Find the current selected employee in the new filtered list by ID
+          const currentInList = selectedEmployee ? filteredStaffList.find(e => e.id === selectedEmployee.id) : null;
+          
+          if (!currentInList) {
+              // If currently selected employee is NOT in the filtered list, select the first one from the list
               setSelectedEmployee(filteredStaffList[0]);
+          } else if (currentInList !== selectedEmployee) {
+              // If the employee is in the list but the object reference changed (e.g., after data refresh),
+              // update to the latest object from the list to ensure we have fresh data
+              setSelectedEmployee(currentInList);
           }
       } else {
           // If list is empty, clear selection
@@ -592,6 +591,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   const handlePunchAction = async (action: 'In' | 'Out') => {
     if (!selectedEmployee || isPunching) return;
+
+    // Check for relieving date
+    if (selectedEmployee.relievingDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const relieving = new Date(selectedEmployee.relievingDate);
+        relieving.setHours(0, 0, 0, 0);
+        if (today > relieving) {
+            alert('Attendance is disabled for this employee as the relieving date has passed.');
+            return;
+        }
+    }
     
     setIsPunching(true); 
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1134,43 +1145,51 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                         </div>
                                     </div>
 
-                                    <div className="relative group">
-                                        <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
-                                        <button 
-                                            onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
-                                            disabled={isPunching}
-                                            className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
-                                                isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
-                                                isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
-                                            }`}
-                                        >
-                                            {isPunching ? (
-                                                <div className="flex flex-col items-center gap-3">
-                                                    <div className="relative">
-                                                        <Fingerprint className="w-16 h-16 text-white animate-pulse" />
-                                                        <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    {(!selectedEmployee?.relievingDate || new Date().setHours(0,0,0,0) <= new Date(selectedEmployee.relievingDate).setHours(0,0,0,0)) ? (
+                                        <div className="relative group">
+                                            <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
+                                            <button 
+                                                onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
+                                                disabled={isPunching}
+                                                className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
+                                                    isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
+                                                    isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
+                                                }`}
+                                            >
+                                                {isPunching ? (
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <div className="relative">
+                                                            <Fingerprint className="w-16 h-16 text-white animate-pulse" />
+                                                            <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                        </div>
+                                                        <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
                                                     </div>
-                                                    <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
+                                                ) : (
+                                                    <>
+                                                        <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
+                                                        <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
+                                                    </>
+                                                )}
+                                                {isPunching && (
+                                                    <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
+                                                )}
+                                            </button>
+                                            {!isPunching && (
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
+                                                    <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
+                                                        <Shield className="w-3.5 h-3.5" /> Biometric Identity
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <>
-                                                    <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
-                                                    <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
-                                                </>
                                             )}
-                                            {isPunching && (
-                                                <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
-                                            )}
-                                        </button>
-                                        {!isPunching && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
-                                                <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
-                                                    <Shield className="w-3.5 h-3.5" /> Biometric Identity
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-rose-50 border border-rose-100 p-8 rounded-[3rem] text-center max-w-xs animate-in zoom-in duration-300">
+                                            <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+                                            <p className="text-rose-900 font-black text-sm uppercase tracking-tighter">Attendance Disabled</p>
+                                            <p className="text-rose-600 text-[10px] font-bold mt-1 uppercase tracking-[0.2em]">Employee Relieved on {selectedEmployee.relievingDate}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="hidden lg:block relative">
