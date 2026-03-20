@@ -43,13 +43,15 @@ const UserProfile: React.FC = () => {
       // 1. Try Admin Staff
       try {
         const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-        const found = adminStaff.find((e: any) => e.id === storedSessionId);
+        const found = adminStaff.find((e: Employee) => e.id === storedSessionId);
         if (found) {
             setUser(found);
             setUserStorageKey('staff_data');
             return;
         }
-      } catch(e) {}
+      } catch {
+        // Ignore parsing errors
+      }
 
       // 2. Try Corporate Staff
       try {
@@ -57,14 +59,16 @@ const UserProfile: React.FC = () => {
         for (const corp of corporates) {
             const key = `staff_data_${corp.email}`;
             const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
-            const found = cStaff.find((e: any) => e.id === storedSessionId);
+            const found = cStaff.find((e: Employee) => e.id === storedSessionId);
             if (found) {
                 setUser(found);
                 setUserStorageKey(key);
                 return;
             }
         }
-      } catch(e) {}
+      } catch {
+        // Ignore parsing errors
+      }
 
       // 3. Fallback Mock
       setUser(MOCK_EMPLOYEES.find(e => e.id === storedSessionId) || MOCK_EMPLOYEES[0]);
@@ -159,7 +163,7 @@ const UserProfile: React.FC = () => {
                   setMsg({ type: '', text: '' });
                   setPasswords({ current: '', new: '', confirm: '' });
               }, 1500);
-          } catch(e) {
+          } catch {
               setMsg({ type: 'error', text: 'Storage error.' });
           }
       }

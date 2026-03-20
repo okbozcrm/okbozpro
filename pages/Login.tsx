@@ -77,7 +77,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
         if (activeTab === 'admin') {
             // Check against stored admin password or default
             const storedAdminPass = localStorage.getItem('admin_password') || '123456'; 
-            const adminEmail = 'okboz.com@gmail.com'; 
+            let adminEmail = 'okboz.com@gmail.com'; 
+            try {
+                const storedProfile = localStorage.getItem('admin_profile');
+                if (storedProfile) {
+                    const profile = JSON.parse(storedProfile);
+                    if (profile.email) adminEmail = profile.email;
+                }
+            } catch {
+                // Ignore parsing errors
+            }
 
             if (email.toLowerCase() === adminEmail.toLowerCase() && password === storedAdminPass) {
                 success = true;

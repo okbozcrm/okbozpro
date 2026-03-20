@@ -30,13 +30,13 @@ import Messenger from './pages/admin/Messenger';
 import UserAttendance from './pages/user/UserAttendance';
 import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
+import AdminProfile from './pages/admin/AdminProfile';
 import UserProfile from './pages/user/UserProfile'; 
 import TaskManagement from './pages/TaskManagement';
 import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
 import SOPDocuments from './pages/admin/SOPDocuments'; 
 import StaffTodo from './pages/admin/StaffTodo';
-import FieldForce from './pages/admin/FieldForce';
 import CallOverlay from './components/CallOverlay'; // Import CallOverlay
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
@@ -158,7 +158,6 @@ const App: React.FC = () => {
                         <Route path="/admin/auto-dialer" element={<AutoDialer />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
                         <Route path="/admin/tracking" element={<LiveTracking />} />
-                        <Route path="/admin/field-force" element={<FieldForce />} />
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
                         <Route path="/admin/leads" element={<Leads />} />
                         <Route path="/admin/tasks" element={<TaskManagement role={userRole} />} />
@@ -181,6 +180,7 @@ const App: React.FC = () => {
                         {userRole === UserRole.ADMIN && (
                           <>
                             <Route path="/admin/settings" element={<Settings />} />
+                            <Route path="/admin/profile" element={<AdminProfile />} />
                             <Route path="/admin/employee-settings" element={<EmployeeSettings />} />
                             <Route path="/admin/admin-finance" element={<Expenses />} />
                           </>

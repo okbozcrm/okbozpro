@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, ListTodo } from 'lucide-react';
-import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin } from '../types';
+import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
@@ -16,7 +16,6 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'field-force', path: '/admin/field-force', label: 'Field Force Tracking', icon: Navigation },
   { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
@@ -41,6 +40,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'corporate', path: '/admin/corporate', label: 'Corporate', icon: Building2 },
   { id: 'data-export', path: '/admin/data-export', label: 'Data & Backup', icon: Database }, 
   { id: 'settings', path: '/admin/settings', label: 'Settings', icon: Settings },
+  { id: 'profile', path: '/admin/profile', label: 'My Profile', icon: UserCircle },
   { id: 'sop-documents', path: '/admin/sop', label: 'SOP Documents', icon: BookOpen }, // NEW: SOP Documents
 ];
 
@@ -87,7 +87,21 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return '';
   }, [role]);
 
-  const userName = role === UserRole.ADMIN ? 'Administrator' : (sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'User');
+  const userName = useMemo(() => {
+    if (role === UserRole.ADMIN) {
+        try {
+            const storedProfile = localStorage.getItem('admin_profile');
+            if (storedProfile) {
+                const profile = JSON.parse(storedProfile);
+                return profile.name || 'Administrator';
+            }
+        } catch {
+            return 'Administrator';
+        }
+        return 'Administrator';
+    }
+    return sessionStorage.getItem('loggedInUserName') || localStorage.getItem('logged_in_employee_name') || 'User';
+  }, [role]);
   const userSubtitle = role === UserRole.ADMIN ? 'Head Office' : role === UserRole.CORPORATE ? 'Franchise Partner' : role === UserRole.SUB_ADMIN ? 'Sub Admin' : 'Staff Member';
   
   const { notifications, unreadCount, markNotificationAsRead, markAllNotificationsAsRead, playAlarmSound } = useNotification();
@@ -104,6 +118,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const [welcomeName, setWelcomeName] = useState('');
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [pendingTaCount, setPendingTaCount] = useState(0);
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const prevChatCountRef = useRef(0);
 
   // FETCH EMPLOYEE PERMISSIONS
@@ -196,6 +211,24 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           prevChatCountRef.current = unread;
       } catch {
         // Ignore parsing errors
+      }
+
+      try {
+          const tasks = JSON.parse(localStorage.getItem('tasks_data') || '[]');
+          const sessionId = localStorage.getItem('app_session_id');
+          if (!sessionId) return;
+          
+          let pending = 0;
+          if (role === UserRole.ADMIN) {
+              pending = tasks.filter((t: Task) => t.status !== 'Completed').length;
+          } else if (role === UserRole.EMPLOYEE) {
+              pending = tasks.filter((t: Task) => t.assignedTo === sessionId && t.status !== 'Completed').length;
+          } else if (role === UserRole.CORPORATE) {
+              pending = tasks.filter((t: Task) => t.corporateId === sessionId && t.status !== 'Completed').length;
+          }
+          setPendingTasksCount(pending);
+      } catch {
+          // Ignore parsing errors
       }
   };
 
@@ -316,7 +349,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           // Map link IDs to Module Names used in SubAdminManagement.tsx
           const permKeyMap: Record<string, string> = {
               'dashboard': 'Dashboard',
-              'field-force': 'Field Force Tracking',
               'tracking': 'Live Tracking',
               'chat': 'Boz Chat',
               'employee-settings': 'Employee Setting',
@@ -350,7 +382,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       }
 
       const corporateAllowed = [
-        'dashboard', 'field-force', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
+        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
         'tasks', 'staff-todo', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
         'auto-dialer', 'sop-documents' // NEW: SOP Documents for Corporate
@@ -442,6 +474,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                 <link.icon className={`w-5 h-5 ${currentPath === link.path ? 'text-white' : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`} />
                 <span className={`text-sm font-medium ${currentPath === link.path ? 'text-white' : ''}`}>{link.label}</span>
                 {(link.id === 'chat' || link.id === 'chat-employee') && chatUnreadCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">{chatUnreadCount}</span>}
+                {(link.id === 'tasks' || link.id === 'my-tasks') && pendingTasksCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTasksCount}</span>}
                 {link.id === 'reception' && newTaskCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{newTaskCount}</span>}
                 {(link.id === 'km-claims' || link.id === 'my-km-claims') && pendingTaCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTaCount}</span>}
                 {isEditingSidebar && (role === UserRole.ADMIN || role === UserRole.CORPORATE) && <GripVertical className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-grab" />}
@@ -503,7 +536,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
                 </button>
             </div>
 
-            <div className="flex items-center gap-3 mr-1 pl-3 border-l border-gray-100 dark:border-gray-700 hidden sm:flex">
+            <div 
+                className="flex items-center gap-3 mr-1 pl-3 border-l border-gray-100 dark:border-gray-700 hidden sm:flex cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-1 transition-colors"
+                onClick={() => {
+                    if (role === UserRole.ADMIN) navigate('/admin/profile');
+                    else if (role === UserRole.EMPLOYEE) navigate('/user/profile');
+                }}
+            >
                 {role !== UserRole.CORPORATE && (
                     <div className="text-right">
                         <p className="text-sm font-semibold text-gray-800 dark:text-white leading-tight">{userName}</p>

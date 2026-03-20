@@ -312,7 +312,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
   });
 
   const performanceStats = useMemo(() => {
-    const stats: Record<string, { name: string, total: number, completed: number, pending: number, role: string }> = {};
+    const stats: Record<string, { id: string, name: string, total: number, completed: number, pending: number, role: string }> = {};
     let relevantStaff = allStaff;
     if (role === UserRole.CORPORATE) {
         relevantStaff = allStaff.filter(s => s.corporateId === currentSessionId);
@@ -325,7 +325,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
         const completed = empTasks.filter(t => t.status === 'Done').length;
         const pending = empTasks.filter(t => t.status !== 'Done').length;
         if (role === UserRole.ADMIN || total > 0) {
-            stats[emp.id] = { name: emp.name, role: emp.role, total, completed, pending };
+            stats[emp.id] = { id: emp.id, name: emp.name, role: emp.role, total, completed, pending };
         }
     });
     return Object.values(stats);
@@ -454,7 +454,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                                       title={assignee.name} 
                                     />
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-xs font-bold text-gray-700 truncate">{assignee.name}</span>
+                                        <span className="text-xs font-bold text-gray-700 truncate">{assignee.name} {assignee.id && <span className="text-[10px] text-gray-400 font-normal ml-1">#{assignee.id}</span>}</span>
                                         <span className="text-[10px] text-gray-400 truncate">Due {endDate.toLocaleDateString()}</span>
                                     </div>
                                 </div>
@@ -495,7 +495,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                             <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <h3 className="font-bold text-gray-800">{stat.name}</h3>
+                                        <h3 className="font-bold text-gray-800">{stat.name} <span className="text-xs text-gray-400 font-normal ml-1">#{stat.id}</span></h3>
                                         <p className="text-xs text-gray-500">{stat.role}</p>
                                     </div>
                                     <div className={`text-lg font-bold ${efficiency >= 80 ? 'text-emerald-600' : efficiency >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -611,7 +611,7 @@ const TaskManagement: React.FC<TaskManagementProps> = ({ role }) => {
                     >
                        <option value="">Assign To...</option>
                        {availableStaff.map(s => (
-                          <option key={s.id} value={s.id}>{s.name} - {s.role}</option>
+                          <option key={s.id} value={s.id}>{s.name} (#{s.id}) - {s.role}</option>
                        ))}
                     </select>
                  </div>
