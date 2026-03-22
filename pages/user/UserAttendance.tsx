@@ -1,22 +1,16 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  ChevronLeft, ChevronRight, Calendar, List, CheckCircle, XCircle, 
-  User, MapPin, Clock, Fingerprint, Download, X, 
-  PieChart as PieChartIcon, Activity, ScanLine, Loader2, Navigation,
-  Phone, DollarSign, Plane, Briefcase, Filter, Search, FileText, Save,
-  QrCode, Crosshair, AlertTriangle, ShieldCheck, ChevronDown, Laptop, Globe,
-  TrendingUp, Users, UserCheck, UserX, BarChart3, MoreHorizontal, UserMinus,
-  Building2, ExternalLink, MousePointer2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
-  History, Trash2, Plus, UserPlus, UserMinus2, CalendarDays, Zap, Star, Shield,
-  Coffee, RefreshCw, AlertCircle, Check, Undo, Redo, Map as MapIcon, Power
+  ChevronLeft, ChevronRight, Calendar, CheckCircle, XCircle, 
+  MapPin, Clock, Fingerprint, X, 
+  Activity, AlertTriangle, ChevronDown, 
+  Users, UserCheck, UserX, UserMinus,
+  Building2, Send, Timer, Edit2, ListOrdered, ArrowRightLeft,
+  History, Trash2, Plus, CalendarDays, Zap, Shield,
+  Coffee, RefreshCw, Check, Undo, Redo, Map as MapIcon, Power
 } from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  AreaChart, Area 
-} from 'recharts';
-import { MOCK_EMPLOYEES, getEmployeeAttendance } from '../../constants';
-import { AttendanceStatus, DailyAttendance, Employee, Branch, CorporateAccount, UserRole, PunchRecord, LeaveRequest } from '../../types';
+import { getEmployeeAttendance } from '../../constants';
+import { AttendanceStatus, DailyAttendance, Employee, CorporateAccount, PunchRecord, LeaveRequest } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
 
 interface UserAttendanceProps {
@@ -671,7 +665,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         <h3 className="font-black text-gray-800 uppercase tracking-widest text-sm">Pending Leave Applications ({pending.length})</h3>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
                             <tr>
@@ -700,20 +694,54 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                     </td>
                                 </tr>
                             ))}
-                            {pending.length === 0 && (
-                                <tr><td colSpan={5} className="py-24 text-center text-gray-300 italic"><div className="flex flex-col items-center gap-2"><CheckCircle className="w-12 h-12 opacity-20" /><p className="font-black uppercase tracking-widest text-xs">No pending leave requests</p></div></td></tr>
-                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden divide-y divide-gray-50">
+                    {pending.map((req, i) => (
+                        <div key={i} className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-base border border-indigo-100 shadow-sm">{req.employeeName.charAt(0)}</div>
+                                    <div>
+                                        <p className="font-black text-gray-800 text-sm tracking-tight">{req.employeeName}</p>
+                                        <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">ID: {req.employeeId}</p>
+                                    </div>
+                                </div>
+                                <span className="px-2 py-1 bg-rose-50 text-rose-700 text-[8px] font-black uppercase rounded-md border border-rose-100">{req.type}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <div>
+                                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Duration</p>
+                                    <p className="font-bold text-gray-800 text-[10px]">{new Date(req.from).toLocaleDateString()} - {new Date(req.to).toLocaleDateString()}</p>
+                                    <p className="text-[8px] text-gray-400 font-black">{req.days} Day(s)</p>
+                                </div>
+                                <div>
+                                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Reason</p>
+                                    <p className="text-[10px] text-gray-600 italic line-clamp-2">&quot;{req.reason}&quot;</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => handleLeaveAction(req.id, 'Approved')} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><Check className="w-3 h-3"/> Approve</button>
+                                <button onClick={() => handleLeaveAction(req.id, 'Rejected')} className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><X className="w-3 h-3"/> Reject</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {pending.length === 0 && (
+                    <div className="py-24 text-center text-gray-300 italic"><div className="flex flex-col items-center gap-2"><CheckCircle className="w-12 h-12 opacity-20" /><p className="font-black uppercase tracking-widest text-xs">No pending leave requests</p></div></div>
+                )}
             </div>
 
-            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-xl overflow-hidden">
+            <div className="bg-white rounded-3xl md:rounded-[3rem] border border-gray-100 shadow-xl overflow-hidden">
                 <div className="p-6 border-b border-gray-50 bg-gray-50/30 flex items-center gap-2">
                     <History className="w-4 h-4 text-gray-400" />
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Leave Processing History</h4>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                         <thead className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
                             <tr><th className="px-10 py-5">Staff Member</th><th className="px-10 py-5">Type</th><th className="px-10 py-5">Dates</th><th className="px-10 py-5 text-center">Result</th></tr>
@@ -731,6 +759,18 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+                {/* Mobile History View */}
+                <div className="md:hidden divide-y divide-gray-50">
+                    {history.slice(0, 5).map((req, i) => (
+                        <div key={i} className="p-4 flex items-center justify-between">
+                            <div>
+                                <p className="font-bold text-gray-800 text-[10px]">{req.employeeName}</p>
+                                <p className="text-[8px] text-gray-400">{req.from} → {req.to}</p>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-widest ${req.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{req.status}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -784,7 +824,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 </div>
             </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
                 <thead className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50 bg-white">
                     <tr><th className="px-10 py-8">Staff Name</th><th className="px-10 py-8">Branch / Shift</th><th className="px-10 py-8">History (Punches)</th><th className="px-10 py-8">Total Time</th><th className="px-10 py-8 text-center">Status</th><th className="px-10 py-8 text-right">Action</th></tr>
@@ -839,63 +879,116 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                             </tr>
                         );
                     })}
-                    {staffDailyLogs.length === 0 && (
-                        <tr><td colSpan={6} className="py-32 text-center"><div className="flex flex-col items-center gap-4 text-gray-300"><Users className="w-16 h-16 opacity-20" /><p className="font-black uppercase tracking-[0.3em] text-sm">No staff records found for this criteria.</p></div></td></tr>
-                    )}
                 </tbody>
             </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-50">
+            {staffDailyLogs.map((log, i) => {
+                const totalMins = calculateTotalWorkTime(log.dailyRecord.punches);
+                const durationStr = formatDuration(totalMins);
+                const punchCount = log.dailyRecord.punches?.length || 0;
+                return (
+                    <div key={i} className="p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-base border border-emerald-100 shadow-sm">{log.name.charAt(0)}</div>
+                                <div>
+                                    <p className="font-black text-gray-800 text-sm tracking-tight">{log.name}</p>
+                                    <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">{log.role}</p>
+                                </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm ${
+                                log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                                log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-700 border-rose-100' : 
+                                'bg-gray-100 text-gray-500 border-gray-200'
+                            }`}>
+                                {log.dailyRecord.status.replace('_', ' ')}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <div>
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Branch / Shift</p>
+                                <p className="font-bold text-gray-600 text-[10px]">{log.branch || 'Head Office'}</p>
+                                <p className="text-[8px] text-gray-400 font-black">{log.workingHours || '09:30 - 18:30'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Time</p>
+                                <div className="flex items-center gap-1.5">
+                                    <Clock className={`w-3 h-3 ${durationStr ? 'text-emerald-500' : 'text-gray-300'}`} />
+                                    <span className={`text-[10px] font-black ${durationStr ? 'text-gray-800' : 'text-gray-300'}`}>{durationStr || '--:--'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <ListOrdered className="w-3 h-3 text-indigo-500" />
+                                <span className="text-[10px] font-black text-indigo-500 uppercase">{punchCount} Punches</span>
+                            </div>
+                            <button onClick={() => handleEditClick(log.dailyRecord, log.id)} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-gray-400 hover:text-emerald-600 rounded-xl border border-gray-200 text-[10px] font-black uppercase tracking-widest transition-all"><Edit2 className="w-3 h-3" /> Edit</button>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+
+        {staffDailyLogs.length === 0 && (
+            <div className="py-32 text-center"><div className="flex flex-col items-center gap-4 text-gray-300"><Users className="w-16 h-16 opacity-20" /><p className="font-black uppercase tracking-[0.3em] text-sm">No staff records found for this criteria.</p></div></div>
+        )}
     </div>
   );
 
   const renderMonthlyCalendar = () => (
-    <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in zoom-in-95 duration-500">
-        <div className="p-8 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-4">
+    <div className="bg-white rounded-3xl md:rounded-[3rem] border border-gray-100 shadow-2xl shadow-emerald-900/5 overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="p-4 md:p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
                 {isAdmin && (
-                    <div className="relative group">
-                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="pl-6 pr-12 py-4 bg-gray-50 border-none rounded-[1.5rem] text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all">
+                    <div className="relative group w-full sm:w-auto">
+                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="w-full sm:w-auto pl-6 pr-12 py-3 md:py-4 bg-gray-50 border-none rounded-xl md:rounded-[1.5rem] text-xs md:text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-emerald-500 min-w-[200px] md:min-w-[220px] appearance-none cursor-pointer shadow-inner transition-all">
                             {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                         </select>
-                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
+                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
                     </div>
                 )}
-                <div className="flex items-center gap-1 bg-white border border-gray-100 rounded-[1.5rem] p-1.5 shadow-sm">
-                    <button onClick={handlePrevMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronLeft className="w-6 h-6"/></button>
-                    <span className="px-6 text-sm font-black uppercase tracking-[0.2em] text-gray-800 min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                    <button onClick={handleNextMonth} className="p-3 hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronRight className="w-6 h-6"/></button>
+                <div className="flex items-center gap-1 bg-white border border-gray-100 rounded-xl md:rounded-[1.5rem] p-1 md:p-1.5 shadow-sm w-full sm:w-auto justify-between sm:justify-start">
+                    <button onClick={handlePrevMonth} className="p-2 md:p-3 hover:bg-gray-50 rounded-lg md:rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
+                    <span className="px-2 md:px-6 text-[10px] md:text-sm font-black uppercase tracking-[0.1em] md:tracking-[0.2em] text-gray-800 min-w-[120px] md:min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button onClick={handleNextMonth} className="p-2 md:p-3 hover:bg-gray-50 rounded-lg md:rounded-xl transition-all text-gray-400 hover:text-emerald-600"><ChevronRight className="w-5 h-5 md:w-6 md:h-6"/></button>
                 </div>
             </div>
             {isAdmin && selectedEmployee && (
-                <div className="flex flex-wrap gap-2">
-                    <button 
-                        onClick={() => handleUndo()}
-                        disabled={historyIndex <= 0}
-                        className={`p-3 rounded-2xl border transition-all shadow-sm ${historyIndex > 0 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
-                        title="Undo"
-                    >
-                        <Undo className="w-4 h-4" />
-                    </button>
-                    <button 
-                        onClick={() => handleRedo()}
-                        disabled={historyIndex >= history.length - 1}
-                        className={`p-3 rounded-2xl border transition-all shadow-sm ${historyIndex < history.length - 1 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
-                        title="Redo"
-                    >
-                        <Redo className="w-4 h-4" />
-                    </button>
-                    <div className="h-10 w-px bg-gray-200 mx-2"></div>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-5 py-3 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm"><CheckCircle className="w-4 h-4" /> Present (Month)</button>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-5 py-3 bg-rose-50 text-rose-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-2 shadow-sm"><XCircle className="w-4 h-4" /> Absent (Month)</button>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => handleUndo()}
+                            disabled={historyIndex <= 0}
+                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex > 0 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+                            title="Undo"
+                        >
+                            <Undo className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                        <button 
+                            onClick={() => handleRedo()}
+                            disabled={historyIndex >= history.length - 1}
+                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex < history.length - 1 ? 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'}`}
+                            title="Redo"
+                        >
+                            <Redo className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                    </div>
+                    <div className="hidden sm:block h-8 md:h-10 w-px bg-gray-200 mx-1 md:mx-2"></div>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-3 md:px-5 py-2 md:py-3 bg-emerald-50 text-emerald-700 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-1 md:gap-2 shadow-sm"><CheckCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Present</span></button>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-3 md:px-5 py-2 md:py-3 bg-rose-50 text-rose-700 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-1 md:gap-2 shadow-sm"><XCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Absent</span></button>
                 </div>
             )}
         </div>
-        <div className="p-8 md:p-12">
-            <div className="grid grid-cols-7 gap-px bg-gray-50 border border-gray-50 rounded-[2.5rem] overflow-hidden shadow-inner">
+        <div className="p-2 md:p-12">
+            <div className="grid grid-cols-7 gap-px bg-gray-50 border border-gray-50 rounded-2xl md:rounded-[2.5rem] overflow-hidden shadow-inner">
                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
-                    <div key={day} className={`bg-white py-8 text-center text-[12px] font-black tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-gray-400'}`}>{day}</div>
+                    <div key={day} className={`bg-white py-4 md:py-8 text-center text-[8px] md:text-[12px] font-black tracking-[0.1em] md:tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-gray-400'}`}>{day}</div>
                 ))}
-                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-white min-h-[180px] opacity-10"></div>)}
+                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-white min-h-[60px] md:min-h-[180px] opacity-10"></div>)}
                 {attendanceData.map((day, idx) => {
                     const dayOfWeek = new Date(day.date).getDay();
                     const isSunday = dayOfWeek === 0;
@@ -956,27 +1049,27 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     }
 
                     return (
-                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-6 min-h-[180px] flex flex-col gap-4 relative transition-all border group hover:scale-[1.02] hover:z-10 duration-200 ${cellStyle} ${isToday ? 'ring-4 ring-inset ring-emerald-500/30 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
+                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-2 md:p-6 min-h-[80px] md:min-h-[180px] flex flex-col gap-1 md:gap-4 relative transition-all border group hover:scale-[1.02] hover:z-10 duration-200 ${cellStyle} ${isToday ? 'ring-2 md:ring-4 ring-inset ring-emerald-500/30 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
                             <div className="flex justify-between items-start z-10">
-                                <span className={`text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'} opacity-80 group-hover:opacity-100`}>{new Date(day.date).getDate()}</span>
+                                <span className={`text-sm md:text-3xl font-black ${isWeekend ? 'text-rose-400' : 'text-gray-900'} opacity-80 group-hover:opacity-100`}>{new Date(day.date).getDate()}</span>
                                 {statusText && (
-                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg tracking-widest uppercase border ${badgeStyle}`}>{statusText}</span>
+                                    <span className={`text-[6px] md:text-[10px] font-black px-1 md:px-3 py-0.5 md:py-1 rounded md:rounded-lg tracking-tighter md:tracking-widest uppercase border ${badgeStyle} hidden xs:block`}>
+                                        {statusText.length > 10 ? statusText.substring(0, 8) + '..' : statusText}
+                                    </span>
                                 )}
                             </div>
                             
                             {punchCount > 0 && (
-                                <div className="mt-auto space-y-2 p-3 bg-white/60 backdrop-blur-sm rounded-[1.5rem] border border-gray-100/50 text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
+                                <div className="mt-auto space-y-1 md:space-y-2 p-1 md:p-3 bg-white/60 backdrop-blur-sm rounded-lg md:rounded-[1.5rem] border border-gray-100/50 text-[8px] md:text-[11px] font-black transition-all group-hover:bg-white group-hover:shadow-md z-10">
                                     <div className="flex items-center justify-between text-indigo-600">
-                                        <div className="flex items-center gap-1.5"><ArrowRightLeft className="w-3 h-3" /><span>{punchCount} Punches</span></div>
-                                        <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">History</span>
+                                        <div className="flex items-center gap-1 md:gap-1.5"><ArrowRightLeft className="w-2 h-2 md:w-3 md:h-3" /><span>{punchCount} <span className="hidden sm:inline">Punches</span></span></div>
                                     </div>
-                                    <div className="pt-1.5 border-t border-gray-200/50 flex items-center justify-between text-emerald-600">
-                                        <div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /><span>{durationStr || '0h 0m'}</span></div>
-                                        <span className="text-[8px] font-black uppercase tracking-tighter opacity-60">Logged Hrs</span>
+                                    <div className="pt-1 border-t border-gray-200/50 flex items-center justify-between text-emerald-600">
+                                        <div className="flex items-center gap-1 md:gap-1.5"><Clock className="w-2 h-2 md:w-3 md:h-3" /><span>{durationStr || '0h 0m'}</span></div>
                                     </div>
                                 </div>
                             )}
-                            {isToday && <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500 animate-ping z-10"></div>}
+                            {isToday && <div className="absolute top-2 right-2 md:top-6 md:right-6 w-1 h-1 md:w-2 md:h-2 rounded-full bg-emerald-500 animate-ping z-10"></div>}
                         </div>
                     );
                 })}
@@ -987,21 +1080,31 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
   return (
     <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
-      <div className="bg-white p-6 rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 rounded-2xl"><Calendar className="w-8 h-8 text-emerald-600" /></div><div><h2 className="text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2><p className="text-gray-400 text-sm font-bold uppercase tracking-widest">{isAdmin ? "Track monthly shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}</p></div></div>
-        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
+      <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-2 md:p-3 bg-emerald-50 rounded-xl md:rounded-2xl">
+            <Calendar className="w-6 h-6 md:w-8 md:h-8 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-xl md:text-3xl font-black text-gray-800 tracking-tighter">Attendance Dashboard</h2>
+            <p className="text-gray-400 text-[10px] md:text-sm font-bold uppercase tracking-widest">
+              {isAdmin ? "Track monthly shift and performance" : `Your Shift: ${selectedEmployee?.workingHours || '09:30 - 18:30'}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex bg-gray-100 p-1 rounded-xl md:rounded-2xl border border-gray-100 shadow-inner w-full md:w-auto overflow-x-auto no-scrollbar">
             {['Dashboard', 'Daily Status', 'Leave Requests'].map((tab) => {
                 if (!isAdmin && (tab === 'Daily Status' || tab === 'Leave Requests')) return null;
                 return (
                     <button 
                         key={tab} 
                         onClick={() => setActiveTab(tab as any)} 
-                        className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === tab ? 'bg-white shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab ? 'bg-white shadow-md md:shadow-xl text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                        {tab === 'Daily Status' ? <Timer className="w-4 h-4" /> : tab === 'Leave Requests' ? <Plane className="w-4 h-4" /> : null}
+                        {tab === 'Daily Status' ? <Timer className="w-3 h-3 md:w-4 md:h-4" /> : tab === 'Leave Requests' ? <Plane className="w-3 h-3 md:w-4 md:h-4" /> : null}
                         {tab}
                         {tab === 'Leave Requests' && dashboardStats.pendingLeaves > 0 && (
-                            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{dashboardStats.pendingLeaves}</span>
+                            <span className="bg-rose-500 text-white text-[8px] md:text-[10px] font-bold px-1 md:px-1.5 py-0.5 rounded-full animate-pulse">{dashboardStats.pendingLeaves}</span>
                         )}
                     </button>
                 );
@@ -1009,8 +1112,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         </div>
       </div>
 
-      <div className="space-y-8 animate-in zoom-in-95 duration-500">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="space-y-6 md:space-y-8 animate-in zoom-in-95 duration-500">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
               {[
                   { 
                       label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', 
@@ -1097,48 +1200,48 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                   {!isAdmin && selectedEmployee && (
                       <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(16,185,129,0.15)] border border-gray-50 overflow-hidden relative group">
                         <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-600 transition-all duration-700 group-hover:h-6"></div>
-                        <div className="p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-16">
-                            <div className="text-center md:text-left space-y-10">
+                        <div className="p-6 md:p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16">
+                            <div className="text-center md:text-left space-y-6 md:space-y-10 w-full">
                                 <div className="space-y-2">
-                                    <h3 className="text-5xl font-black text-gray-900 tracking-tighter">
+                                    <h3 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tighter">
                                         Hello, {(localStorage.getItem('logged_in_employee_name') || selectedEmployee?.name || 'User').split(' ')[0]}! 👋
                                     </h3>
-                                    <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[12px]">Welcome to your attendance portal</p>
+                                    <p className="text-gray-400 font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[10px] md:text-[12px]">Welcome to your attendance portal</p>
                                 </div>
                                 
-                                <div className="flex flex-col items-center md:items-start gap-10 w-full">
-                                    <div className="flex flex-wrap items-center gap-6">
-                                        <div className="flex items-center gap-8 bg-gray-50 px-10 py-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
-                                            <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-                                                <Clock className="w-10 h-10 text-emerald-600" />
+                                <div className="flex flex-col items-center md:items-start gap-6 md:gap-10 w-full">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-6 w-full sm:w-auto">
+                                        <div className="flex items-center gap-4 md:gap-8 bg-gray-50 px-6 md:px-10 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] border border-gray-100 shadow-inner w-full sm:w-auto justify-center sm:justify-start">
+                                            <div className="p-2 md:p-4 bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-100">
+                                                <Clock className="w-6 h-6 md:w-10 md:h-10 text-emerald-600" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Server Time</p>
-                                                <span className="text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em] mb-1">Server Time</p>
+                                                <span className="text-3xl md:text-5xl font-black font-mono text-gray-800 tracking-tighter tabular-nums">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                         </div>
 
                                         {/* Live Tracking Toggle */}
-                                        <div className={`flex items-center gap-6 px-8 py-6 rounded-[2.5rem] border transition-all duration-500 ${isTracking ? 'bg-indigo-50 border-indigo-100 shadow-indigo-100/50' : 'bg-gray-50 border-gray-100 shadow-inner'}`}>
-                                            <div className={`p-4 rounded-2xl shadow-sm border transition-colors ${isTracking ? 'bg-white text-indigo-600 border-indigo-100' : 'bg-white text-gray-400 border-gray-100'}`}>
-                                                <MapIcon className={`w-8 h-8 ${isTracking ? 'animate-pulse' : ''}`} />
+                                        <div className={`flex items-center gap-4 md:gap-6 px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[2.5rem] border transition-all duration-500 w-full sm:w-auto justify-center sm:justify-start ${isTracking ? 'bg-indigo-50 border-indigo-100 shadow-indigo-100/50' : 'bg-gray-50 border-gray-100 shadow-inner'}`}>
+                                            <div className={`p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm border transition-colors ${isTracking ? 'bg-white text-indigo-600 border-indigo-100' : 'bg-white text-gray-400 border-gray-100'}`}>
+                                                <MapIcon className={`w-6 h-6 md:w-8 md:h-8 ${isTracking ? 'animate-pulse' : ''}`} />
                                             </div>
-                                            <div className="flex flex-col gap-2">
+                                            <div className="flex flex-col gap-1 md:gap-2">
                                                 <div>
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Live Tracking</p>
-                                                    <span className={`text-sm font-black uppercase tracking-widest ${isTracking ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                                    <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em] mb-1">Live Tracking</p>
+                                                    <span className={`text-[10px] md:text-sm font-black uppercase tracking-widest ${isTracking ? 'text-indigo-600' : 'text-gray-400'}`}>
                                                         {isTracking ? 'ACTIVE' : 'INACTIVE'}
                                                     </span>
                                                 </div>
                                                 <button 
                                                     onClick={() => handleTrackingToggle()}
-                                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all transform active:scale-95 ${
+                                                    className={`flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all transform active:scale-95 ${
                                                         isTracking 
                                                         ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' 
                                                         : 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                                                     }`}
                                                 >
-                                                    <Power className="w-3 h-3" />
+                                                    <Power className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                                     {isTracking ? 'Stop Tracking' : 'Start Tracking'}
                                                 </button>
                                             </div>
@@ -1147,47 +1250,44 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
                                     {(!selectedEmployee?.relievingDate || new Date().setHours(0,0,0,0) <= new Date(selectedEmployee.relievingDate).setHours(0,0,0,0)) ? (
                                         <div className="relative group">
-                                            <div className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
+                                            <div className={`absolute -inset-4 md:-inset-6 rounded-full blur-xl md:blur-2xl transition-all duration-500 ${isPunching ? 'bg-indigo-500/30 opacity-100 scale-110' : isPunchedIn ? 'bg-rose-500/10 opacity-50' : 'bg-emerald-500/10 opacity-50'}`}></div>
                                             <button 
                                                 onClick={() => handlePunchAction(isPunchedIn ? 'Out' : 'In')}
                                                 disabled={isPunching}
-                                                className={`relative z-10 w-48 h-48 rounded-full flex flex-col items-center justify-center gap-4 transition-all transform active:scale-90 border-4 ${
+                                                className={`relative z-10 w-32 h-32 md:w-48 md:h-48 rounded-full flex flex-col items-center justify-center gap-2 md:gap-4 transition-all transform active:scale-90 border-4 ${
                                                     isPunching ? 'bg-indigo-600 border-indigo-200 shadow-indigo-200 cursor-wait' :
                                                     isPunchedIn ? 'bg-rose-600 border-rose-100 shadow-2xl shadow-rose-200' : 'bg-emerald-600 border-emerald-100 shadow-2xl shadow-emerald-200'
                                                 }`}
                                             >
                                                 {isPunching ? (
-                                                    <div className="flex flex-col items-center gap-3">
+                                                    <div className="flex flex-col items-center gap-2 md:gap-3">
                                                         <div className="relative">
-                                                            <Fingerprint className="w-16 h-16 text-white animate-pulse" />
-                                                            <div className="absolute inset-0 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                            <Fingerprint className="w-10 h-10 md:w-16 md:h-16 text-white animate-pulse" />
+                                                            <div className="absolute inset-0 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
                                                         </div>
-                                                        <span className="text-white text-[10px] font-black uppercase tracking-widest">Scanning...</span>
+                                                        <span className="text-white text-[8px] md:text-[10px] font-black uppercase tracking-widest">Scanning...</span>
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        <Fingerprint className="w-16 h-16 text-white group-hover:scale-110 transition-transform duration-500" />
-                                                        <span className="text-white text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
+                                                        <Fingerprint className="w-10 h-10 md:w-16 md:h-16 text-white group-hover:scale-110 transition-transform duration-500" />
+                                                        <span className="text-white text-[10px] md:text-xs font-black uppercase tracking-widest">{isPunchedIn ? 'Punch Out' : 'Punch In'}</span>
                                                     </>
-                                                )}
-                                                {isPunching && (
-                                                    <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
                                                 )}
                                             </button>
                                             {!isPunching && (
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
-                                                    <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold text-xs bg-emerald-50 px-4 py-1.5 rounded-full inline-flex">
-                                                        <Shield className="w-3.5 h-3.5" /> Biometric Identity
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 md:mt-6 w-full text-center animate-in fade-in slide-in-from-top-2">
+                                                    <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Authenticated via</p>
+                                                    <div className="flex items-center justify-center gap-1.5 md:gap-2 text-emerald-600 font-bold text-[10px] md:text-xs bg-emerald-50 px-3 md:px-4 py-1 md:py-1.5 rounded-full inline-flex">
+                                                        <Shield className="w-3 h-3 md:w-3.5 md:h-3.5" /> Biometric Identity
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="bg-rose-50 border border-rose-100 p-8 rounded-[3rem] text-center max-w-xs animate-in zoom-in duration-300">
-                                            <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-                                            <p className="text-rose-900 font-black text-sm uppercase tracking-tighter">Attendance Disabled</p>
-                                            <p className="text-rose-600 text-[10px] font-bold mt-1 uppercase tracking-[0.2em]">Employee Relieved on {selectedEmployee.relievingDate}</p>
+                                        <div className="bg-rose-50 border border-rose-100 p-6 md:p-8 rounded-2xl md:rounded-[3rem] text-center max-w-xs animate-in zoom-in duration-300">
+                                            <AlertTriangle className="w-8 h-8 md:w-12 md:h-12 text-rose-500 mx-auto mb-4" />
+                                            <p className="text-rose-900 font-black text-xs md:text-sm uppercase tracking-tighter">Attendance Disabled</p>
+                                            <p className="text-rose-600 text-[8px] md:text-[10px] font-bold mt-1 uppercase tracking-[0.2em]">Employee Relieved on {selectedEmployee.relievingDate}</p>
                                         </div>
                                     )}
                                 </div>
