@@ -571,7 +571,14 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           nextFollowUp: scheduleInfo ? `${scheduleData.date}T${scheduleData.time}` : undefined,
           priority: scheduleInfo?.priority,
           enquiryCategory, tripType, vehicleType, outstationSubType,
-          transportData: enquiryCategory === 'Transport' ? { ...transportDetails, drop: transportDetails.drops[0]?.address } : undefined,
+          transportData: enquiryCategory === 'Transport' ? { 
+              ...transportDetails, 
+              drops: transportDetails.drops.map(d => ({
+                  address: String(d.address || ''),
+                  coords: d.coords ? { lat: Number(d.coords.lat), lng: Number(d.coords.lng) } : null
+              })),
+              drop: transportDetails.drops[0]?.address 
+          } : undefined,
           estimatedPrice: estimatedCost,
       };
 

@@ -404,7 +404,12 @@ const Leads = () => {
                 <div className="flex items-center gap-4 bg-indigo-50 px-6 py-3 rounded-2xl border border-indigo-100 animate-in slide-in-from-right-4">
                     <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">{selectedLeadIds.length} Selected</span>
                     <button 
-                        onClick={() => { if(window.confirm(`Delete ${selectedLeadIds.length} leads?`)) { setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id))); setSelectedLeadIds([]); } }}
+                        onClick={() => { 
+                            if(window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} leads? This action cannot be undone.`)) { 
+                                setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id))); 
+                                setSelectedLeadIds([]); 
+                            } 
+                        }}
                         className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-100 transition-all"
                         title="Bulk Delete"
                     >
@@ -664,7 +669,12 @@ const Leads = () => {
                                               <Edit2 className="w-5 h-5"/>
                                           </button>
                                           <button 
-                                              onClick={(e) => { e.stopPropagation(); if (window.confirm("Remove this lead?")) setLeads(prev => prev.filter(l => l.id !== lead.id)); }} 
+                                              onClick={(e) => { 
+                                                  e.stopPropagation(); 
+                                                  if (window.confirm("Are you sure you want to remove this lead? This action cannot be undone.")) {
+                                                      setLeads(prev => prev.filter(l => l.id !== lead.id));
+                                                  }
+                                              }} 
                                               className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 hover:bg-rose-100 transition-all"
                                           >
                                               <Trash2 className="w-5 h-5"/>

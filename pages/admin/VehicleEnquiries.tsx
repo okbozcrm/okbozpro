@@ -416,7 +416,24 @@ Book now with OK BOZ Transport!`;
           assignedTo: assignment.staffId,
           createdAt: new Date().toLocaleString(),
           history: [historyLog],
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          // Structured Data
+          enquiryCategory,
+          tripType,
+          vehicleType,
+          outstationSubType,
+          transportData: enquiryCategory === 'Transport' ? {
+              ...transportDetails,
+              pickup: customerDetails.pickup,
+              pickupCoords: pickupCoords ? { lat: Number(pickupCoords.lat), lng: Number(pickupCoords.lng) } : null,
+              dropCoords: dropCoords ? { lat: Number(dropCoords.lat), lng: Number(dropCoords.lng) } : null,
+              destCoords: destCoords ? { lat: Number(destCoords.lat), lng: Number(destCoords.lng) } : null,
+              // For consistency with CustomerCare, we can also populate drops array
+              drops: [{ 
+                  address: String(transportDetails.drop || ''), 
+                  coords: dropCoords ? { lat: Number(dropCoords.lat), lng: Number(dropCoords.lng) } : null 
+              }]
+          } : undefined
       };
 
       // 5. Save
