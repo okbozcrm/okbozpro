@@ -54,6 +54,20 @@ interface MessageTemplate {
   fileName?: string;
 }
 
+// Utility to safely stringify objects with potential circular references
+const safeStringify = (obj: unknown) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
 const Leads = () => {
   const role = localStorage.getItem('user_role') as UserRole;
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -117,12 +131,20 @@ const Leads = () => {
   const templateFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('leads_data', JSON.stringify(leads));
-    syncToCloud();
+    try {
+      localStorage.setItem('leads_data', safeStringify(leads));
+      syncToCloud();
+    } catch (error) {
+      console.error("Failed to save leads data:", error);
+    }
   }, [leads]);
 
   useEffect(() => {
-    localStorage.setItem('leads_message_templates', JSON.stringify(templates));
+    try {
+      localStorage.setItem('leads_message_templates', safeStringify(templates));
+    } catch (error) {
+      console.error("Failed to save templates data:", error);
+    }
   }, [templates]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
