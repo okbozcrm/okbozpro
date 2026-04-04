@@ -137,6 +137,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   
   const [transportDetails, setTransportDetails] = useState({
     drops: [{ address: '', coords: null }] as DropPoint[], 
+    outstationWaypoints: [] as DropPoint[],
     estKm: '', waitingMins: '', packageId: '',
     destination: '', days: '1', estTotalKm: '', nights: '0',
     isHillsTrip: false
@@ -324,7 +325,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         let totalKm = 0;
         const locations = [pickupCoords];
         if (tripType === 'Local') transportDetails.drops.forEach(d => { if (d.coords) locations.push(d.coords); });
-        else if (tripType === 'Outstation' && destCoords) locations.push(destCoords);
+        else if (tripType === 'Outstation') {
+            transportDetails.outstationWaypoints.forEach(w => { if (w.coords) locations.push(w.coords); });
+            if (destCoords) locations.push(destCoords);
+        }
         if (locations.length < 2) return;
         for (let i = 0; i < locations.length - 1; i++) {
             const start = locations[i];
@@ -345,7 +349,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         setTransportDetails(prev => ({ ...prev, [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: totalKm.toFixed(1) }));
     };
     calculateSequentialDistance();
-  }, [pickupCoords, transportDetails.drops, destCoords, isMapReady, tripType, outstationSubType]);
+  }, [pickupCoords, transportDetails.drops, transportDetails.outstationWaypoints, destCoords, isMapReady, tripType, outstationSubType]);
 
   const handlePricingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -411,6 +415,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const handleAddDrop = () => setTransportDetails(prev => ({ ...prev, drops: [...prev.drops, { address: '', coords: null }] }));
   const handleRemoveDrop = (index: number) => setTransportDetails(prev => { const newDrops = prev.drops.filter((_, i) => i !== index); if (newDrops.length === 0) return { ...prev, drops: [{ address: '', coords: null }] }; return { ...prev, drops: newDrops }; });
   const handleDropChange = (index: number, address: string, coords: { lat: number; lng: number } | null) => setTransportDetails(prev => { const newDrops = [...prev.drops]; newDrops[index] = { address, coords }; return { ...prev, drops: newDrops }; });
+
+  const handleAddWaypoint = () => setTransportDetails(prev => ({ ...prev, outstationWaypoints: [...prev.outstationWaypoints, { address: '', coords: null }] }));
+  const handleRemoveWaypoint = (index: number) => setTransportDetails(prev => ({ ...prev, outstationWaypoints: prev.outstationWaypoints.filter((_, i) => i !== index) }));
+  const handleWaypointChange = (index: number, address: string, coords: { lat: number; lng: number } | null) => setTransportDetails(prev => { const newWaypoints = [...prev.outstationWaypoints]; newWaypoints[index] = { address, coords }; return { ...prev, outstationWaypoints: newWaypoints }; });
 
   // Calculation Logic Updated
   useEffect(() => {
@@ -489,7 +497,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation Round-Trip* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
-                    `🌍 Destination: ${transportDetails.destination}\n\n` +
+                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w, i) => `📍 Waypoint ${i+1}: ${w.address}`).join('\n')}\n` +
+                    `🌍 Final Destination: ${transportDetails.destination}\n\n` +
                     `*Trip Parameters:*\n` +
                     `• Days: ${days}\n` +
                     `• Approx KM: ${km} KM\n` +
@@ -518,7 +527,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation One-Way* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
-                    `🌍 Destination: ${transportDetails.destination}\n\n` +
+                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w, i) => `📍 Waypoint ${i+1}: ${w.address}`).join('\n')}\n` +
+                    `🌍 Final Destination: ${transportDetails.destination}\n\n` +
                     `*Trip Parameters:*\n` +
                     `• Approx KM: ${km} KM\n` +
                     `• Base Fare: ₹${baseFare.toFixed(2)} (upto ${baseKm} KM)\n` +
@@ -577,6 +587,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                   address: String(d.address || ''),
                   coords: d.coords ? { lat: Number(d.coords.lat), lng: Number(d.coords.lng) } : null
               })),
+              outstationWaypoints: transportDetails.outstationWaypoints.map(w => ({
+                  address: String(w.address || ''),
+                  coords: w.coords ? { lat: Number(w.coords.lat), lng: Number(w.coords.lng) } : null
+              })),
               drop: transportDetails.drops[0]?.address 
           } : undefined,
           estimatedPrice: estimatedCost,
@@ -592,7 +606,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleCancelForm = () => {
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drops: [{ address: '', coords: null }], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
+      setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
       setGeneratedMessage(''); setEstimatedCost(0); setEditingOrderId(null); setIsPhoneChecked(false);
   };
 
@@ -604,7 +618,12 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       setEnquiryCategory(order.enquiryCategory || 'General');
       if (order.transportData) {
           setTripType(order.tripType || 'Local'); setVehicleType(order.vehicleType || 'Sedan');
-          setTransportDetails({ ...transportDetails, ...order.transportData, drops: order.transportData.drops || [{ address: '', coords: null }] });
+          setTransportDetails({ 
+              ...transportDetails, 
+              ...order.transportData, 
+              drops: order.transportData.drops || [{ address: '', coords: null }],
+              outstationWaypoints: order.transportData.outstationWaypoints || []
+          });
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1097,8 +1116,32 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                       <button onClick={() => setOutstationSubType('RoundTrip')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${outstationSubType === 'RoundTrip' ? 'bg-white shadow-md text-emerald-600' : 'text-gray-500'}`}>Round Trip</button>
                                       <button onClick={() => setOutstationSubType('OneWay')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${outstationSubType === 'OneWay' ? 'bg-white shadow-md text-emerald-600' : 'text-gray-500'}`}>One Way</button>
                                   </div>
+                                  <div className="space-y-4">
+                                      <div className="flex justify-between items-center mb-1">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Destination Waypoint(s)</label>
+                                          <button onClick={handleAddWaypoint} className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-2"><Plus className="w-3.5 h-3.5"/> Add Waypoint</button>
+                                      </div>
+                                      {transportDetails.outstationWaypoints.map((wp, idx) => (
+                                          <div key={idx} className="flex items-start gap-3 group animate-in slide-in-from-left-2 duration-200">
+                                              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-[10px] mt-1.5 shrink-0 shadow-lg">{idx + 1}</div>
+                                              <div className="flex-1">
+                                                {isMapReady ? (
+                                                  <Autocomplete 
+                                                    placeholder={`Waypoint City ${idx + 1}`} 
+                                                    onAddressSelect={(addr) => handleWaypointChange(idx, addr, wp.coords)} 
+                                                    setNewPlace={(place) => handleWaypointChange(idx, wp.address, place)} 
+                                                    defaultValue={wp.address} 
+                                                  />
+                                                ) : (
+                                                  <div className="p-3 bg-gray-50 border rounded-xl">...</div>
+                                                )}
+                                              </div>
+                                              <button onClick={() => handleRemoveWaypoint(idx)} className="p-3 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4.5 h-4.5"/></button>
+                                          </div>
+                                      ))}
+                                  </div>
                                   <div className="space-y-2">
-                                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Destination City</label>
+                                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Final Destination City</label>
                                       {isMapReady ? (
                                         <Autocomplete 
                                           placeholder="Search Destination Hub" 

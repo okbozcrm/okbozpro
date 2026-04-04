@@ -9,7 +9,7 @@ import {
   History, Trash2, Plus, CalendarDays, Zap, Shield,
   Coffee, RefreshCw, Check, Undo, Redo, Map as MapIcon, Power
 } from 'lucide-react';
-import { getEmployeeAttendance } from '../../constants';
+import { getEmployeeAttendance, ATTENDANCE_STATUS_COLORS } from '../../constants';
 import { AttendanceStatus, DailyAttendance, Employee, CorporateAccount, PunchRecord, LeaveRequest, Branch, UserRole } from '../../types';
 import { sendSystemNotification } from '../../services/cloudService';
 
@@ -865,12 +865,11 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 </td>
                                 <td className="px-10 py-8 text-center">
                                     <span className={`inline-flex px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
-                                        log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
-                                        log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-600 border-rose-100' : 
-                                        log.dailyRecord.status === AttendanceStatus.HOLIDAY ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                                        log.dailyRecord.status === AttendanceStatus.ALTERNATE_DAY ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                        log.dailyRecord.status === AttendanceStatus.WEEK_OFF ? 'bg-slate-50 text-slate-500 border-slate-200' :
-                                        'bg-slate-50 text-slate-400 border-slate-200'
+                                        ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.bg || 'bg-slate-50'
+                                    } ${
+                                        ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.text || 'text-slate-400'
+                                    } ${
+                                        ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.border || 'border-slate-200'
                                     }`}>
                                         {log.dailyRecord.status.replace('_', ' ')}
                                     </span>
@@ -900,9 +899,11 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                 </div>
                             </div>
                             <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm ${
-                                log.dailyRecord.status === AttendanceStatus.PRESENT ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
-                                log.dailyRecord.status === AttendanceStatus.ABSENT ? 'bg-rose-50 text-rose-600 border-rose-100' : 
-                                'bg-slate-100 text-slate-500 border-slate-200'
+                                ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.bg || 'bg-slate-100'
+                            } ${
+                                ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.text || 'text-slate-500'
+                            } ${
+                                ATTENDANCE_STATUS_COLORS[log.dailyRecord.status as AttendanceStatus]?.border || 'border-slate-200'
                             }`}>
                                 {log.dailyRecord.status.replace('_', ' ')}
                             </span>
@@ -999,53 +1000,22 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                     const totalMins = calculateTotalWorkTime(day.punches);
                     const durationStr = formatDuration(totalMins);
                     const punchCount = day.punches?.length || 0;
-                    
-                    // Dynamic Color Logic
-                    let cellStyle = "bg-white border-slate-100";
-                    let badgeStyle = "bg-slate-100 text-slate-500 border-slate-200";
+                                      // Dynamic Color Logic
+                    const statusColors = ATTENDANCE_STATUS_COLORS[day.status as AttendanceStatus] || ATTENDANCE_STATUS_COLORS[AttendanceStatus.NOT_MARKED];
+                    let cellStyle = statusColors.cell;
+                    let badgeStyle = statusColors.badge;
                     let statusText = day.status.replace('_', ' ');
 
-                    switch (day.status) {
-                        case AttendanceStatus.PRESENT:
-                            cellStyle = "bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50/60";
-                            badgeStyle = "bg-emerald-100 text-emerald-600 border-emerald-200 shadow-sm";
-                            break;
-                        case AttendanceStatus.ABSENT:
-                            cellStyle = "bg-rose-50/30 border-rose-100 hover:bg-rose-50/60";
-                            badgeStyle = "bg-rose-100 text-rose-600 border-rose-200 shadow-sm";
-                            break;
-                        case AttendanceStatus.HALF_DAY:
-                            cellStyle = "bg-amber-50/30 border-amber-100 hover:bg-amber-50/60";
-                            badgeStyle = "bg-amber-100 text-amber-600 border-amber-200 shadow-sm";
-                            break;
-                        case AttendanceStatus.PAID_LEAVE:
-                            cellStyle = "bg-blue-50/30 border-blue-100 hover:bg-blue-50/60";
-                            badgeStyle = "bg-blue-100 text-blue-600 border-blue-200 shadow-sm";
-                            break;
-                        case AttendanceStatus.HOLIDAY:
-                            cellStyle = "bg-violet-50/30 border-violet-100 hover:bg-violet-50/60";
-                            badgeStyle = "bg-violet-100 text-violet-600 border-violet-200 shadow-sm";
-                            break;
-                        case AttendanceStatus.WEEK_OFF:
-                            cellStyle = "bg-slate-50/50 border-slate-100";
-                            badgeStyle = "bg-slate-100 text-slate-400 border-slate-200";
-                            break;
-                        case AttendanceStatus.ALTERNATE_DAY:
-                            cellStyle = "bg-teal-50/30 border-teal-100 hover:bg-teal-50/60";
-                            badgeStyle = "bg-teal-100 text-teal-600 border-teal-200 shadow-sm";
-                            break;
-                        default:
-                            // Not marked
-                             if (day.date <= todayDateStr && !isWeekend) {
-                                cellStyle = "bg-rose-50/10 border-rose-100/50";
-                                badgeStyle = "bg-rose-100/50 text-rose-600/60 border-rose-200/50";
-                                statusText = "ABSENT (N/A)";
-                             } else if (isWeekend) {
-                                cellStyle = "bg-slate-50/30 border-slate-100/50";
-                                badgeStyle = "bg-slate-100/50 text-slate-400 border-slate-200/50";
-                                statusText = "WEEK OFF";
-                             }
-                            break;
+                    if (day.status === AttendanceStatus.NOT_MARKED) {
+                         if (day.date <= todayDateStr && !isWeekend) {
+                            cellStyle = "bg-rose-50/10 border-rose-100/50";
+                            badgeStyle = "bg-rose-100/50 text-rose-600/60 border-rose-200/50";
+                            statusText = "ABSENT (N/A)";
+                         } else if (isWeekend) {
+                            cellStyle = "bg-slate-50/30 border-slate-100/50";
+                            badgeStyle = "bg-slate-100/50 text-slate-400 border-slate-200/50";
+                            statusText = "WEEK OFF";
+                         }
                     }
 
                     return (

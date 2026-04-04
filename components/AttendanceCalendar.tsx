@@ -1,5 +1,6 @@
 import React from 'react';
 import { DailyAttendance, AttendanceStatus } from '../types';
+import { ATTENDANCE_STATUS_COLORS } from '../constants';
 
 interface AttendanceCalendarProps {
   data: DailyAttendance[];
@@ -23,36 +24,9 @@ const DayCell: React.FC<DayCellProps> = ({ dayData, onClick }) => {
 
   const dayNumber = parseInt(dayData.date.split('-')[2], 10);
   
-  let bgClass = 'bg-white border-dashed border-gray-200 text-gray-300';
+  const statusColors = ATTENDANCE_STATUS_COLORS[dayData.status as AttendanceStatus] || ATTENDANCE_STATUS_COLORS[AttendanceStatus.NOT_MARKED];
+  const bgClass = statusColors.cell;
   
-  // VIBRANT COLOR SCHEME - Matching the main dashboard aesthetic
-  switch (dayData.status) {
-    case AttendanceStatus.PRESENT:
-      bgClass = 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-800 border-emerald-300 border-solid shadow-sm';
-      break;
-    case AttendanceStatus.ABSENT:
-      bgClass = 'bg-gradient-to-br from-rose-100 to-rose-200 text-rose-800 border-rose-300 border-solid shadow-sm';
-      break;
-    case AttendanceStatus.HALF_DAY:
-      bgClass = 'bg-gradient-to-br from-amber-100 to-amber-200 text-amber-800 border-amber-300 border-solid shadow-sm';
-      break;
-    case AttendanceStatus.PAID_LEAVE:
-      bgClass = 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-800 border-blue-300 border-solid shadow-sm';
-      break;
-    case AttendanceStatus.WEEK_OFF:
-      bgClass = 'bg-slate-100 text-slate-500 border-slate-200 border-solid';
-      break;
-    case AttendanceStatus.HOLIDAY:
-        bgClass = 'bg-gradient-to-br from-violet-100 to-violet-200 text-violet-800 border-violet-300 border-solid shadow-sm';
-        break;
-    case AttendanceStatus.ALTERNATE_DAY:
-        bgClass = 'bg-gradient-to-br from-teal-100 to-teal-200 text-teal-800 border-teal-300 border-solid shadow-sm';
-        break;
-    case AttendanceStatus.NOT_MARKED:
-      bgClass = 'bg-white border-dashed border-gray-200 text-gray-300 hover:bg-gray-50';
-      break;
-  }
-
   return (
     <div 
       onClick={() => onClick && onClick(dayData)}

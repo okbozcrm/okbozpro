@@ -211,6 +211,7 @@ export interface Enquiry {
     drop?: string;
     // FIX: Added 'drops' property to support multi-drop data structures used in CustomerCare.tsx line 795
     drops?: { address: string; coords: { lat: number; lng: number } | null }[];
+    outstationWaypoints?: { address: string; coords: { lat: number; lng: number } | null }[];
     estKm?: string;
     waitingMins?: string;
     packageId?: string;

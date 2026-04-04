@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry, CorporateAccount } from '../../types';
+import { ATTENDANCE_STATUS_COLORS } from '../../constants';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { sendSystemNotification } from '../../services/cloudService';
@@ -958,11 +959,11 @@ export const Payroll: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase">Half Days (0.5x)</span>
-                                    <span className="text-amber-600">{activeSlip.counts?.half || 0}</span>
+                                    <span className={ATTENDANCE_STATUS_COLORS[AttendanceStatus.HALF_DAY].text}>{activeSlip.counts?.half || 0}</span>
                                 </div>
                                 <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
-                                    <span className="text-rose-500 uppercase">Absent Days</span>
-                                    <span className="text-rose-600">{activeSlip.counts?.absent || 0}</span>
+                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} uppercase`}>Absent Days</span>
+                                    <span className={ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text}>{activeSlip.counts?.absent || 0}</span>
                                 </div>
                                 <div className="h-px bg-indigo-50 my-1"></div>
                                 <div className="flex justify-between gap-4">

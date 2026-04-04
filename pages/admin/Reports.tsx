@@ -12,6 +12,7 @@ import {
   BarChart, Bar, LineChart, Line
 } from 'recharts';
 import { CorporateAccount, PayrollEntry, Trip, Branch, Employee, DailyAttendance, AttendanceStatus } from '../../types';
+import { ATTENDANCE_STATUS_COLORS } from '../../constants';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -807,28 +808,28 @@ const Reports: React.FC = () => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                    <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><CheckCircle className="w-6 h-6" /></div>
+                    <div className={`p-3 rounded-lg ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PRESENT].bg} ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PRESENT].text}`}><CheckCircle className="w-6 h-6" /></div>
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold">Present</p>
                         <h3 className="text-2xl font-bold text-gray-800">{attendanceStats.present}</h3>
                     </div>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                    <div className="p-3 bg-rose-100 text-rose-600 rounded-lg"><XCircle className="w-6 h-6" /></div>
+                    <div className={`p-3 rounded-lg ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].bg} ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text}`}><XCircle className="w-6 h-6" /></div>
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold">Absent</p>
                         <h3 className="text-2xl font-bold text-gray-800">{attendanceStats.absent}</h3>
                     </div>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                    <div className="p-3 bg-amber-100 text-amber-600 rounded-lg"><Clock className="w-6 h-6" /></div>
+                    <div className={`p-3 rounded-lg bg-amber-100 text-amber-600`}><Clock className="w-6 h-6" /></div>
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold">Late Arrivals</p>
                         <h3 className="text-2xl font-bold text-gray-800">{attendanceStats.late}</h3>
                     </div>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                    <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Calendar className="w-6 h-6" /></div>
+                    <div className={`p-3 rounded-lg ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PAID_LEAVE].bg} ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PAID_LEAVE].text}`}><Calendar className="w-6 h-6" /></div>
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold">On Leave</p>
                         <h3 className="text-2xl font-bold text-gray-800">{attendanceStats.leave}</h3>
@@ -861,10 +862,10 @@ const Reports: React.FC = () => {
                                     <tr key={stat.id} className="hover:bg-gray-50/50">
                                         <td className="px-6 py-4 font-medium text-gray-900">{stat.name}</td>
                                         <td className="px-6 py-4 text-gray-500">{stat.role}</td>
-                                        <td className="px-6 py-4 text-center text-emerald-600 font-medium">{stat.present}</td>
-                                        <td className="px-6 py-4 text-center text-rose-600 font-medium">{stat.absent}</td>
+                                        <td className={`px-6 py-4 text-center font-medium ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PRESENT].text}`}>{stat.present}</td>
+                                        <td className={`px-6 py-4 text-center font-medium ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text}`}>{stat.absent}</td>
                                         <td className="px-6 py-4 text-center text-amber-600 font-medium">{stat.late}</td>
-                                        <td className="px-6 py-4 text-center text-blue-600 font-medium">{stat.leave}</td>
+                                        <td className={`px-6 py-4 text-center font-medium ${ATTENDANCE_STATUS_COLORS[AttendanceStatus.PAID_LEAVE].text}`}>{stat.leave}</td>
                                         <td className="px-6 py-4 text-right">
                                             <span className={`px-2 py-1 rounded-full text-xs font-bold ${percentage >= 90 ? 'bg-emerald-100 text-emerald-700' : percentage >= 75 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                                                 {percentage}%

@@ -99,4 +99,63 @@ export const getEmployeeAttendance = (employee: Employee, year: number, month: n
   return generateMockAttendance(employee, year, month);
 };
 
+export const ATTENDANCE_STATUS_COLORS: Record<AttendanceStatus, { bg: string; text: string; border: string; badge: string; cell: string }> = {
+  [AttendanceStatus.PRESENT]: {
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-600',
+    border: 'border-emerald-100',
+    badge: 'bg-emerald-100 text-emerald-600 border-emerald-200 shadow-sm',
+    cell: 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50/60'
+  },
+  [AttendanceStatus.ABSENT]: {
+    bg: 'bg-rose-50',
+    text: 'text-rose-600',
+    border: 'border-rose-100',
+    badge: 'bg-rose-100 text-rose-600 border-rose-200 shadow-sm',
+    cell: 'bg-rose-50/30 border-rose-100 hover:bg-rose-50/60'
+  },
+  [AttendanceStatus.HALF_DAY]: {
+    bg: 'bg-amber-50',
+    text: 'text-amber-600',
+    border: 'border-amber-100',
+    badge: 'bg-amber-100 text-amber-600 border-amber-200 shadow-sm',
+    cell: 'bg-amber-50/30 border-amber-100 hover:bg-amber-50/60'
+  },
+  [AttendanceStatus.PAID_LEAVE]: {
+    bg: 'bg-blue-50',
+    text: 'text-blue-600',
+    border: 'border-blue-100',
+    badge: 'bg-blue-100 text-blue-600 border-blue-200 shadow-sm',
+    cell: 'bg-blue-50/30 border-blue-100 hover:bg-blue-50/60'
+  },
+  [AttendanceStatus.WEEK_OFF]: {
+    bg: 'bg-slate-50',
+    text: 'text-slate-500',
+    border: 'border-slate-200',
+    badge: 'bg-slate-100 text-slate-400 border-slate-200',
+    cell: 'bg-slate-50/50 border-slate-100'
+  },
+  [AttendanceStatus.HOLIDAY]: {
+    bg: 'bg-violet-50',
+    text: 'text-violet-600',
+    border: 'border-violet-100',
+    badge: 'bg-violet-100 text-violet-600 border-violet-200 shadow-sm',
+    cell: 'bg-violet-50/30 border-violet-100 hover:bg-violet-50/60'
+  },
+  [AttendanceStatus.ALTERNATE_DAY]: {
+    bg: 'bg-teal-50',
+    text: 'text-teal-600',
+    border: 'border-teal-100',
+    badge: 'bg-teal-100 text-teal-600 border-teal-200 shadow-sm',
+    cell: 'bg-teal-50/30 border-teal-100 hover:bg-teal-50/60'
+  },
+  [AttendanceStatus.NOT_MARKED]: {
+    bg: 'bg-slate-50',
+    text: 'text-slate-400',
+    border: 'border-slate-200',
+    badge: 'bg-slate-100 text-slate-400 border-slate-200',
+    cell: 'bg-white border-slate-100'
+  }
+};
+
 export const MOCK_ATTENDANCE_NOV_2025: DailyAttendance[] = [];

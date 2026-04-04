@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Download, DollarSign, Clock, X, Send, Bike, Loader2 } from 'lucide-react';
 import { getEmployeeAttendance } from '../../constants';
 import { AttendanceStatus, Employee, SalaryAdvanceRequest, DailyAttendance, TravelAllowanceRequest, UserRole, PayrollEntry } from '../../types';
+import { ATTENDANCE_STATUS_COLORS } from '../../constants';
 import { sendSystemNotification } from '../../services/cloudService';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -42,16 +43,16 @@ const UserSalary: React.FC = () => {
       const loadUserAndSettings = () => {
           const storedSessionId = localStorage.getItem('app_session_id');
           if (storedSessionId) {
-              const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
-              let found = adminStaff.find((e: any) => e.id === storedSessionId);
+              const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]') as Employee[];
+              let found = adminStaff.find((e: Employee) => e.id === storedSessionId);
               let corporateOwnerId = 'admin';
 
               if (!found) {
-                const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+                const corporates = JSON.parse(localStorage.getItem('corporate_accounts') || '[]') as CorporateAccount[];
                 for (const corp of corporates) {
                     const key = `staff_data_${corp.email}`;
-                    const cStaff = JSON.parse(localStorage.getItem(key) || '[]');
-                    found = cStaff.find((e: any) => e.id === storedSessionId);
+                    const cStaff = JSON.parse(localStorage.getItem(key) || '[]') as Employee[];
+                    found = cStaff.find((e: Employee) => e.id === storedSessionId);
                     if (found) {
                         corporateOwnerId = corp.email;
                         break;
@@ -144,6 +145,8 @@ const UserSalary: React.FC = () => {
     let paidAdvances = 0;
     let travelIncentive = 0;
 
+    const key = `attendance_data_${user.id}_${year}_${month}`;
+    const savedAttendance = localStorage.getItem(key);
     let attendance: DailyAttendance[] = [];
     try {
         attendance = savedAttendance ? JSON.parse(savedAttendance) : getEmployeeAttendance(user, year, month);
@@ -354,11 +357,11 @@ const UserSalary: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-gray-400 uppercase font-bold">Half Days (0.5x)</span>
-                                    <span className="text-amber-600 font-black">{salaryData.counts.half}</span>
+                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.HALF_DAY].text} font-black`}>{salaryData.counts.half}</span>
                                 </div>
                                 <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
-                                    <span className="text-rose-500 uppercase font-bold">Absent Days</span>
-                                    <span className="text-rose-600 font-black">{salaryData.counts.absent}</span>
+                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} uppercase font-bold`}>Absent Days</span>
+                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} font-black`}>{salaryData.counts.absent}</span>
                                 </div>
                                 <div className="h-px bg-indigo-50 my-1"></div>
                                 <div className="flex justify-between gap-4">
