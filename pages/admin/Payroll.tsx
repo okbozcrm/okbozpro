@@ -444,6 +444,10 @@ export const Payroll: React.FC = () => {
       });
   }, [employees, searchTerm, selectedCorporate, selectedMonth]);
 
+  const filteredKmClaims = useMemo(() => {
+      return kmClaims.filter(c => c.date.startsWith(selectedMonth));
+  }, [kmClaims, selectedMonth]);
+
   const stats = useMemo(() => {
       let totalCost = 0;
       let pendingCount = 0;
@@ -784,10 +788,10 @@ export const Payroll: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                        {kmClaims.length === 0 ? (
-                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 italic">No travel claims found.</td></tr>
+                        {filteredKmClaims.length === 0 ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 italic">No travel claims found for this month.</td></tr>
                         ) : (
-                            kmClaims.slice(0, 50).map(claim => (
+                            filteredKmClaims.map(claim => (
                                 <tr key={claim.id} className="hover:bg-gray-50/50 transition-all">
                                     <td className="px-6 py-4 font-medium text-gray-900">{claim.date}</td>
                                     <td className="px-6 py-4 font-bold text-gray-800">{claim.employeeName}</td>

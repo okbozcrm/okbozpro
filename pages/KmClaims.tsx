@@ -4,7 +4,8 @@ import {
   Bike, Plus, Search, CheckCircle, 
   Clock, Check, X, 
   TrendingUp, AlertCircle, Gauge,
-  DollarSign, Send, Trash2, FileText, Calculator
+  DollarSign, Send, Trash2, FileText, Calculator,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { UserRole, TravelAllowanceRequest, Employee, CorporateAccount } from '../types';
 import { sendSystemNotification } from '../services/cloudService';
@@ -28,6 +29,7 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [corpFilter, setCorpFilter] = useState('All');
 
   // Form State (Employee)
@@ -144,10 +146,15 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
       const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
       const matchesDate = !dateFilter || r.date === dateFilter;
       const matchesCorp = !isSuperAdmin || corpFilter === 'All' || r.corporateId === corpFilter;
+      
+      // Monthly Filter: Check if the request date belongs to the selected month
+      const reqDate = new Date(r.date);
+      const matchesMonth = reqDate.getMonth() === selectedMonth.getMonth() && 
+                           reqDate.getFullYear() === selectedMonth.getFullYear();
 
-      return matchesSearch && matchesStatus && matchesDate && matchesCorp;
+      return matchesSearch && matchesStatus && matchesDate && matchesCorp && matchesMonth;
     });
-  }, [requests, searchTerm, statusFilter, dateFilter, corpFilter, isSuperAdmin]);
+  }, [requests, searchTerm, statusFilter, dateFilter, corpFilter, isSuperAdmin, selectedMonth]);
 
   // --- Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -235,6 +242,14 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
   const handleEditRate = (req: TravelAllowanceRequest) => {
     setEditingClaim(req);
     setEditRate(req.ratePerKm.toString());
+  };
+
+  const handlePrevMonth = () => {
+    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
   };
 
   const saveRateUpdate = () => {
@@ -331,18 +346,30 @@ const KmClaims: React.FC<KmClaimsProps> = ({ role }) => {
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative flex-1 w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input 
-                  type="text" 
-                  placeholder="Search by name or remarks..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
-              />
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+              <div className="relative flex-1 w-full sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input 
+                      type="text" 
+                      placeholder="Search by name or remarks..." 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                  />
+              </div>
+              
+              {/* Month Selector */}
+              <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-inner w-full sm:w-auto justify-between sm:justify-start">
+                  <button onClick={handlePrevMonth} className="p-1.5 hover:bg-white rounded-lg transition-all text-slate-400 hover:text-slate-600"><ChevronLeft className="w-4 h-4"/></button>
+                  <span className="px-4 text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-600 min-w-[140px] text-center">
+                      {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button onClick={handleNextMonth} className="p-1.5 hover:bg-white rounded-lg transition-all text-slate-400 hover:text-slate-600"><ChevronRight className="w-4 h-4" /></button>
+              </div>
           </div>
-          <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1">
+
+          <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-1">
               {isSuperAdmin && (
                 <select 
                     value={corpFilter}
