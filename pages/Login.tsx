@@ -73,6 +73,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
         let employeeName = '';
         let employeeId = '';
         let corporateOwnerId = ''; // To store corporate email if employee belongs to one
+        let foundEmp: Employee | null = null;
 
         if (activeTab === 'admin') {
             // Check against stored admin password or default
@@ -136,7 +137,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
             }
 
             // 1. Search Admin Staff
-            let foundEmp = null;
             try {
                 const adminStaff = JSON.parse(localStorage.getItem('staff_data') || '[]');
                 foundEmp = adminStaff.find((e: Employee) => e.email?.toLowerCase() === email.toLowerCase() && e.password === password);

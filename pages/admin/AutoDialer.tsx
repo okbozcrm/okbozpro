@@ -116,7 +116,7 @@ const AutoDialer: React.FC = () => {
 
   // Unique Locations for Filter
   const locations = useMemo(() => {
-    const locs = Array.from(new Set(leads.map(l => l.location)));
+    const locs = Array.from(new Set(leads.map(l => l.location))).filter(l => l && l !== 'ALL');
     return ['ALL', ...locs];
   }, [leads]);
 

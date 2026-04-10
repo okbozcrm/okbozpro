@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, ListTodo } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical } from 'lucide-react';
 import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -27,7 +27,6 @@ const MASTER_ADMIN_LINKS = [
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
   { id: 'leads', path: '/admin/leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'tasks', path: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
-  { id: 'staff-todo', path: '/admin/staff-todo', label: 'Staff Todo', icon: ListTodo },
   { id: 'km-claims', path: '/admin/km-claims', label: 'KM Claims (TA)', icon: Bike },
   { id: 'attendance', path: '/admin/attendance', label: 'Attendance Dashboard', icon: Activity },
   { id: 'branches', path: '/admin/branches', label: 'Branches', icon: Building },
@@ -361,7 +360,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'leads': 'Franchisee Leads',
               'attendance': 'Attendance Dashboard',
               'tasks': 'Tasks',
-              'staff-todo': 'Staff Todo',
               'staff': 'Staff Management',
               'documents': 'Documents',
               'branches': 'Branches',
@@ -383,7 +381,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
       const corporateAllowed = [
         'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
-        'tasks', 'staff-todo', 'attendance', 'branches', 'staff', 'sub-admins',
+        'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
         'auto-dialer', 'sop-documents' // NEW: SOP Documents for Corporate
       ];
@@ -403,7 +401,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
         { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
-        { id: 'staff-todo-employee', path: '/user/staff-todo', label: 'My Todo List', icon: ListTodo },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
     ];

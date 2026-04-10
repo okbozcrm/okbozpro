@@ -29,6 +29,8 @@ interface RentalPackage {
   priceAce: number;
   pricePickup: number;
   priceBadaDost: number;
+  extraHrRate?: number;
+  extraKmRate?: number;
 }
 
 interface PricingRules {
@@ -56,10 +58,10 @@ interface FareItem {
 }
 
 const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
-  { id: '1hr', name: '1 Hr / 10 km', hours: 1, km: 10, priceSedan: 200, priceSuv: 300, priceAuto: 150, priceAce: 400, pricePickup: 500, priceBadaDost: 550 },
-  { id: '2hr', name: '2 Hr / 20 km', hours: 2, km: 20, priceSedan: 400, priceSuv: 600, priceAuto: 300, priceAce: 750, pricePickup: 900, priceBadaDost: 1000 },
-  { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, priceSedan: 800, priceSuv: 1100, priceAuto: 550, priceAce: 1400, pricePickup: 1700, priceBadaDost: 1900 },
-  { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, priceSedan: 1600, priceSuv: 2200, priceAuto: 1000, priceAce: 2600, pricePickup: 3200, priceBadaDost: 3600 },
+  { id: '1hr', name: '1 Hr / 10 km', hours: 1, km: 10, priceSedan: 200, priceSuv: 300, priceAuto: 150, priceAce: 400, pricePickup: 500, priceBadaDost: 550, extraHrRate: 100, extraKmRate: 15 },
+  { id: '2hr', name: '2 Hr / 20 km', hours: 2, km: 20, priceSedan: 400, priceSuv: 600, priceAuto: 300, priceAce: 750, pricePickup: 900, priceBadaDost: 1000, extraHrRate: 100, extraKmRate: 15 },
+  { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, priceSedan: 800, priceSuv: 1100, priceAuto: 550, priceAce: 1400, pricePickup: 1700, priceBadaDost: 1900, extraHrRate: 100, extraKmRate: 15 },
+  { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, priceSedan: 1600, priceSuv: 2200, priceAuto: 1000, priceAce: 2600, pricePickup: 3200, priceBadaDost: 3600, extraHrRate: 100, extraKmRate: 15 },
 ];
 
 const DEFAULT_PRICING_SEDAN: PricingRules = {
@@ -139,6 +141,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     drops: [{ address: '', coords: null }] as DropPoint[], 
     outstationWaypoints: [] as DropPoint[],
     estKm: '', waitingMins: '', packageId: '',
+    extraHr: '', extraKm: '',
     destination: '', days: '1', estTotalKm: '', nights: '0',
     isHillsTrip: false,
     legDistances: [] as number[]
@@ -199,7 +202,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   });
 
   const [showAddPackage, setShowAddPackage] = useState(false);
-  const [newPackage, setNewPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '' });
+  const [newPackage, setNewPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '', extraHrRate: '', extraKmRate: '' });
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
   const [generatedMessage, setGeneratedMessage] = useState('');
@@ -380,6 +383,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         priceAce: parseFloat(newPackage.priceAce) || 0,
         pricePickup: parseFloat(newPackage.pricePickup) || 0,
         priceBadaDost: parseFloat(newPackage.priceBadaDost) || 0,
+        extraHrRate: parseFloat(newPackage.extraHrRate) || 0,
+        extraKmRate: parseFloat(newPackage.extraKmRate) || 0,
     };
 
     if (editingPackageId) {
@@ -403,14 +408,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
         priceAuto: pkg.priceAuto.toString(),
         priceAce: pkg.priceAce.toString(),
         pricePickup: pkg.pricePickup.toString(),
-        priceBadaDost: pkg.priceBadaDost.toString()
+        priceBadaDost: pkg.priceBadaDost.toString(),
+        extraHrRate: (pkg.extraHrRate || 0).toString(),
+        extraKmRate: (pkg.extraKmRate || 0).toString()
     });
     setShowAddPackage(true);
   };
 
   const handleCancelEditPackage = () => {
     setEditingPackageId(null);
-    setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '' });
+    setNewPackage({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '', priceAuto: '', priceAce: '', pricePickup: '', priceBadaDost: '', extraHrRate: '', extraKmRate: '' });
     setShowAddPackage(false);
   };
 
@@ -466,21 +473,36 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       } else if (tripType === 'Rental') {
           const pkg = rentalPackages.find(p => p.id === transportDetails.packageId);
           if (pkg) {
-              if (vehicleType === 'Sedan') total = pkg.priceSedan;
-              else if (vehicleType === 'SUV') total = pkg.priceSuv;
-              else if (vehicleType === '3 Wheeler Auto') total = pkg.priceAuto;
-              else if (vehicleType === 'Tata Ace') total = pkg.priceAce;
-              else if (vehicleType === 'Pickup') total = pkg.pricePickup;
-              else if (vehicleType === 'BADA DOST') total = pkg.priceBadaDost;
+              let pkgPrice = 0;
+              if (vehicleType === 'Sedan') pkgPrice = pkg.priceSedan;
+              else if (vehicleType === 'SUV') pkgPrice = pkg.priceSuv;
+              else if (vehicleType === '3 Wheeler Auto') pkgPrice = pkg.priceAuto;
+              else if (vehicleType === 'Tata Ace') pkgPrice = pkg.priceAce;
+              else if (vehicleType === 'Pickup') pkgPrice = pkg.pricePickup;
+              else if (vehicleType === 'BADA DOST') pkgPrice = pkg.priceBadaDost;
 
-              breakup.push({ label: 'Package Rate', value: total, description: pkg.name, type: 'base' });
+              const extraKm = parseFloat(transportDetails.extraKm) || 0;
+              const extraHr = parseFloat(transportDetails.extraHr) || 0;
+              const extraKmRate = pkg.extraKmRate || rules.rentalExtraKmRate;
+              const extraHrRate = pkg.extraHrRate || rules.rentalExtraHrRate;
+              
+              const extraKmCost = extraKm * extraKmRate;
+              const extraHrCost = extraHr * extraHrRate;
+              
+              total = pkgPrice + extraKmCost + extraHrCost;
+
+              breakup.push({ label: 'Package Rate', value: pkgPrice, description: pkg.name, type: 'base' });
+              if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKm} KM @ ₹${extraKmRate}/KM`, type: 'extra' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${extraHrRate}/Hr`, type: 'extra' });
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Rental Package* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                     `📦 Package: ${pkg.name}\n\n` +
                     `*Fare Breakdown:*\n` +
-                    `• Package Price: ₹${total.toFixed(2)}\n`;
+                    `• Package Price: ₹${pkgPrice.toFixed(2)}\n` +
+                    (extraKmCost > 0 ? `• Extra KM: ₹${extraKmCost.toFixed(2)} (${extraKm} KM @ ₹${extraKmRate})\n` : '') +
+                    (extraHrCost > 0 ? `• Extra Hours: ₹${extraHrCost.toFixed(2)} (${extraHr} Hr @ ₹${extraHrRate})\n` : '');
           }
       } else {
           const days = parseFloat(transportDetails.days) || 1;
@@ -635,7 +657,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleCancelForm = () => {
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
-      setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
+      setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', extraHr: '', extraKm: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
       setGeneratedMessage(''); setEstimatedCost(0); setEditingOrderId(null); setIsPhoneChecked(false);
   };
 
@@ -885,9 +907,25 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
                  {/* RENTAL PACKAGES COLUMN */}
                  <div className="space-y-6">
-                    <div className="flex justify-between items-center border-b-2 border-blue-100 pb-2">
+                    <div className="space-y-4">
+                        <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] border-b-2 border-blue-100 pb-2 flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" /> Rental Strategy
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Km Rate (₹/km)</label>
+                                <input type="number" name="rentalExtraKmRate" value={pricing[settingsVehicleType].rentalExtraKmRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none text-xs shadow-inner" />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Hr Rate (₹/hr)</label>
+                                <input type="number" name="rentalExtraHrRate" value={pricing[settingsVehicleType].rentalExtraHrRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none text-xs shadow-inner" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center border-b-2 border-blue-100 pb-2 pt-2">
                         <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" /> Package Fleet
+                            <ListIcon className="w-3.5 h-3.5" /> Package Fleet
                         </h4>
                         <button onClick={() => setShowAddPackage(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 shadow-sm"><Plus className="w-3 h-3" /> New</button>
                     </div>
@@ -897,6 +935,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                 <div>
                                     <p className="text-sm font-black text-gray-800">{pkg.name}</p>
                                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{pkg.hours}Hr / {pkg.km}km</p>
+                                    <p className="text-[9px] text-blue-500 font-bold uppercase tracking-widest mt-1">Extra: ₹{pkg.extraHrRate || pricing[settingsVehicleType].rentalExtraHrRate}/hr | ₹{pkg.extraKmRate || pricing[settingsVehicleType].rentalExtraKmRate}/km</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <span className="font-mono font-black text-gray-900 text-base">
@@ -957,6 +996,10 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">Tata Ace</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.priceAce} onChange={e => setNewPackage({...newPackage, priceAce: e.target.value})} /></div>
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">Pickup</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.pricePickup} onChange={e => setNewPackage({...newPackage, pricePickup: e.target.value})} /></div>
                             <div><label className="text-[10px] font-black text-blue-600 uppercase mb-1.5 block ml-1">BADA DOST</label><input type="number" className="w-full p-3 border border-blue-100 bg-blue-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.priceBadaDost} onChange={e => setNewPackage({...newPackage, priceBadaDost: e.target.value})} /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                            <div><label className="text-[10px] font-black text-orange-600 uppercase mb-1.5 block ml-1">Extra Hr Rate</label><input type="number" className="w-full p-3 border border-orange-100 bg-orange-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.extraHrRate} onChange={e => setNewPackage({...newPackage, extraHrRate: e.target.value})} placeholder="Optional override" /></div>
+                            <div><label className="text-[10px] font-black text-orange-600 uppercase mb-1.5 block ml-1">Extra Km Rate</label><input type="number" className="w-full p-3 border border-orange-100 bg-orange-50/20 rounded-xl text-sm font-black shadow-inner" value={newPackage.extraKmRate} onChange={e => setNewPackage({...newPackage, extraKmRate: e.target.value})} placeholder="Optional override" /></div>
                         </div>
                       </div>
 
@@ -1116,26 +1159,47 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                           )}
                           
                           {tripType === 'Rental' && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-left-4 duration-300">
-                                  {rentalPackages.map(pkg => {
-                                      let price = 0;
-                                      if (vehicleType === 'Sedan') price = pkg.priceSedan;
-                                      else if (vehicleType === 'SUV') price = pkg.priceSuv;
-                                      else if (vehicleType === '3 Wheeler Auto') price = pkg.priceAuto;
-                                      else if (vehicleType === 'Tata Ace') price = pkg.priceAce;
-                                      else if (vehicleType === 'Pickup') price = pkg.pricePickup;
-                                      else if (vehicleType === 'BADA DOST') price = pkg.priceBadaDost;
+                              <div className="space-y-6 animate-in slide-in-from-left-4 duration-300">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                      {rentalPackages.map(pkg => {
+                                          let price = 0;
+                                          if (vehicleType === 'Sedan') price = pkg.priceSedan;
+                                          else if (vehicleType === 'SUV') price = pkg.priceSuv;
+                                          else if (vehicleType === '3 Wheeler Auto') price = pkg.priceAuto;
+                                          else if (vehicleType === 'Tata Ace') price = pkg.priceAce;
+                                          else if (vehicleType === 'Pickup') price = pkg.pricePickup;
+                                          else if (vehicleType === 'BADA DOST') price = pkg.priceBadaDost;
 
-                                      return (
-                                          <button key={pkg.id} onClick={() => setTransportDetails({...transportDetails, packageId: pkg.id})} className={`p-6 border-2 rounded-[2.5rem] text-left transition-all relative overflow-hidden group ${transportDetails.packageId === pkg.id ? 'border-emerald-500 bg-emerald-50 shadow-xl shadow-emerald-500/10' : 'border-gray-50 bg-gray-50/50 hover:bg-white hover:border-gray-200'}`}>
-                                              <div className="relative z-10">
-                                                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{pkg.name}</div>
-                                                  <div className="text-2xl font-black text-gray-900 tracking-tighter">₹{price}</div>
+                                          return (
+                                              <button key={pkg.id} onClick={() => setTransportDetails({...transportDetails, packageId: pkg.id})} className={`p-6 border-2 rounded-[2.5rem] text-left transition-all relative overflow-hidden group ${transportDetails.packageId === pkg.id ? 'border-emerald-500 bg-emerald-50 shadow-xl shadow-emerald-500/10' : 'border-gray-50 bg-gray-50/50 hover:bg-white hover:border-gray-200'}`}>
+                                                  <div className="relative z-10">
+                                                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{pkg.name}</div>
+                                                      <div className="text-2xl font-black text-gray-900 tracking-tighter">₹{price}</div>
+                                                  </div>
+                                                  <Package className={`absolute -right-4 -bottom-4 w-16 h-16 transition-all duration-500 ${transportDetails.packageId === pkg.id ? 'text-emerald-500/10 scale-110' : 'text-gray-100'}`} />
+                                              </button>
+                                          );
+                                      })}
+                                  </div>
+                                  
+                                  {transportDetails.packageId && (
+                                      <div className="grid grid-cols-2 gap-6 pt-4 border-t border-gray-50 animate-in fade-in slide-in-from-top-2">
+                                          <div className="space-y-1.5">
+                                              <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Extra Hours</label>
+                                              <div className="relative">
+                                                  <input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.extraHr} onChange={e => setTransportDetails({...transportDetails, extraHr: e.target.value})} />
+                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 uppercase">HR</span>
                                               </div>
-                                              <Package className={`absolute -right-4 -bottom-4 w-16 h-16 transition-all duration-500 ${transportDetails.packageId === pkg.id ? 'text-emerald-500/10 scale-110' : 'text-gray-100'}`} />
-                                          </button>
-                                      );
-                                  })}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                              <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Extra KM</label>
+                                              <div className="relative">
+                                                  <input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.extraKm} onChange={e => setTransportDetails({...transportDetails, extraKm: e.target.value})} />
+                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 uppercase">KM</span>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  )}
                               </div>
                           )}
 

@@ -36,7 +36,6 @@ import TaskManagement from './pages/TaskManagement';
 import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
 import SOPDocuments from './pages/admin/SOPDocuments'; 
-import StaffTodo from './pages/admin/StaffTodo';
 import CallOverlay from './components/CallOverlay'; // Import CallOverlay
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
@@ -176,7 +175,6 @@ const App: React.FC = () => {
                         <Route path="/admin/chat" element={<Messenger role={userRole} />} />
                         <Route path="/admin/gen-ai-tools" element={<GenAITools />} />
                         <Route path="/admin/sop" element={<SOPDocuments />} /> 
-                        <Route path="/admin/staff-todo" element={<StaffTodo role={userRole} />} />
                         {userRole === UserRole.ADMIN && (
                           <>
                             <Route path="/admin/settings" element={<Settings />} />
@@ -210,7 +208,6 @@ const App: React.FC = () => {
                         <Route path="/user/payroll" element={<Payroll />} />
                         <Route path="/user/expenses" element={<Expenses />} />
                         <Route path="/user/auto-dialer" element={<AutoDialer />} />
-                        <Route path="/user/staff-todo" element={<StaffTodo role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/leads" element={<Leads />} />
                         <Route path="/user/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>
