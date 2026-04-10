@@ -345,11 +345,14 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const joiningDate = emp.joiningDate ? new Date(emp.joiningDate + 'T12:00:00') : null;
         const hasJoined = !joiningDate || joiningDate <= endOfMonth;
 
-        // Termination Date Logic: Staff must not have been terminated before the start of the selected month
+        // Termination/Relieving Date Logic: Staff must not have been terminated or relieved before the start of the selected month
         const terminationDate = (emp.status === 'Terminated' && emp.terminationDate) ? new Date(emp.terminationDate + 'T12:00:00') : null;
+        const relievingDate = emp.relievingDate ? new Date(emp.relievingDate + 'T12:00:00') : null;
+        
         const isNotTerminatedYet = !terminationDate || terminationDate >= startOfMonth;
+        const isNotRelievedYet = !relievingDate || relievingDate >= startOfMonth;
 
-        return matchesSearch && matchesCorp && matchesBranch && hasJoined && isNotTerminatedYet;
+        return matchesSearch && matchesCorp && matchesBranch && hasJoined && isNotTerminatedYet && isNotRelievedYet;
     });
   }, [employees, filterCorporate, filterBranch, filterSearch, refreshToggle, selectedMonth]);
 
