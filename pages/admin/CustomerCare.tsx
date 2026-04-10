@@ -44,6 +44,7 @@ interface PricingRules {
   outstationBaseRate: number;
   outstationBaseKm: number;
   outstationExtraKmRate: number;
+  outstationExtraHrRate: number;
   outstationOneWayExtraKmRate: number; // Added for One Way Extra Km Rate
   outstationDriverAllowance: number;
   outstationNightAllowance: number;
@@ -67,7 +68,7 @@ const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
 const DEFAULT_PRICING_SEDAN: PricingRules = {
   localBaseFare: 200, localBaseKm: 5, localPerKmRate: 20, localWaitingRate: 2,
   rentalExtraKmRate: 15, rentalExtraHrRate: 100,
-  outstationMinKmPerDay: 250, outstationBaseRate: 1800, outstationBaseKm: 250, outstationExtraKmRate: 13, outstationOneWayExtraKmRate: 13,
+  outstationMinKmPerDay: 250, outstationBaseRate: 1800, outstationBaseKm: 250, outstationExtraKmRate: 13, outstationExtraHrRate: 100, outstationOneWayExtraKmRate: 13,
   outstationDriverAllowance: 400, outstationNightAllowance: 300,
   outstationHillsAllowance: 500
 };
@@ -75,7 +76,7 @@ const DEFAULT_PRICING_SEDAN: PricingRules = {
 const DEFAULT_PRICING_SUV: PricingRules = {
   localBaseFare: 300, localBaseKm: 5, localPerKmRate: 25, localWaitingRate: 3,
   rentalExtraKmRate: 18, rentalExtraHrRate: 150,
-  outstationMinKmPerDay: 300, outstationBaseRate: 2500, outstationBaseKm: 300, outstationExtraKmRate: 17, outstationOneWayExtraKmRate: 17,
+  outstationMinKmPerDay: 300, outstationBaseRate: 2500, outstationBaseKm: 300, outstationExtraKmRate: 17, outstationExtraHrRate: 150, outstationOneWayExtraKmRate: 17,
   outstationDriverAllowance: 500, outstationNightAllowance: 400,
   outstationHillsAllowance: 700
 };
@@ -83,7 +84,7 @@ const DEFAULT_PRICING_SUV: PricingRules = {
 const DEFAULT_PRICING_AUTO: PricingRules = {
   localBaseFare: 100, localBaseKm: 2, localPerKmRate: 15, localWaitingRate: 1,
   rentalExtraKmRate: 12, rentalExtraHrRate: 80,
-  outstationMinKmPerDay: 200, outstationBaseRate: 0, outstationBaseKm: 0, outstationExtraKmRate: 12, outstationOneWayExtraKmRate: 12,
+  outstationMinKmPerDay: 200, outstationBaseRate: 0, outstationBaseKm: 0, outstationExtraKmRate: 12, outstationExtraHrRate: 80, outstationOneWayExtraKmRate: 12,
   outstationDriverAllowance: 300, outstationNightAllowance: 200,
   outstationHillsAllowance: 400
 };
@@ -91,7 +92,7 @@ const DEFAULT_PRICING_AUTO: PricingRules = {
 const DEFAULT_PRICING_ACE: PricingRules = {
   localBaseFare: 400, localBaseKm: 5, localPerKmRate: 30, localWaitingRate: 4,
   rentalExtraKmRate: 22, rentalExtraHrRate: 200,
-  outstationMinKmPerDay: 250, outstationBaseRate: 500, outstationBaseKm: 50, outstationExtraKmRate: 18, outstationOneWayExtraKmRate: 18,
+  outstationMinKmPerDay: 250, outstationBaseRate: 500, outstationBaseKm: 50, outstationExtraKmRate: 18, outstationExtraHrRate: 200, outstationOneWayExtraKmRate: 18,
   outstationDriverAllowance: 500, outstationNightAllowance: 400,
   outstationHillsAllowance: 600
 };
@@ -99,7 +100,7 @@ const DEFAULT_PRICING_ACE: PricingRules = {
 const DEFAULT_PRICING_PICKUP: PricingRules = {
   localBaseFare: 600, localBaseKm: 5, localPerKmRate: 40, localWaitingRate: 5,
   rentalExtraKmRate: 28, rentalExtraHrRate: 250,
-  outstationMinKmPerDay: 300, outstationBaseRate: 800, outstationBaseKm: 50, outstationExtraKmRate: 22, outstationOneWayExtraKmRate: 22,
+  outstationMinKmPerDay: 300, outstationBaseRate: 800, outstationBaseKm: 50, outstationExtraKmRate: 22, outstationExtraHrRate: 250, outstationOneWayExtraKmRate: 22,
   outstationDriverAllowance: 600, outstationNightAllowance: 500,
   outstationHillsAllowance: 800
 };
@@ -107,7 +108,7 @@ const DEFAULT_PRICING_PICKUP: PricingRules = {
 const DEFAULT_PRICING_BADA_DOST: PricingRules = {
   localBaseFare: 700, localBaseKm: 5, localPerKmRate: 45, localWaitingRate: 6,
   rentalExtraKmRate: 32, rentalExtraHrRate: 300,
-  outstationMinKmPerDay: 300, outstationBaseRate: 1000, outstationBaseKm: 50, outstationExtraKmRate: 25, outstationOneWayExtraKmRate: 25,
+  outstationMinKmPerDay: 300, outstationBaseRate: 1000, outstationBaseKm: 50, outstationExtraKmRate: 25, outstationExtraHrRate: 300, outstationOneWayExtraKmRate: 25,
   outstationDriverAllowance: 700, outstationNightAllowance: 600,
   outstationHillsAllowance: 900
 };
@@ -519,13 +520,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               const kmCharges = chargeKm * perKmRate;
               const nightAllowance = (parseFloat(transportDetails.nights) || 0) * nightAllowanceRate;
               const hillsAllowance = transportDetails.isHillsTrip ? (hillsAllowanceRate * days) : 0;
+              const extraHr = parseFloat(transportDetails.extraHr) || 0;
+              const extraHrCost = extraHr * (rules.outstationExtraHrRate || 0);
               
-              total = kmCharges + driverAllowance + nightAllowance + hillsAllowance;
+              total = kmCharges + driverAllowance + nightAllowance + hillsAllowance + extraHrCost;
               
               breakup.push({ label: 'KM Charges', value: kmCharges, description: `${chargeKm.toFixed(1)} KM @ ₹${perKmRate}/KM (Min ${minKm} KM)`, type: 'base' });
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
               if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${nightAllowanceRate}/night`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${rules.outstationExtraHrRate}/Hr`, type: 'extra' });
               
               const kmBreakup = transportDetails.legDistances.length > 0 ? 
                   `*KM Breakup (One-Way):*\n` +
@@ -558,13 +562,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               const extraKm = Math.max(0, km - baseKm);
               const kmCharges = extraKm * perKmRate;
               const hillsAllowance = transportDetails.isHillsTrip ? (hillsAllowanceRate * days) : 0;
+              const extraHr = parseFloat(transportDetails.extraHr) || 0;
+              const extraHrCost = extraHr * (rules.outstationExtraHrRate || 0);
               
-              total = baseFare + kmCharges + driverAllowance + hillsAllowance;
+              total = baseFare + kmCharges + driverAllowance + hillsAllowance + extraHrCost;
               
               if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, description: `Includes first ${baseKm} KM`, type: 'base' });
               if (kmCharges > 0) breakup.push({ label: 'Extra KM Charges', value: kmCharges, description: `${extraKm.toFixed(1)} KM @ ₹${perKmRate}/KM`, type: 'base' });
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${rules.outstationExtraHrRate}/Hr`, type: 'extra' });
 
               const kmBreakup = transportDetails.legDistances.length > 0 ? 
                   `*KM Breakup:*\n` +
@@ -852,10 +859,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Min Km / Day</label>
                                     <input type="number" name="outstationMinKmPerDay" value={pricing[settingsVehicleType].outstationMinKmPerDay} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
                                 </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Rate (₹/km)</label>
-                                    <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
-                                </div>
                             </div>
                         </div>
 
@@ -898,6 +901,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                     <div>
                                         <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Hills (₹/day)</label>
                                         <input type="number" name="outstationHillsAllowance" value={pricing[settingsVehicleType].outstationHillsAllowance} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Hr Rate (₹/hr)</label>
+                                        <input type="number" name="outstationExtraHrRate" value={pricing[settingsVehicleType].outstationExtraHrRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Km Rate (₹/km)</label>
+                                        <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
                                     </div>
                                 </div>
                             </div>
@@ -1250,6 +1263,22 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                       <div className="space-y-1.5"><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Days</label><input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.days} onChange={e => setTransportDetails({...transportDetails, days: e.target.value})} /></div>
                                       <div className="space-y-1.5"><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Approx KM</label><input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.estTotalKm} onChange={e => setTransportDetails({...transportDetails, estTotalKm: e.target.value})} /></div>
                                       <div className="space-y-1.5"><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Nights</label><input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.nights} onChange={e => setTransportDetails({...transportDetails, nights: e.target.value})} /></div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-6">
+                                      <div className="space-y-1.5">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Extra Hours</label>
+                                          <div className="relative">
+                                              <input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.extraHr} onChange={e => setTransportDetails({...transportDetails, extraHr: e.target.value})} />
+                                              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 uppercase">HR</span>
+                                          </div>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Extra KM</label>
+                                          <div className="relative">
+                                              <input type="number" className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20" value={transportDetails.extraKm} onChange={e => setTransportDetails({...transportDetails, extraKm: e.target.value})} />
+                                              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-300 uppercase">KM</span>
+                                          </div>
+                                      </div>
                                   </div>
                                   <div onClick={() => setTransportDetails(prev => ({...prev, isHillsTrip: !prev.isHillsTrip}))} className={`flex items-center gap-5 p-6 border-2 rounded-[2.5rem] cursor-pointer transition-all ${transportDetails.isHillsTrip ? 'bg-indigo-50 border-indigo-500 shadow-xl shadow-indigo-500/10' : 'bg-gray-50/50 border-gray-100 hover:border-gray-200'}`}>
                                       <div className={`p-4 rounded-2xl transition-all ${transportDetails.isHillsTrip ? 'bg-indigo-500 text-white shadow-lg' : 'bg-white text-gray-300 border border-gray-100'}`}><Mountain className="w-6 h-6" /></div>
