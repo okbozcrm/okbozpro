@@ -61,7 +61,7 @@ export const generateImage = async (prompt: string, aspectRatio: string): Promis
       contents: { parts: [{ text: prompt }] },
       config: {
         imageConfig: {
-          aspectRatio: aspectRatio as any,
+          aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9" | "1:4" | "1:8" | "4:1" | "8:1",
           imageSize: "1K"
         },
       },

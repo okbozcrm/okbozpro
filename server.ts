@@ -43,9 +43,10 @@ async function startServer() {
 
       console.log("Message sent: %s", info.messageId);
       res.json({ message: "Email sent successfully!", messageId: info.messageId });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending email:", error);
-      res.status(500).json({ message: "Failed to send email.", error: error.message });
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ message: "Failed to send email.", error: message });
     }
   });
 

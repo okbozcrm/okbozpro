@@ -80,85 +80,10 @@ const Reception: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const isSuperAdmin = sessionId === 'admin';
 
-  const [enquiries] = useState<Enquiry[]>(() => {
-    const saved = localStorage.getItem('global_enquiries_data');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [vendors] = useState<Vendor[]>(getExistingVendors());
-  
-  const [corporateAccounts] = useState<CorporateAccount[]>(() => {
-    try { return JSON.parse(localStorage.getItem('corporate_accounts') || '[]'); } catch { return []; }
-  });
-
-  const [recentTransfers] = useState<HistoryItem[]>(() => {
-    const saved = localStorage.getItem('reception_recent_transfers');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [pricing] = useState<Record<'Sedan' | 'SUV', PricingRules>>(() => {
-    const saved = localStorage.getItem(isSuperAdmin ? 'transport_pricing_rules_v2' : `transport_pricing_rules_v2_${sessionId}`);
-    if (!saved && !isSuperAdmin) {
-        const globalSettings = localStorage.getItem('transport_pricing_rules_v2');
-        if (globalSettings) return JSON.parse(globalSettings);
-    }
-    return saved ? JSON.parse(saved) : { Sedan: DEFAULT_PRICING_SEDAN, SUV: DEFAULT_PRICING_SUV };
-  });
-
-  const [rentalPackages] = useState<RentalPackage[]>(() => {
-    const saved = localStorage.getItem(isSuperAdmin ? 'transport_rental_packages_v2' : `transport_rental_packages_v2_${sessionId}`);
-    if (!saved && !isSuperAdmin) {
-        const globalPkgs = localStorage.getItem('transport_rental_packages_v2');
-        if (globalPkgs) return JSON.parse(globalPkgs);
-    }
-    return saved ? JSON.parse(saved) : DEFAULT_RENTAL_PACKAGES;
-  });
-
-  const [showSettings] = useState(false);
-  const [settingsVehicleType] = useState<'Sedan' | 'SUV'>('Sedan');
-  const [showAddPackage] = useState(false);
-  const [newPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' });
-
   // Map state
   /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
-  const [, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-
-  // ... (Other state: activeTab, phoneNumber, forms, console, etc.) ...
-  const [activeTab] = useState<'Incoming' | 'Outgoing'>('Incoming');
-  const [phoneNumber] = useState('');
-  const [isChecked] = useState(false);
-  const [lookupResult] = useState<'New' | 'Existing' | null>(null);
-  const [identifiedType] = useState<'Customer' | 'Vendor' | null>(null);
-  const [lookupHistory] = useState<HistoryItem[]>([]);
-  const [formName] = useState('');
-  const [formCity] = useState('');
-  const [formNote] = useState('');
-  const [formCallerType] = useState<'Customer' | 'Vendor'>('Customer');
-  const [consoleEnquiryType] = useState<'General' | 'Transport'>('General');
-  const [consoleTaxiType] = useState<'Local' | 'Rental' | 'Outstation'>('Local');
-  const [consoleOutstationType] = useState<'RoundTrip' | 'OneWay'>('RoundTrip');
-  const [consoleVehicleType] = useState<'Sedan' | 'SUV'>('Sedan');
-  const [consoleCalcDetails] = useState({
-     pickup: '', drop: '', estKm: '', waitingMins: '', packageId: '',
-     destination: '', days: '1', estTotalKm: '', nights: '0'
-  });
-  const [consoleEstimate] = useState(0);
-  const [isSubmitting] = useState(false);
-  const [editingItem] = useState<HistoryItem | null>(null);
-  const [editEnquiryType] = useState<'General' | 'Transport'>('General');
-  const [editTaxiType] = useState<'Local' | 'Rental' | 'Outstation'>('Local');
-  const [editOutstationType] = useState<'OneWay' | 'RoundTrip'>('RoundTrip');
-  const [editVehicleType] = useState<'Sedan' | 'SUV'>('Sedan');
-  const [calcDetails] = useState({
-     pickup: '', drop: '', estKm: '', waitingMins: '', packageId: '',
-     destination: '', days: '1', estTotalKm: '', nights: '0'
-  });
-  const [editEstimate] = useState(0);
-  const [editEstimateMsg] = useState('');
 
   // Effects and Handlers ...
   
@@ -217,8 +142,6 @@ const Reception: React.FC = () => {
   // Skipping full reproduction of logic to focus on map error UI update in JSX
 
   // --- Handlers (Shortened for context) ---
-  const handlePricingChange = () => {
-  };
   // ...
 
   return (

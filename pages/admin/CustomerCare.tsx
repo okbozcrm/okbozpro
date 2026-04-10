@@ -140,7 +140,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     outstationWaypoints: [] as DropPoint[],
     estKm: '', waitingMins: '', packageId: '',
     destination: '', days: '1', estTotalKm: '', nights: '0',
-    isHillsTrip: false
+    isHillsTrip: false,
+    legDistances: [] as number[]
   });
 
   const [customerDetails, setCustomerDetails] = useState({
@@ -323,6 +324,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     const service = new window.google.maps.DistanceMatrixService();
     const calculateSequentialDistance = async () => {
         let totalKm = 0;
+        const legs: number[] = [];
         const locations = [pickupCoords];
         if (tripType === 'Local') transportDetails.drops.forEach(d => { if (d.coords) locations.push(d.coords); });
         else if (tripType === 'Outstation') {
@@ -337,16 +339,25 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                 const response: google.maps.DistanceMatrixResponse = await new Promise((resolve, reject) => {
                     service.getDistanceMatrix({ origins: [start], destinations: [end], travelMode: window.google.maps.TravelMode.DRIVING, unitSystem: window.google.maps.UnitSystem.METRIC, }, (res, status) => { if (status === "OK" && res) resolve(res); else reject(status); });
                 });
-                if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
+                if (response.rows[0].elements[0].status === "OK") {
+                    const dist = response.rows[0].elements[0].distance.value / 1000;
+                    totalKm += dist;
+                    legs.push(dist);
+                }
             } catch (err) { 
                 console.error("Distance Matrix Error:", err);
-                if (String(err).includes("REQUEST_DENIED")) {
-                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console.");
+                const errStr = String(err);
+                if (errStr.includes("REQUEST_DENIED") || errStr.includes("not activated")) {
+                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
                 }
             }
         }
         if (tripType === 'Outstation' && outstationSubType === 'RoundTrip') totalKm *= 2;
-        setTransportDetails(prev => ({ ...prev, [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: totalKm.toFixed(1) }));
+        setTransportDetails(prev => ({ 
+            ...prev, 
+            [tripType === 'Outstation' ? 'estTotalKm' : 'estKm']: totalKm.toFixed(1),
+            legDistances: legs
+        }));
     };
     calculateSequentialDistance();
   }, [pickupCoords, transportDetails.drops, transportDetails.outstationWaypoints, destCoords, isMapReady, tripType, outstationSubType]);
@@ -494,11 +505,20 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${nightAllowanceRate}/night`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
               
+              const kmBreakup = transportDetails.legDistances.length > 0 ? 
+                  `*KM Breakup (One-Way):*\n` +
+                  transportDetails.legDistances.map((d, i) => {
+                      const from = i === 0 ? (customerDetails.pickup || 'Pickup') : (transportDetails.outstationWaypoints[i-1].address || `Waypoint ${i}`);
+                      const to = i === transportDetails.legDistances.length - 1 ? (transportDetails.destination || 'Final Destination') : (transportDetails.outstationWaypoints[i].address || `Waypoint ${i+1}`);
+                      return `• ${from} ➔ ${to}: ${d.toFixed(1)} KM`;
+                  }).join('\n') + '\n\n' : '';
+
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation Round-Trip* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
-                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w, i) => `📍 Waypoint ${i+1}: ${w.address}`).join('\n')}\n` +
+                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w) => `📍 Waypoint: ${w.address}`).join('\n')}\n` +
                     `🌍 Final Destination: ${transportDetails.destination}\n\n` +
+                    kmBreakup +
                     `*Trip Parameters:*\n` +
                     `• Days: ${days}\n` +
                     `• Approx KM: ${km} KM\n` +
@@ -524,11 +544,20 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
               if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
 
+              const kmBreakup = transportDetails.legDistances.length > 0 ? 
+                  `*KM Breakup:*\n` +
+                  transportDetails.legDistances.map((d, i) => {
+                      const from = i === 0 ? (customerDetails.pickup || 'Pickup') : (transportDetails.outstationWaypoints[i-1].address || `Waypoint ${i}`);
+                      const to = i === transportDetails.legDistances.length - 1 ? (transportDetails.destination || 'Final Destination') : (transportDetails.outstationWaypoints[i].address || `Waypoint ${i+1}`);
+                      return `• ${from} ➔ ${to}: ${d.toFixed(1)} KM`;
+                  }).join('\n') + '\n\n' : '';
+
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation One-Way* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
-                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w, i) => `📍 Waypoint ${i+1}: ${w.address}`).join('\n')}\n` +
+                    `${transportDetails.outstationWaypoints.filter(w => w.address).map((w) => `📍 Waypoint: ${w.address}`).join('\n')}\n` +
                     `🌍 Final Destination: ${transportDetails.destination}\n\n` +
+                    kmBreakup +
                     `*Trip Parameters:*\n` +
                     `• Approx KM: ${km} KM\n` +
                     `• Base Fare: ₹${baseFare.toFixed(2)} (upto ${baseKm} KM)\n` +

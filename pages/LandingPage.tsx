@@ -221,8 +221,8 @@ const LandingPage: React.FC = () => {
                 if (response.rows[0].elements[0].status === "OK") totalKm += response.rows[0].elements[0].distance.value / 1000;
             } catch (error) {
                 console.error("Distance Matrix Error:", error);
-                if (String(error).includes("REQUEST_DENIED")) {
-                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console.");
+                if (String(error).includes("REQUEST_DENIED") || String(error).includes("not activated")) {
+                    setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
                 }
             }
         }

@@ -5,12 +5,11 @@
 const getApiUrl = () => {
   // 1. Try to get from Vite environment variables
   try {
-    // @ts-ignore
-    if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
-        // @ts-ignore
-        return import.meta.env.VITE_API_URL;
+    const meta = import.meta as unknown as { env: Record<string, string> };
+    if (meta && meta.env && meta.env.VITE_API_URL) {
+        return meta.env.VITE_API_URL;
     }
-  } catch (e) {
+  } catch {
     // Ignore error if import.meta is not available
   }
 
@@ -22,22 +21,18 @@ const API_BASE_URL = getApiUrl();
 
 export const api = {
   auth: {
-    login: async (credentials: any) => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(credentials)
-        });
-        
-        if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || 'Login failed');
-        }
-        return await res.json();
-      } catch (error) {
-        throw error;
+    login: async (credentials: Record<string, unknown>) => {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      });
+      
+      if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Login failed');
       }
+      return await res.json();
     }
   },
   
@@ -47,7 +42,7 @@ export const api = {
       const res = await fetch(`${API_BASE_URL}/employees${query}`);
       return res.json();
     },
-    create: async (data: any) => {
+    create: async (data: Record<string, unknown>) => {
       const res = await fetch(`${API_BASE_URL}/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,7 +57,7 @@ export const api = {
       const res = await fetch(`${API_BASE_URL}/leads`);
       return res.json();
     },
-    create: async (data: any) => {
+    create: async (data: Record<string, unknown>) => {
       const res = await fetch(`${API_BASE_URL}/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

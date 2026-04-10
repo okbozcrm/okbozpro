@@ -254,6 +254,9 @@ export const VehicleEnquiries: React.FC = () => {
                     }));
                 } else {
                     console.error("Error calculating distance:", status, response);
+                    if (status === 'REQUEST_DENIED' || String(status).includes("not activated")) {
+                        setMapError("Distance Matrix API is not enabled. Please enable it in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
+                    }
                 }
             }
         );

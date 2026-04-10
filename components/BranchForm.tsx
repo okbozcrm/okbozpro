@@ -240,9 +240,9 @@ const BranchForm: React.FC = () => {
         setLoadingAddress(false);
         if (status === "OK" && results && results[0]) {
           setAddress(results[0].formatted_address);
-        } else if (status === 'REQUEST_DENIED' || status === 'ERROR') {
+        } else if (status === 'REQUEST_DENIED' || status === 'ERROR' || String(status).includes("not activated")) {
           console.error("Geocoding API Error:", status);
-          const msg = "Geocoding API is not enabled. Please enable 'Geocoding API' in your Google Cloud Console.";
+          const msg = "Geocoding API is not enabled. Please enable 'Geocoding API' in your Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps";
           // Alert user instead of setting mapError to keep map visible for manual pinning
           alert(msg);
         } else if (status === 'OVER_QUERY_LIMIT') {

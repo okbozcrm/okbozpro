@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Car, Settings, AlertTriangle, Loader2
+  Car, AlertTriangle, Loader2
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 
 // ... (Keep existing types and constants) ...
 type TripType = 'Local' | 'Rental' | 'Outstation';
-type OutstationSubType = 'RoundTrip' | 'OneWay';
 type VehicleType = 'Sedan' | 'SUV';
 
 interface RentalPackage {
@@ -58,15 +57,8 @@ const DEFAULT_PRICING_SUV: PricingRules = {
 const Transport: React.FC = () => {
   // ... (State setup) ...
   const [tripType] = useState<TripType>('Local');
-  const [showSettings, setShowSettings] = useState(false);
-  const [settingsVehicleType] = useState<VehicleType>('Sedan'); 
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  
-  /* FIX: Replaced google.maps.LatLngLiteral with inline type to avoid namespace error */
-  const [, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setDropCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const getSessionKey = (baseKey: string) => {
     const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -125,12 +117,6 @@ const Transport: React.FC = () => {
   }, []);
 
   // ... (Rest of component state and logic: pricing, packages, customers, effects) ...
-  const [pricing, setPricing] = useState<Record<VehicleType, PricingRules>>(() => {
-    const key = getSessionKey('transport_pricing_rules_v2'); 
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : { Sedan: DEFAULT_PRICING_SEDAN, SUV: DEFAULT_PRICING_SUV };
-  });
-
   const [rentalPackages] = useState<RentalPackage[]>(() => {
     const key = getSessionKey('transport_rental_packages_v2'); 
     const saved = localStorage.getItem(key);
@@ -140,23 +126,11 @@ const Transport: React.FC = () => {
   // State for form fields
   const [customer, setCustomer] = useState({ name: '', phone: '', pickup: '' });
   const [localDetails, setLocalDetails] = useState({ drop: '', estKm: '', waitingMins: '' });
-  const [rentalDetails] = useState({ packageId: rentalPackages[0]?.id || '' });
   const [outstationDetails, setOutstationDetails] = useState({ destination: '', days: '1', estTotalKm: '', nights: '0' });
-  const [estimate] = useState({
-    base: 0, extraKmCost: 0, waitingCost: 0, driverCost: 0, nightAllowanceCost: 0, total: 0, chargeableKm: 0, details: ''
-  });
-  const [generatedMessage] = useState('');
-  const [showAddPackage] = useState(false);
-  const [newPackage] = useState({ name: '', hours: '', km: '', priceSedan: '', priceSuv: '' });
 
   // ... (Effects for calculation, persistence etc) ...
   
   // Handlers ... (shortened)
-  const handlePricingChange = () => {
-  };
-
-  const handleAddPackage = () => { /* ... */ };
-  const removePackage = () => { /* ... */ };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -168,12 +142,6 @@ const Transport: React.FC = () => {
           </h2>
           <p className="text-gray-500">Calculate fares for Local, Rental & Outstation trips</p>
         </div>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${showSettings ? 'bg-slate-800 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-        >
-          <Settings className="w-4 h-4" /> {showSettings ? 'Hide Rates' : 'Edit Rates'}
-        </button>
       </div>
 
       {/* Error for Maps */}

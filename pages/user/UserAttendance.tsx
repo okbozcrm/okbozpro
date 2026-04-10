@@ -941,30 +941,33 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   );
 
   const renderMonthlyCalendar = () => (
-    <div className="bg-white rounded-3xl md:rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-500">
-        <div className="p-4 md:p-10 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 bg-slate-50/50">
-            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+    <div className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-indigo-900/10 overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="p-6 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-8 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white relative overflow-hidden">
+            {/* Decorative background icon */}
+            <Calendar className="absolute -right-10 -bottom-10 w-48 h-48 opacity-10 rotate-12" />
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto relative z-10">
                 {isAdmin && (
                     <div className="relative group w-full sm:w-auto">
-                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="w-full sm:w-auto pl-6 pr-12 py-3 md:py-4 bg-white border border-slate-200 rounded-xl md:rounded-[1.5rem] text-xs md:text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/20 min-w-[200px] md:min-w-[220px] appearance-none cursor-pointer shadow-sm transition-all">
-                            {filteredStaffList.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                        <select value={selectedEmployee?.id} onChange={(e) => setSelectedEmployee(employees.find(emp => emp.id === e.target.value) || null)} className="w-full sm:w-auto pl-6 pr-12 py-3 md:py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl md:rounded-[1.5rem] text-xs md:text-sm font-black text-white outline-none focus:ring-2 focus:ring-white/30 min-w-[200px] md:min-w-[220px] appearance-none cursor-pointer shadow-sm transition-all hover:bg-white/20">
+                            {filteredStaffList.map(emp => <option key={emp.id} value={emp.id} className="text-slate-900">{emp.name}</option>)}
                         </select>
-                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-slate-400 pointer-events-none group-hover:text-emerald-500 transition-colors" />
+                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-white/60 pointer-events-none group-hover:text-white transition-colors" />
                     </div>
                 )}
-                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl md:rounded-[1.5rem] p-1 md:p-1.5 shadow-sm w-full sm:w-auto justify-between sm:justify-start">
-                    <button onClick={handlePrevMonth} className="p-2 md:p-3 hover:bg-slate-100 rounded-lg md:rounded-xl transition-all text-slate-400 hover:text-emerald-600"><ChevronLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
-                    <span className="px-2 md:px-6 text-[10px] md:text-sm font-black uppercase tracking-[0.1em] md:tracking-[0.2em] text-slate-700 min-w-[120px] md:min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                    <button onClick={handleNextMonth} className="p-2 md:p-3 hover:bg-slate-100 rounded-lg md:rounded-xl transition-all text-slate-400 hover:text-emerald-600"><ChevronRight className="w-5 h-5 md:w-6 md:h-6"/></button>
+                <div className="flex items-center gap-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl md:rounded-[1.5rem] p-1 md:p-1.5 shadow-sm w-full sm:w-auto justify-between sm:justify-start">
+                    <button onClick={handlePrevMonth} className="p-2 md:p-3 hover:bg-white/20 rounded-lg md:rounded-xl transition-all text-white/60 hover:text-white"><ChevronLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
+                    <span className="px-2 md:px-6 text-[10px] md:text-sm font-black uppercase tracking-[0.1em] md:tracking-[0.2em] text-white min-w-[120px] md:min-w-[200px] text-center">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button onClick={handleNextMonth} className="p-2 md:p-3 hover:bg-white/20 rounded-lg md:rounded-xl transition-all text-white/60 hover:text-white"><ChevronRight className="w-5 h-5 md:w-6 md:h-6"/></button>
                 </div>
             </div>
             {isAdmin && selectedEmployee && (
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2 relative z-10">
                     <div className="flex gap-2">
                         <button 
                             onClick={() => handleUndo()}
                             disabled={historyIndex <= 0}
-                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex > 0 ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200' : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'}`}
+                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex > 0 ? 'bg-white/10 hover:bg-white/20 text-white border-white/20' : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed'}`}
                             title="Undo"
                         >
                             <Undo className="w-3 h-3 md:w-4 md:h-4" />
@@ -972,24 +975,24 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                         <button 
                             onClick={() => handleRedo()}
                             disabled={historyIndex >= history.length - 1}
-                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex < history.length - 1 ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200' : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'}`}
+                            className={`p-2 md:p-3 rounded-xl md:rounded-2xl border transition-all shadow-sm ${historyIndex < history.length - 1 ? 'bg-white/10 hover:bg-white/20 text-white border-white/20' : 'bg-white/5 text-white/20 border-white/5 cursor-not-allowed'}`}
                             title="Redo"
                         >
                             <Redo className="w-3 h-3 md:w-4 md:h-4" />
                         </button>
                     </div>
-                    <div className="hidden sm:block h-8 md:h-10 w-px bg-slate-200 mx-1 md:mx-2"></div>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-3 md:px-5 py-2 md:py-3 bg-emerald-50 text-emerald-600 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center gap-1 md:gap-2 shadow-sm"><CheckCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Present</span></button>
-                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-3 md:px-5 py-2 md:py-3 bg-rose-50 text-rose-600 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all flex items-center gap-1 md:gap-2 shadow-sm"><XCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Absent</span></button>
+                    <div className="hidden sm:block h-8 md:h-10 w-px bg-white/20 mx-1 md:mx-2"></div>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.PRESENT)} className="px-3 md:px-5 py-2 md:py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-emerald-400 hover:border-emerald-500 transition-all flex items-center gap-1 md:gap-2 shadow-lg shadow-emerald-900/20"><CheckCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Present</span></button>
+                    <button onClick={() => handleMarkStatusRange(AttendanceStatus.ABSENT)} className="px-3 md:px-5 py-2 md:py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border border-rose-400 hover:border-rose-500 transition-all flex items-center gap-1 md:gap-2 shadow-lg shadow-rose-900/20"><XCircle className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden xs:inline">Absent</span></button>
                 </div>
             )}
         </div>
-        <div className="p-2 md:p-12">
-            <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-2xl md:rounded-[2.5rem] overflow-hidden shadow-sm">
+        <div className="p-4 md:p-12">
+            <div className="grid grid-cols-7 gap-2 md:gap-4 bg-transparent">
                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
-                    <div key={day} className={`bg-slate-50 py-4 md:py-8 text-center text-[8px] md:text-[12px] font-black tracking-[0.1em] md:tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-slate-500'}`}>{day}</div>
+                    <div key={day} className={`py-4 md:py-8 text-center text-[8px] md:text-[12px] font-black tracking-[0.1em] md:tracking-[0.3em] ${i === 0 ? 'text-rose-500' : 'text-slate-500'}`}>{day}</div>
                 ))}
-                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="bg-slate-50/50 min-h-[60px] md:min-h-[180px] opacity-10"></div>)}
+                {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="min-h-[60px] md:min-h-[180px] opacity-0"></div>)}
                 {attendanceData.map((day, idx) => {
                     const dayOfWeek = new Date(day.date).getDay();
                     const isSunday = dayOfWeek === 0;
@@ -1008,38 +1011,40 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
 
                     if (day.status === AttendanceStatus.NOT_MARKED) {
                          if (day.date <= todayDateStr && !isWeekend) {
-                            cellStyle = "bg-rose-50/10 border-rose-100/50";
-                            badgeStyle = "bg-rose-100/50 text-rose-600/60 border-rose-200/50";
+                            cellStyle = "bg-gradient-to-br from-rose-400 to-rose-600 text-white border-rose-300";
+                            badgeStyle = "bg-white/20 text-white border-white/30";
                             statusText = "ABSENT (N/A)";
                          } else if (isWeekend) {
-                            cellStyle = "bg-slate-50/30 border-slate-100/50";
-                            badgeStyle = "bg-slate-100/50 text-slate-400 border-slate-200/50";
+                            cellStyle = "bg-gradient-to-br from-slate-300 to-slate-500 text-white border-slate-200";
+                            badgeStyle = "bg-white/20 text-white border-white/30";
                             statusText = "WEEK OFF";
                          }
                     }
 
                     return (
-                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-2 md:p-6 min-h-[80px] md:min-h-[180px] flex flex-col gap-1 md:gap-4 relative transition-all border group hover:scale-[1.02] hover:z-10 duration-200 ${cellStyle} ${isToday ? 'ring-2 md:ring-4 ring-inset ring-emerald-500/20 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
+                        <div key={idx} onClick={() => handleEditClick(day)} className={`p-2 md:p-4 min-h-[100px] md:min-h-[200px] flex flex-col gap-2 md:gap-4 relative transition-all border-2 group hover:scale-[1.02] hover:z-10 duration-300 rounded-2xl md:rounded-[2rem] shadow-sm hover:shadow-xl ${cellStyle} ${isToday ? 'ring-4 ring-emerald-500/30 z-10' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}>
                             <div className="flex justify-between items-start z-10">
-                                <span className={`text-sm md:text-3xl font-black ${isWeekend ? 'text-rose-500/70' : 'text-slate-900'} opacity-80 group-hover:opacity-100`}>{new Date(day.date).getDate()}</span>
+                                <div className={`w-8 h-8 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center text-sm md:text-3xl font-black shadow-inner ${day.status === AttendanceStatus.NOT_MARKED && !isWeekend && day.date > todayDateStr ? 'bg-slate-100 text-slate-900' : 'bg-white/20 text-white'}`}>
+                                    {new Date(day.date).getDate()}
+                                </div>
                                 {statusText && (
-                                    <span className={`text-[6px] md:text-[10px] font-black px-1 md:px-3 py-0.5 md:py-1 rounded md:rounded-lg tracking-tighter md:tracking-widest uppercase border ${badgeStyle} hidden xs:block`}>
+                                    <span className={`text-[6px] md:text-[10px] font-black px-1.5 md:px-3 py-0.5 md:py-1 rounded-lg tracking-tighter md:tracking-widest uppercase border backdrop-blur-md ${badgeStyle} hidden xs:block`}>
                                         {statusText.length > 10 ? statusText.substring(0, 8) + '..' : statusText}
                                     </span>
                                 )}
                             </div>
                             
                             {punchCount > 0 && (
-                                <div className="mt-auto space-y-1 md:space-y-2 p-1 md:p-3 bg-white/80 backdrop-blur-sm rounded-lg md:rounded-[1.5rem] border border-slate-200 text-[8px] md:text-[11px] font-black transition-all group-hover:bg-slate-50 group-hover:shadow-sm z-10">
-                                    <div className="flex items-center justify-between text-indigo-600/80">
+                                <div className="mt-auto space-y-1 md:space-y-2 p-2 md:p-4 bg-white/10 backdrop-blur-md rounded-xl md:rounded-[1.5rem] border border-white/20 text-[8px] md:text-[11px] font-black transition-all group-hover:bg-white/20 z-10 text-white">
+                                    <div className="flex items-center justify-between opacity-90">
                                         <div className="flex items-center gap-1 md:gap-1.5"><ArrowRightLeft className="w-2 h-2 md:w-3 md:h-3" /><span>{punchCount} <span className="hidden sm:inline">Punches</span></span></div>
                                     </div>
-                                    <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-emerald-600/80">
+                                    <div className="pt-1 border-t border-white/10 flex items-center justify-between opacity-90">
                                         <div className="flex items-center gap-1 md:gap-1.5"><Clock className="w-2 h-2 md:w-3 md:h-3" /><span>{durationStr || '0h 0m'}</span></div>
                                     </div>
                                 </div>
                             )}
-                            {isToday && <div className="absolute top-2 right-2 md:top-6 md:right-6 w-1 h-1 md:w-2 md:h-2 rounded-full bg-emerald-500/50 animate-ping z-10"></div>}
+                            {isToday && <div className="absolute top-2 right-2 md:top-6 md:right-6 w-1.5 h-1.5 md:w-3 md:h-3 rounded-full bg-white animate-ping z-10"></div>}
                         </div>
                     );
                 })}
@@ -1083,92 +1088,83 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       </div>
 
       <div className="space-y-6 md:space-y-8 animate-in zoom-in-95 duration-500">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
               {[
                   { 
                       label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', 
                       val: dashboardStats.total, 
                       icon: Users, 
-                      color: 'text-slate-600',
-                      bgColor: 'bg-slate-50',
-                      borderColor: 'border-slate-200'
+                      gradient: 'from-indigo-600 to-indigo-800',
+                      shadow: 'shadow-indigo-900/20'
                   },
                   { 
                       label: 'PRESENT', 
                       val: dashboardStats.present, 
                       icon: UserCheck, 
-                      color: 'text-emerald-600',
-                      bgColor: 'bg-emerald-50',
-                      borderColor: 'border-emerald-100'
+                      gradient: 'from-emerald-500 to-emerald-700',
+                      shadow: 'shadow-emerald-900/20'
                   },
                   { 
                       label: 'ABSENT', 
                       val: dashboardStats.absent, 
                       icon: UserX, 
-                      color: 'text-rose-600',
-                      bgColor: 'bg-rose-50',
-                      borderColor: 'border-rose-100'
+                      gradient: 'from-rose-500 to-rose-700',
+                      shadow: 'shadow-rose-900/20'
                   },
                   { 
                       label: 'ON FIELD', 
                       val: dashboardStats.onField, 
                       icon: Send, 
-                      color: 'text-blue-600',
-                      bgColor: 'bg-blue-50',
-                      borderColor: 'border-blue-100'
+                      gradient: 'from-blue-500 to-blue-700',
+                      shadow: 'shadow-blue-900/20'
                   },
                   { 
                       label: 'LATE', 
                       val: dashboardStats.late, 
                       icon: Clock, 
-                      color: 'text-orange-600',
-                      bgColor: 'bg-orange-50',
-                      borderColor: 'border-orange-100'
+                      gradient: 'from-orange-500 to-orange-700',
+                      shadow: 'shadow-orange-900/20'
                   },
                   { 
                       label: 'HALF DAY', 
                       val: dashboardStats.halfDay, 
                       icon: Activity, 
-                      color: 'text-amber-600',
-                      bgColor: 'bg-amber-50',
-                      borderColor: 'border-amber-100'
+                      gradient: 'from-amber-500 to-amber-700',
+                      shadow: 'shadow-amber-900/20'
                   },
                   { 
                       label: 'HOLIDAY', 
                       val: dashboardStats.holidays, 
                       icon: CalendarDays, 
-                      color: 'text-violet-600',
-                      bgColor: 'bg-violet-50',
-                      borderColor: 'border-violet-100'
+                      gradient: 'from-violet-500 to-violet-700',
+                      shadow: 'shadow-violet-900/20'
                   },
                   { 
                       label: 'WEEK OFF', 
                       val: dashboardStats.weekOff, 
                       icon: Coffee, 
-                      color: 'text-cyan-600',
-                      bgColor: 'bg-cyan-50',
-                      borderColor: 'border-cyan-100'
+                      gradient: 'from-cyan-500 to-cyan-700',
+                      shadow: 'shadow-cyan-900/20'
                   },
                   { 
                       label: 'LEAVE', 
                       val: dashboardStats.leave, 
                       icon: UserMinus, 
-                      color: 'text-slate-500',
-                      bgColor: 'bg-slate-50',
-                      borderColor: 'border-slate-200'
+                      gradient: 'from-slate-500 to-slate-700',
+                      shadow: 'shadow-slate-900/20'
                   },
               ].map((kpi, i) => (
-                  <div key={i} className={`bg-white p-5 rounded-[1.5rem] shadow-sm border ${kpi.borderColor} flex flex-col justify-between transition-all hover:shadow-md hover:scale-105 h-32 relative overflow-hidden group`}>
-                      <div className="flex justify-between items-start z-10">
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">{kpi.label}</p>
-                          <div className={`p-2 rounded-xl ${kpi.bgColor} ${kpi.color}`}>
+                  <div key={i} className={`bg-gradient-to-br ${kpi.gradient} p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] text-white shadow-xl ${kpi.shadow} relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 h-32 md:h-40 flex flex-col justify-between`}>
+                      <div className="relative z-10 flex justify-between items-start">
+                          <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{kpi.label}</p>
+                          <div className="p-2 bg-white/20 rounded-xl w-fit">
                               <kpi.icon className="w-4 h-4" />
                           </div>
                       </div>
                       <div className="relative z-10">
-                          <h4 className={`text-4xl font-black ${kpi.color}`}>{kpi.val}</h4>
+                          <h3 className="text-2xl md:text-4xl font-black tracking-tighter">{kpi.val}</h3>
                       </div>
-                      <kpi.icon className={`absolute -bottom-4 -right-4 w-24 h-24 ${kpi.color} opacity-[0.03] transform -rotate-12 group-hover:scale-110 transition-transform duration-500`} />
+                      <kpi.icon className="absolute -right-4 -bottom-4 w-16 h-16 md:w-24 md:h-24 opacity-[0.08] group-hover:scale-110 transition-transform duration-700" />
                   </div>
               ))}
           </div>

@@ -104,57 +104,57 @@ export const ATTENDANCE_STATUS_COLORS: Record<AttendanceStatus, { bg: string; te
     bg: 'bg-emerald-50',
     text: 'text-emerald-600',
     border: 'border-emerald-100',
-    badge: 'bg-emerald-100 text-emerald-600 border-emerald-200 shadow-sm',
-    cell: 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50/60'
+    badge: 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-900/10',
+    cell: 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white border-emerald-400'
   },
   [AttendanceStatus.ABSENT]: {
     bg: 'bg-rose-50',
     text: 'text-rose-600',
     border: 'border-rose-100',
-    badge: 'bg-rose-100 text-rose-600 border-rose-200 shadow-sm',
-    cell: 'bg-rose-50/30 border-rose-100 hover:bg-rose-50/60'
+    badge: 'bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-900/10',
+    cell: 'bg-gradient-to-br from-rose-500 to-rose-700 text-white border-rose-400'
   },
   [AttendanceStatus.HALF_DAY]: {
     bg: 'bg-amber-50',
     text: 'text-amber-600',
     border: 'border-amber-100',
-    badge: 'bg-amber-100 text-amber-600 border-amber-200 shadow-sm',
-    cell: 'bg-amber-50/30 border-amber-100 hover:bg-amber-50/60'
+    badge: 'bg-amber-500 text-white border-amber-400 shadow-md shadow-amber-900/10',
+    cell: 'bg-gradient-to-br from-amber-500 to-amber-700 text-white border-amber-400'
   },
   [AttendanceStatus.PAID_LEAVE]: {
     bg: 'bg-blue-50',
     text: 'text-blue-600',
     border: 'border-blue-100',
-    badge: 'bg-blue-100 text-blue-600 border-blue-200 shadow-sm',
-    cell: 'bg-blue-50/30 border-blue-100 hover:bg-blue-50/60'
+    badge: 'bg-blue-500 text-white border-blue-400 shadow-md shadow-blue-900/10',
+    cell: 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-400'
   },
   [AttendanceStatus.WEEK_OFF]: {
     bg: 'bg-slate-50',
     text: 'text-slate-500',
     border: 'border-slate-200',
-    badge: 'bg-slate-100 text-slate-400 border-slate-200',
-    cell: 'bg-slate-50/50 border-slate-100'
+    badge: 'bg-slate-400 text-white border-slate-300',
+    cell: 'bg-gradient-to-br from-slate-400 to-slate-600 text-white border-slate-300'
   },
   [AttendanceStatus.HOLIDAY]: {
     bg: 'bg-violet-50',
     text: 'text-violet-600',
     border: 'border-violet-100',
-    badge: 'bg-violet-100 text-violet-600 border-violet-200 shadow-sm',
-    cell: 'bg-violet-50/30 border-violet-100 hover:bg-violet-50/60'
+    badge: 'bg-violet-500 text-white border-violet-400 shadow-md shadow-violet-900/10',
+    cell: 'bg-gradient-to-br from-violet-500 to-violet-700 text-white border-violet-400'
   },
   [AttendanceStatus.ALTERNATE_DAY]: {
     bg: 'bg-teal-50',
     text: 'text-teal-600',
     border: 'border-teal-100',
-    badge: 'bg-teal-100 text-teal-600 border-teal-200 shadow-sm',
-    cell: 'bg-teal-50/30 border-teal-100 hover:bg-teal-50/60'
+    badge: 'bg-teal-500 text-white border-teal-400 shadow-md shadow-teal-900/10',
+    cell: 'bg-gradient-to-br from-teal-500 to-teal-700 text-white border-teal-400'
   },
   [AttendanceStatus.NOT_MARKED]: {
     bg: 'bg-slate-50',
     text: 'text-slate-400',
     border: 'border-slate-200',
     badge: 'bg-slate-100 text-slate-400 border-slate-200',
-    cell: 'bg-white border-slate-100'
+    cell: 'bg-white text-slate-900 border-slate-100'
   }
 };
 

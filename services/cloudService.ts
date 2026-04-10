@@ -123,7 +123,9 @@ const ensureAuth = async (app: FirebaseApp) => {
   try {
     const auth = getAuth(app);
     if (!auth.currentUser) await signInAnonymously(auth);
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Auth check failed:", e);
+  }
 };
 
 const getDb = (app: FirebaseApp): Firestore => getFirestore(app);
@@ -182,9 +184,10 @@ export const syncToCloud = async (config?: FirebaseConfig) => {
 
     if (writeCount > 0) console.log(`☁️ Cloud Sync: Updated ${writeCount} modules.`);
     return { success: true, message: `Sync complete! (${writeCount} updates)` };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Sync Error:", error);
-    return { success: false, message: `Sync failed: ${error.message}` };
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message: `Sync failed: ${message}` };
   } finally {
     isSyncing = false;
   }
@@ -209,9 +212,10 @@ export const restoreFromCloud = async (config?: FirebaseConfig) => {
     
     console.log("✅ All Data Mirrored from Cloud");
     return { success: true, message: "Restore complete!" };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Restore Error:", error);
-    return { success: false, message: `Restore failed: ${error.message}` };
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message: `Restore failed: ${message}` };
   }
 };
 
@@ -225,8 +229,8 @@ export const uploadFileToCloud = async (file: File, path: string): Promise<strin
     const storageRef = ref(storage, path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
-  } catch (error: any) {
-    console.error("Cloud Upload Failed:", error.code, error.message);
+  } catch (error) {
+    console.error("Cloud Upload Failed:", error);
     return null;
   }
 };
@@ -237,7 +241,7 @@ export const autoLoadFromCloud = async (): Promise<boolean> => {
         if (!app) return false;
         await restoreFromCloud();
         return true;
-    } catch (e) { return false; }
+    } catch { return false; }
 };
 
 export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
@@ -247,7 +251,7 @@ export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
     await ensureAuth(app);
     const db = getDb(app);
     const snapshot = await getDocs(collection(db, "ok_boz_live_data"));
-    const stats: Record<string, any> = {};
+    const stats: Record<string, { count: string; lastUpdated: string }> = {};
     snapshot.forEach(doc => {
       const data = doc.data();
       let count = '-';
@@ -256,11 +260,11 @@ export const getCloudDatabaseStats = async (config?: FirebaseConfig) => {
         if (Array.isArray(parsed)) count = parsed.length.toString();
         else if (typeof parsed === 'object') count = Object.keys(parsed).length.toString();
         else count = '1';
-      } catch (e) { count = 'Raw'; }
+      } catch { count = 'Raw'; }
       stats[doc.id] = { count: count, lastUpdated: data.lastUpdated };
     });
     return stats;
-  } catch (error: any) { return null; }
+  } catch { return null; }
 };
 
 export const sendSystemNotification = async (notification: Omit<BozNotification, 'id' | 'timestamp' | 'read'>) => {

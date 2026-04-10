@@ -103,14 +103,14 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
                         });
                         setErrorMsg(null);
                     } else {
-                        // If both fail, show specific error
-                        console.error("Places Details fallback failed:", status);
-                        const errString = String(error);
-                        if (errString.includes("REQUEST_DENIED") || errString === "REQUEST_DENIED") {
-                             setErrorMsg("API Error: Enable 'Geocoding API' & 'Places API' in Google Cloud.");
-                        } else {
-                             setErrorMsg("Failed to fetch location coordinates.");
-                        }
+        // If both fail, show specific error
+        console.error("Places Details fallback failed:", status);
+        const errString = String(error);
+        if (errString.includes("REQUEST_DENIED") || errString === "REQUEST_DENIED" || errString.includes("not activated")) {
+             setErrorMsg("API Error: Enable 'Geocoding API' & 'Places API' in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
+        } else {
+             setErrorMsg("Failed to fetch location coordinates.");
+        }
                     }
                 });
             } catch (fallbackError) {
