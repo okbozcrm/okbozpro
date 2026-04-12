@@ -203,6 +203,7 @@ export interface Enquiry {
   nextFollowUp?: string;
   history: HistoryLog[];
   date?: string; 
+  time?: string;
   enquiryCategory?: 'Transport' | 'General';
   tripType?: 'Local' | 'Rental' | 'Outstation';
   vehicleType?: 'Sedan' | 'SUV' | '3 Wheeler Auto' | 'Tata Ace' | 'Pickup' | 'BADA DOST';

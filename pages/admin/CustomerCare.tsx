@@ -5,10 +5,10 @@ import {
   X, Phone, Truck, DollarSign,
   Calendar, MapPin, Plus, Trash2, Headset,
   Clock, Search, ChevronDown, AlertCircle, RefreshCcw, Mountain, List as ListIcon,
-  Package, TrendingUp as TrendingUpIcon, FileText, ArrowRight
+  Package, TrendingUp as TrendingUpIcon, FileText, ArrowRight, Printer
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
-import { Enquiry, UserRole } from '../../types';
+import { Enquiry, UserRole, CorporateAccount, Employee } from '../../types';
 import { HARDCODED_MAPS_API_KEY, syncToCloud } from '../../services/cloudService';
 
 // Types
@@ -134,6 +134,7 @@ interface DropPoint {
 }
 
 export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
+  const [showInvoice, setShowInvoice] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsVehicleType, setSettingsVehicleType] = useState<VehicleType>('Sedan');
   
@@ -155,7 +156,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   });
 
   const [customerDetails, setCustomerDetails] = useState({
-    name: '', phone: '', email: '', pickup: '', requirements: ''
+    name: '', phone: '', email: '', pickup: '', requirements: '',
+    travelDate: '', travelTime: ''
   });
 
   // Map State
@@ -235,6 +237,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const corporateEmail = isEmployee 
     ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
     : (role === UserRole.CORPORATE ? sessionId : 'admin');
+
+  const currentCorporate = useMemo(() => {
+    const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
+    return corps.find((c: CorporateAccount) => c.email === corporateEmail);
+  }, [corporateEmail]);
+
+  const corporateName = currentCorporate?.companyName || 'OK BOZ';
 
   const [assignment] = useState({
     corporateId: isSuperAdmin ? 'admin' : corporateEmail,
@@ -472,12 +481,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           
           total = base + extraKmCost + waitCost;
           
-          breakup.push({ label: 'Base Fare', value: base, description: `Includes first ${rules.localBaseKm} KM`, type: 'base' });
-          if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKmVal.toFixed(1)} KM @ ₹${rules.localPerKmRate}/KM`, type: 'extra' });
-          if (waitCost > 0) breakup.push({ label: 'Waiting Charges', value: waitCost, description: `${transportDetails.waitingMins} Mins @ ₹${rules.localWaitingRate}/min`, type: 'extra' });
+          breakup.push({ label: 'Base Fare', value: base, description: `${rules.localBaseKm} KM Included`, type: 'base' });
+          if (extraKmCost > 0) breakup.push({ label: 'Extra KM', value: extraKmCost, description: `${extraKmVal.toFixed(1)} KM`, type: 'extra' });
+          if (waitCost > 0) breakup.push({ label: 'Waiting', value: waitCost, description: `${transportDetails.waitingMins} Mins`, type: 'extra' });
           
           msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Local Trip* estimate from OK BOZ! 🚕\n\n` +
                 `🚘 Vehicle: ${vehicleType}\n` +
+                (customerDetails.travelDate ? `📅 Date: ${customerDetails.travelDate}${customerDetails.travelTime ? ` @ ${customerDetails.travelTime}` : ''}\n` : '') +
                 `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                 `${transportDetails.drops.filter(d => d.address).map((d, i) => `📍 Drop ${i+1}: ${d.address}`).join('\n')}\n\n` +
                 `*Fare Breakdown:*\n` +
@@ -506,11 +516,12 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               total = pkgPrice + extraKmCost + extraHrCost;
 
               breakup.push({ label: 'Package Rate', value: pkgPrice, description: pkg.name, type: 'base' });
-              if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKm} KM @ ₹${extraKmRate}/KM`, type: 'extra' });
-              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${extraHrRate}/Hr`, type: 'extra' });
+              if (extraKmCost > 0) breakup.push({ label: 'Extra KM', value: extraKmCost, description: `${extraKm} KM`, type: 'extra' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hours', value: extraHrCost, description: `${extraHr} Hr`, type: 'extra' });
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Rental Package* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
+                    (customerDetails.travelDate ? `📅 Date: ${customerDetails.travelDate}${customerDetails.travelTime ? ` @ ${customerDetails.travelTime}` : ''}\n` : '') +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                     `📦 Package: ${pkg.name}\n\n` +
                     `*Fare Breakdown:*\n` +
@@ -542,13 +553,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               
               total = kmCharges + driverAllowance + nightAllowance + hillsAllowance + extraKmCost + extraHrCost + tollCharge;
               
-              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${chargeKm.toFixed(1)} KM @ ₹${perKmRate}/KM (Min ${minKm} KM)`, type: 'base' });
-              breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
-              if (nightAllowance > 0) breakup.push({ label: 'Night Allowance', value: nightAllowance, description: `${transportDetails.nights} Nights @ ₹${nightAllowanceRate}/night`, type: 'allowance' });
-              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
-              if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKm} KM @ ₹${perKmRate}/KM`, type: 'extra' });
-              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${rules.outstationExtraHrRate}/Hr`, type: 'extra' });
-              if (tollCharge > 0) breakup.push({ label: 'Toll Charges', value: tollCharge, description: `Toll & Parking`, type: 'extra' });
+              breakup.push({ label: 'KM Charges', value: kmCharges, description: `${chargeKm.toFixed(1)} KM`, type: 'base' });
+              breakup.push({ label: 'Driver Allw', value: driverAllowance, description: `${days} Days`, type: 'allowance' });
+              if (nightAllowance > 0) breakup.push({ label: 'Night Allw', value: nightAllowance, description: `${transportDetails.nights} Nights`, type: 'allowance' });
+              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allw', value: hillsAllowance, description: `${days} Days`, type: 'allowance' });
+              if (extraKmCost > 0) breakup.push({ label: 'Extra KM', value: extraKmCost, description: `${extraKm} KM`, type: 'extra' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hours', value: extraHrCost, description: `${extraHr} Hr`, type: 'extra' });
+              if (tollCharge > 0) breakup.push({ label: 'Toll & Parking', value: tollCharge, description: `Actuals`, type: 'extra' });
               
               const kmBreakup = transportDetails.legDistances.length > 0 ? 
                   `*KM Breakup (One-Way):*\n` +
@@ -560,6 +571,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation Round-Trip* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
+                    (customerDetails.travelDate ? `📅 Date: ${customerDetails.travelDate}${customerDetails.travelTime ? ` @ ${customerDetails.travelTime}` : ''}\n` : '') +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                     `${transportDetails.outstationWaypoints.filter(w => w.address).map((w) => `📍 Waypoint: ${w.address}`).join('\n')}\n` +
                     `🌍 Final Destination: ${transportDetails.destination}\n\n` +
@@ -593,13 +605,13 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               
               total = baseFare + kmCharges + driverAllowance + hillsAllowance + extraKmCost + extraHrCost + tollCharge;
               
-              if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, description: `Includes first ${baseKm} KM`, type: 'base' });
-              if (kmCharges > 0) breakup.push({ label: 'KM Charges', value: kmCharges, description: `${extraKmVal.toFixed(1)} KM @ ₹${perKmRate}/KM`, type: 'base' });
-              breakup.push({ label: 'Driver Allowance', value: driverAllowance, description: `${days} Days @ ₹${rules.outstationDriverAllowance}/day`, type: 'allowance' });
-              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allowance', value: hillsAllowance, description: `${days} Days @ ₹${hillsAllowanceRate}/day`, type: 'allowance' });
-              if (extraKmCost > 0) breakup.push({ label: 'Extra KM Charges', value: extraKmCost, description: `${extraKm} KM @ ₹${perKmRate}/KM`, type: 'extra' });
-              if (extraHrCost > 0) breakup.push({ label: 'Extra Hour Charges', value: extraHrCost, description: `${extraHr} Hr @ ₹${rules.outstationExtraHrRate}/Hr`, type: 'extra' });
-              if (tollCharge > 0) breakup.push({ label: 'Toll Charges', value: tollCharge, description: `Toll & Parking`, type: 'extra' });
+              if (baseFare > 0) breakup.push({ label: 'Base Fare', value: baseFare, description: `${baseKm} KM Included`, type: 'base' });
+              if (kmCharges > 0) breakup.push({ label: 'KM Charges', value: kmCharges, description: `${extraKmVal.toFixed(1)} KM`, type: 'base' });
+              breakup.push({ label: 'Driver Allw', value: driverAllowance, description: `${days} Days`, type: 'allowance' });
+              if (hillsAllowance > 0) breakup.push({ label: 'Hills Allw', value: hillsAllowance, description: `${days} Days`, type: 'allowance' });
+              if (extraKmCost > 0) breakup.push({ label: 'Extra KM', value: extraKmCost, description: `${extraKm} KM`, type: 'extra' });
+              if (extraHrCost > 0) breakup.push({ label: 'Extra Hours', value: extraHrCost, description: `${extraHr} Hr`, type: 'extra' });
+              if (tollCharge > 0) breakup.push({ label: 'Toll & Parking', value: tollCharge, description: `Actuals`, type: 'extra' });
 
               const kmBreakup = transportDetails.legDistances.length > 0 ? 
                   `*KM Breakup:*\n` +
@@ -611,6 +623,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
               msg = `Hello ${customerDetails.name || 'Customer'},\nHere is your *Outstation One-Way* estimate from OK BOZ! 🚕\n\n` +
                     `🚘 Vehicle: ${vehicleType}\n` +
+                    (customerDetails.travelDate ? `📅 Date: ${customerDetails.travelDate}${customerDetails.travelTime ? ` @ ${customerDetails.travelTime}` : ''}\n` : '') +
                     `📍 Pickup: ${customerDetails.pickup || 'TBD'}\n` +
                     `${transportDetails.outstationWaypoints.filter(w => w.address).map((w) => `📍 Waypoint: ${w.address}`).join('\n')}\n` +
                     `🌍 Final Destination: ${transportDetails.destination}\n\n` +
@@ -666,7 +679,8 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           assignedBranch: assignment.branchName,
           createdAt: new Date().toLocaleString(),
           history: [{ id: Date.now(), type: 'Note', message: `Order ${status}. Est: ₹${estimatedCost}`, date: new Date().toLocaleString(), outcome: 'Completed' }],
-          date: scheduleInfo ? scheduleInfo.date : new Date().toISOString().split('T')[0],
+          date: customerDetails.travelDate || (scheduleInfo ? scheduleInfo.date : new Date().toISOString().split('T')[0]),
+          time: customerDetails.travelTime,
           nextFollowUp: scheduleInfo ? `${scheduleData.date}T${scheduleData.time}` : undefined,
           priority: scheduleInfo?.priority,
           enquiryCategory, tripType, vehicleType, outstationSubType,
@@ -694,7 +708,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   };
 
   const handleCancelForm = () => {
-      setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '' });
+      setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '', travelDate: '', travelTime: '' });
       setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', extraHr: '', extraKm: '', tollCharge: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
       setGeneratedMessage(''); setEstimatedCost(0); setEditingOrderId(null);
   };
@@ -703,7 +717,15 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleEditOrder = (order: Enquiry) => {
       setEditingOrderId(order.id);
-      setCustomerDetails({ name: order.name, phone: order.phone, email: order.email || '', pickup: '', requirements: order.enquiryCategory === 'General' ? order.details : '' });
+      setCustomerDetails({ 
+          name: order.name, 
+          phone: order.phone, 
+          email: order.email || '', 
+          pickup: '', 
+          requirements: order.enquiryCategory === 'General' ? order.details : '',
+          travelDate: order.date || '',
+          travelTime: order.time || ''
+      });
       setEnquiryCategory(order.enquiryCategory || 'General');
       if (order.transportData) {
           setTripType(order.tripType || 'Local'); setVehicleType(order.vehicleType || 'Sedan');
@@ -1077,6 +1099,14 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                         <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Mobile Number</label>
                         <input placeholder="+91..." className="p-4 bg-gray-50 border-none rounded-2xl w-full font-bold shadow-inner outline-none focus:ring-2 focus:ring-indigo-500/20" value={customerDetails.phone} onChange={e => setCustomerDetails({...customerDetails, phone: e.target.value})} />
                     </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Travel Date</label>
+                        <input type="date" className="p-4 bg-gray-50 border-none rounded-2xl w-full font-bold shadow-inner outline-none focus:ring-2 focus:ring-indigo-500/20" value={customerDetails.travelDate} onChange={e => setCustomerDetails({...customerDetails, travelDate: e.target.value})} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Travel Time</label>
+                        <input type="time" className="p-4 bg-gray-50 border-none rounded-2xl w-full font-bold shadow-inner outline-none focus:ring-2 focus:ring-indigo-500/20" value={customerDetails.travelTime} onChange={e => setCustomerDetails({...customerDetails, travelTime: e.target.value})} />
+                    </div>
                   </div>
                   
                   <div className="flex gap-4 mb-8">
@@ -1380,7 +1410,17 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                       <button onClick={() => {if(messageTextareaRef.current) { navigator.clipboard.writeText(generatedMessage); alert("Synthesis Copied!"); }}} className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 hover:bg-blue-100 transition-all"><Copy className="w-3.5 h-3.5 mr-2 inline" /> Copy</button>
                   </div>
                   <textarea ref={messageTextareaRef} className="w-full min-h-[250px] p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] text-sm font-bold text-gray-600 focus:outline-none resize-none mb-8 shadow-inner leading-relaxed" value={generatedMessage} readOnly />
-                  <div className="grid grid-cols-2 gap-4"><button onClick={() => window.open(`https://wa.me/${customerDetails.phone.replace(/\D/g, '')}?text=${encodeURIComponent(generatedMessage)}`, '_blank')} className="bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-3 transform active:scale-95 transition-all"><MessageCircle className="w-5 h-5" /> WhatsApp</button><button className="bg-blue-500 hover:bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/20 flex items-center justify-center gap-3 transform active:scale-95 transition-all"><Mail className="w-5 h-5" /> Email</button></div>
+                  <div className="grid grid-cols-3 gap-4">
+                      <button onClick={() => setShowInvoice(true)} className="bg-slate-800 hover:bg-slate-900 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 flex items-center justify-center gap-3 transform active:scale-95 transition-all">
+                          <FileText className="w-5 h-5" /> Invoice
+                      </button>
+                      <button onClick={() => window.open(`https://wa.me/${customerDetails.phone.replace(/\D/g, '')}?text=${encodeURIComponent(generatedMessage)}`, '_blank')} className="bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-3 transform active:scale-95 transition-all">
+                          <MessageCircle className="w-5 h-5" /> WhatsApp
+                      </button>
+                      <button className="bg-blue-500 hover:bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/20 flex items-center justify-center gap-3 transform active:scale-95 transition-all">
+                          <Mail className="w-5 h-5" /> Email
+                      </button>
+                  </div>
               </div>
           </div>
       </div>
@@ -1493,8 +1533,176 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             </table>
         </div>
       </div>
+      <InvoiceModal 
+        isOpen={showInvoice} 
+        onClose={() => setShowInvoice(false)} 
+        customerDetails={customerDetails}
+        transportDetails={transportDetails}
+        tripType={tripType}
+        vehicleType={vehicleType}
+        outstationSubType={outstationSubType}
+        fareBreakup={fareBreakup}
+        estimatedCost={estimatedCost}
+        corporateName={corporateName}
+      />
     </div>
   );
+};
+
+interface InvoiceModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    customerDetails: { name: string; phone: string; pickup: string; travelDate?: string; travelTime?: string };
+    transportDetails: { destination: string };
+    tripType: TripType;
+    vehicleType: VehicleType;
+    outstationSubType: OutstationSubType;
+    fareBreakup: FareItem[];
+    estimatedCost: number;
+    corporateName: string;
+}
+
+const InvoiceModal = ({ 
+    isOpen, 
+    onClose, 
+    customerDetails, 
+    transportDetails, 
+    tripType, 
+    vehicleType, 
+    outstationSubType, 
+    fareBreakup, 
+    estimatedCost,
+    corporateName
+}: InvoiceModalProps) => {
+    if (!isOpen) return null;
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 className="font-black text-gray-800 uppercase tracking-widest text-xs flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-500" /> Proforma Invoice
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handlePrint} className="p-2 text-gray-400 hover:text-indigo-600 transition-colors">
+                            <Printer className="w-5 h-5" />
+                        </button>
+                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-rose-500 transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-8 md:p-12 print:p-0" id="printable-invoice">
+                    <div className="space-y-8">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-2 border-gray-100 pb-8">
+                            <div className="space-y-1">
+                                <p className="text-xs font-black text-indigo-600 uppercase tracking-[0.3em]">www.okboz.com</p>
+                                <h1 className="text-2xl font-black text-gray-900 tracking-tighter uppercase">OK BOZ SUPER APP</h1>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">operated by Jkrish private limited.</p>
+                                <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mt-2">GST : 33AAFCJ1772N1ZB</p>
+                            </div>
+                            <div className="text-right space-y-1">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Provider</p>
+                                <p className="text-sm font-black text-gray-800 uppercase">{corporateName}</p>
+                            </div>
+                        </div>
+
+                        {/* Customer & Trip Info */}
+                        <div className="grid grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Customer Details</p>
+                                <div className="space-y-1">
+                                    <p className="text-sm font-black text-gray-800">{customerDetails.name}</p>
+                                    <p className="text-xs font-bold text-gray-500">{customerDetails.phone}</p>
+                                </div>
+                            </div>
+                            <div className="space-y-4 text-right">
+                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Trip Summary</p>
+                                <div className="space-y-1">
+                                    <p className="text-sm font-black text-gray-800">{tripType} - {vehicleType}</p>
+                                    {tripType === 'Outstation' && <p className="text-xs font-bold text-gray-500">{outstationSubType}</p>}
+                                    {customerDetails.travelDate && (
+                                        <p className="text-xs font-bold text-indigo-600">
+                                            {customerDetails.travelDate} {customerDetails.travelTime && `@ ${customerDetails.travelTime}`}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Route Info */}
+                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Pickup</p>
+                                    <p className="text-xs font-bold text-gray-700">{customerDetails.pickup}</p>
+                                </div>
+                                {tripType === 'Outstation' && (
+                                    <div>
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Destination</p>
+                                        <p className="text-xs font-bold text-gray-700">{transportDetails.destination}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Fare Breakdown */}
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Fare Breakdown</p>
+                            <div className="space-y-3">
+                                {fareBreakup.map((item: FareItem, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center text-sm">
+                                        <span className="font-bold text-gray-600">
+                                            {item.label}
+                                            {item.description && (
+                                                <span className="text-[10px] text-gray-400 font-medium ml-1">
+                                                    ({item.description})
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="font-mono font-black text-gray-900">₹{item.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                ))}
+                                <div className="h-px bg-gray-100 my-4"></div>
+                                <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                    <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Total Estimated Fare</span>
+                                    <span className="text-xl font-black text-indigo-600">₹{estimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="pt-8 border-t border-gray-100 text-center">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em]">This is a computer generated estimate and does not require a physical signature.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <style>{`
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #printable-invoice, #printable-invoice * {
+                        visibility: visible;
+                    }
+                    #printable-invoice {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                    }
+                }
+            `}</style>
+        </div>
+    );
 };
 
 export default CustomerCare;
