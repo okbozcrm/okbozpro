@@ -214,7 +214,10 @@ export interface Enquiry {
     outstationWaypoints?: { address: string; coords: { lat: number; lng: number } | null }[];
     estKm?: string;
     waitingMins?: string;
-    packageId?: string;
+    extraHr?: string;
+    extraKm?: string;
+    tollCharge?: string;
+    isHillsTrip?: boolean;
     destination?: string;
     days?: string;
     estTotalKm?: string;
