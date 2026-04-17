@@ -415,7 +415,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
         'live_tracking': { id: 'tracking', path: '/user/tracking', label: 'Live Tracking', icon: Navigation },
-        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers }
+        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers },
+        'attendance': { id: 'attendance-admin', path: '/user/attendance-admin', label: 'Attendance Dashboard', icon: Activity }
     };
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

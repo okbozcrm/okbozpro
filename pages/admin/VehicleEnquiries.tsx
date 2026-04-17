@@ -426,7 +426,15 @@ Book now with OK BOZ Transport!`;
           vehicleType,
           outstationSubType,
           transportData: enquiryCategory === 'Transport' ? {
-              ...transportDetails,
+              // Explicitly pick fields to avoid circular references from spread
+              drop: String(transportDetails.drop || ''),
+              estKm: String(transportDetails.estKm || ''),
+              waitingMins: String(transportDetails.waitingMins || ''),
+              packageId: String(transportDetails.packageId || ''),
+              destination: String(transportDetails.destination || ''),
+              days: String(transportDetails.days || '1'),
+              estTotalKm: String(transportDetails.estTotalKm || ''),
+              nights: String(transportDetails.nights || '0'),
               pickup: customerDetails.pickup,
               pickupCoords: pickupCoords ? { lat: Number(pickupCoords.lat), lng: Number(pickupCoords.lng) } : null,
               dropCoords: dropCoords ? { lat: Number(dropCoords.lat), lng: Number(dropCoords.lng) } : null,

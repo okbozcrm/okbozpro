@@ -58,6 +58,20 @@ const downloadCSV = (content: string, filename: string) => {
 };
 
 
+// Utility to safely stringify objects with potential circular references
+const safeStringify = (obj: unknown) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
 export const TripBooking: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
   const role = localStorage.getItem('user_role') as UserRole;
@@ -380,7 +394,7 @@ export const TripBooking: React.FC = () => {
         updatedStorage = [tripData, ...currentStorage];
     }
 
-    localStorage.setItem(storageKey, JSON.stringify(updatedStorage));
+    localStorage.setItem(storageKey, safeStringify(updatedStorage));
 
     saveToGoogleSheet(tripData);
 
@@ -429,7 +443,7 @@ export const TripBooking: React.FC = () => {
       const key = targetId === 'admin' ? 'trips_data' : `trips_data_${targetId}`;
       const current: Trip[] = JSON.parse(localStorage.getItem(key) || '[]');
       const filtered = current.filter((t) => t.id !== id);
-      localStorage.setItem(key, JSON.stringify(filtered));
+      localStorage.setItem(key, safeStringify(filtered));
       window.dispatchEvent(new Event('cloud-sync-immediate'));
       loadData();
     }
@@ -547,7 +561,7 @@ export const TripBooking: React.FC = () => {
           if (newTrips.length > 0) {
               const targetKey = isSuperAdmin ? 'trips_data' : `trips_data_${corporateId}`;
               const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
-              localStorage.setItem(targetKey, JSON.stringify([...newTrips, ...existing]));
+              localStorage.setItem(targetKey, safeStringify([...newTrips, ...existing]));
               alert(`Successfully imported ${newTrips.length} trips!`);
               loadData();
           } else {

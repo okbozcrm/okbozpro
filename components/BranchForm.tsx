@@ -85,23 +85,43 @@ const BranchForm: React.FC = () => {
     if (isSuperAdmin) {
         // Save Head Office Branches
         const adminBranches = branches.filter(b => b.owner === 'admin');
-        // Strip metadata before saving
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const cleanAdmin = adminBranches.map(({owner, ownerName, ...rest}) => rest);
+        // Strip metadata and clean fields before saving
+        const cleanAdmin = adminBranches.map(b => ({
+            id: String(b.id),
+            name: String(b.name),
+            address: String(b.address),
+            radius: Number(b.radius) || 100,
+            lat: Number(b.lat),
+            lng: Number(b.lng)
+        }));
         localStorage.setItem('branches_data', JSON.stringify(cleanAdmin));
 
         // Save Corporate Branches (Iterate corporates to find their branches in state)
         const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
         corps.forEach((c: CorporateAccount) => {
              const cBranches = branches.filter(b => b.owner === c.email);
-             // eslint-disable-next-line @typescript-eslint/no-unused-vars
-             const cleanC = cBranches.map(({owner, ownerName, ...rest}) => rest);
+             const cleanC = cBranches.map(b => ({
+                id: String(b.id),
+                name: String(b.name),
+                address: String(b.address),
+                radius: Number(b.radius) || 100,
+                lat: Number(b.lat),
+                lng: Number(b.lng)
+             }));
              localStorage.setItem(`branches_data_${c.email}`, JSON.stringify(cleanC));
         });
     } else {
         // Normal User Save
         const key = getSessionKey();
-        localStorage.setItem(key, JSON.stringify(branches));
+        const cleanBranches = branches.map(b => ({
+            id: String(b.id),
+            name: String(b.name),
+            address: String(b.address),
+            radius: Number(b.radius) || 100,
+            lat: Number(b.lat),
+            lng: Number(b.lng)
+        }));
+        localStorage.setItem(key, JSON.stringify(cleanBranches));
     }
   }, [branches, isSuperAdmin]);
   

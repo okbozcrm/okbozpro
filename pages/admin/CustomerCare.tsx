@@ -138,6 +138,21 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsVehicleType, setSettingsVehicleType] = useState<VehicleType>('Sedan');
   
+  const sessionId = localStorage.getItem('app_session_id') || 'admin';
+  const isSuperAdmin = sessionId === 'admin';
+  const isEmployee = role === UserRole.EMPLOYEE;
+
+  // Determine corporate context
+  const corporateEmail = isEmployee 
+    ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
+    : (role === UserRole.CORPORATE ? sessionId : 'admin');
+
+  const ADMIN_PRICING_KEY = 'transport_pricing_rules_v3';
+  const ADMIN_PACKAGES_KEY = 'transport_rental_packages_v3';
+  
+  const contextPricingKey = corporateEmail === 'admin' ? ADMIN_PRICING_KEY : `transport_pricing_rules_v3_${corporateEmail}`;
+  const contextPackagesKey = corporateEmail === 'admin' ? ADMIN_PACKAGES_KEY : `transport_rental_packages_v3_${corporateEmail}`;
+
   // Enquiry State
   const [enquiryCategory, setEnquiryCategory] = useState<EnquiryCategory>('Transport');
 
@@ -167,7 +182,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [rentalPackages, setRentalPackages] = useState<RentalPackage[]>(() => {
-    const saved = localStorage.getItem('transport_rental_packages_v3');
+    const saved = localStorage.getItem(contextPackagesKey) || localStorage.getItem(ADMIN_PACKAGES_KEY);
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
@@ -188,7 +203,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   });
 
   const [pricing, setPricing] = useState<Record<VehicleType, PricingRules>>(() => {
-    const saved = localStorage.getItem('transport_pricing_rules_v3');
+    const saved = localStorage.getItem(contextPricingKey) || localStorage.getItem(ADMIN_PRICING_KEY);
     const defaults = { 
         Sedan: DEFAULT_PRICING_SEDAN, 
         SUV: DEFAULT_PRICING_SUV,
@@ -228,15 +243,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [allStaff, setAllStaff] = useState<Employee[]>([]);
-  
-  const sessionId = localStorage.getItem('app_session_id') || 'admin';
-  const isSuperAdmin = sessionId === 'admin';
-  const isEmployee = role === UserRole.EMPLOYEE;
-
-  // Determine corporate context
-  const corporateEmail = isEmployee 
-    ? localStorage.getItem('logged_in_employee_corporate_id') || 'admin'
-    : (role === UserRole.CORPORATE ? sessionId : 'admin');
 
   const currentCorporate = useMemo(() => {
     const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
@@ -266,12 +272,12 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('transport_rental_packages_v3', JSON.stringify(rentalPackages));
-  }, [rentalPackages]);
+    localStorage.setItem(contextPackagesKey, JSON.stringify(rentalPackages));
+  }, [rentalPackages, contextPackagesKey]);
 
   useEffect(() => {
-    localStorage.setItem('transport_pricing_rules_v3', JSON.stringify(pricing));
-  }, [pricing]);
+    localStorage.setItem(contextPricingKey, JSON.stringify(pricing));
+  }, [pricing, contextPricingKey]);
 
 
 
@@ -685,7 +691,19 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           priority: scheduleInfo?.priority,
           enquiryCategory, tripType, vehicleType, outstationSubType,
           transportData: enquiryCategory === 'Transport' ? { 
-              ...transportDetails, 
+              // Explicitly pick fields to avoid circular references from spread
+              estKm: String(transportDetails.estKm || ''),
+              waitingMins: String(transportDetails.waitingMins || ''),
+              packageId: String(transportDetails.packageId || ''),
+              extraHr: String(transportDetails.extraHr || ''),
+              extraKm: String(transportDetails.extraKm || ''),
+              tollCharge: String(transportDetails.tollCharge || ''),
+              destination: String(transportDetails.destination || ''),
+              days: String(transportDetails.days || '1'),
+              estTotalKm: String(transportDetails.estTotalKm || ''),
+              nights: String(transportDetails.nights || '0'),
+              isHillsTrip: !!transportDetails.isHillsTrip,
+              legDistances: Array.isArray(transportDetails.legDistances) ? [...transportDetails.legDistances] : [],
               drops: transportDetails.drops.map(d => ({
                   address: String(d.address || ''),
                   coords: d.coords ? { lat: Number(d.coords.lat), lng: Number(d.coords.lng) } : null
@@ -709,7 +727,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
   const handleCancelForm = () => {
       setCustomerDetails({ name: '', phone: '', email: '', pickup: '', requirements: '', travelDate: '', travelTime: '' });
-      setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', extraHr: '', extraKm: '', tollCharge: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false });
+      setTransportDetails({ drops: [{ address: '', coords: null }], outstationWaypoints: [], estKm: '', waitingMins: '', packageId: '', extraHr: '', extraKm: '', tollCharge: '', destination: '', days: '1', estTotalKm: '', nights: '0', isHillsTrip: false, legDistances: [] });
       setGeneratedMessage(''); setEstimatedCost(0); setEditingOrderId(null);
   };
 
@@ -729,11 +747,22 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       setEnquiryCategory(order.enquiryCategory || 'General');
       if (order.transportData) {
           setTripType(order.tripType || 'Local'); setVehicleType(order.vehicleType || 'Sedan');
+          const td = order.transportData;
           setTransportDetails({ 
-              ...transportDetails, 
-              ...order.transportData, 
-              drops: order.transportData.drops || [{ address: '', coords: null }],
-              outstationWaypoints: order.transportData.outstationWaypoints || []
+              drops: td.drops || [{ address: '', coords: null }],
+              outstationWaypoints: td.outstationWaypoints || [],
+              estKm: String(td.estKm || ''),
+              waitingMins: String(td.waitingMins || ''),
+              packageId: String(td.packageId || ''),
+              extraHr: String(td.extraHr || ''),
+              extraKm: String(td.extraKm || ''),
+              tollCharge: String(td.tollCharge || ''),
+              destination: String(td.destination || ''),
+              days: String(td.days || '1'),
+              estTotalKm: String(td.estTotalKm || ''),
+              nights: String(td.nights || '0'),
+              isHillsTrip: !!td.isHillsTrip,
+              legDistances: Array.isArray(td.legDistances) ? [...td.legDistances] : []
           });
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -64,6 +64,20 @@ const formatDuration = (mins: number) => {
     return `${h}h ${m}m`;
 };
 
+// Utility to safely stringify objects with potential circular references
+const safeStringify = (obj: unknown) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
 const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -275,7 +289,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
     
     setAttendanceData(data);
     // Initialize History with current state
-    setHistory([JSON.parse(JSON.stringify(data))]);
+    setHistory([JSON.parse(safeStringify(data))]);
     setHistoryIndex(0);
 
     const today = new Date().toISOString().split('T')[0];
@@ -286,7 +300,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   // --- UNDO / REDO LOGIC ---
   const pushToHistory = (newData: DailyAttendance[]) => {
       const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(JSON.parse(JSON.stringify(newData)));
+      newHistory.push(JSON.parse(safeStringify(newData)));
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
       
@@ -320,7 +334,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth();
       const key = `attendance_data_${selectedEmployee.id}_${year}_${month}`;
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key, safeStringify(data));
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('attendance-updated'));
   };

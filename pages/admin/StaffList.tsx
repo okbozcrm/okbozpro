@@ -3,7 +3,7 @@ import {
   Search, Phone, X, User, Upload, CreditCard, Briefcase, 
   Pencil, Trash2, Building2, Eye, EyeOff, Heart, 
   PhoneCall, ShieldCheck, Layers, DollarSign, Building, Check, Users, Landmark, CheckCircle,
-  Save, UserPlus
+  Save, UserPlus, Activity
 } from 'lucide-react'; 
 import { Employee, CorporateAccount, Branch } from '../../types';
 
@@ -26,6 +26,7 @@ const MODULE_PERMISSIONS = [
   { id: 'finance', label: 'Finance & Expenses', icon: Landmark },
   { id: 'live_tracking', label: 'Live Tracking', icon: Phone },
   { id: 'leads', label: 'Franchisee Leads', icon: Layers },
+  { id: 'attendance', label: 'Attendance Dashboard', icon: Activity },
   { id: 'payroll', label: 'Payroll Access', icon: DollarSign }
 ];
 
