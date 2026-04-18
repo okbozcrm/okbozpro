@@ -4,7 +4,7 @@ import {
   MessageCircle, Copy, Mail, Car, User, Edit2,
   X, Phone, Truck, DollarSign,
   Calendar, MapPin, Plus, Trash2, Headset,
-  Clock, Search, ChevronDown, AlertCircle, RefreshCcw, Mountain, List as ListIcon,
+  Clock, Search, ChevronDown, AlertCircle, RefreshCcw, Mountain, List as ListIcon, Building2,
   Package, TrendingUp as TrendingUpIcon, FileText, ArrowRight, Printer
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
@@ -153,6 +153,18 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const contextPricingKey = corporateEmail === 'admin' ? ADMIN_PRICING_KEY : `transport_pricing_rules_v3_${corporateEmail}`;
   const contextPackagesKey = corporateEmail === 'admin' ? ADMIN_PACKAGES_KEY : `transport_rental_packages_v3_${corporateEmail}`;
 
+  const [targetCorporateForRates, setTargetCorporateForRates] = useState<string>('admin');
+
+  // Effective keys based on targetCorporateForRates if super admin, otherwise use context keys
+  const effectivePricingKey = isSuperAdmin 
+    ? (targetCorporateForRates === 'admin' ? ADMIN_PRICING_KEY : `transport_pricing_rules_v3_${targetCorporateForRates}`)
+    : contextPricingKey;
+    
+  const effectivePackagesKey = isSuperAdmin
+    ? (targetCorporateForRates === 'admin' ? ADMIN_PACKAGES_KEY : `transport_rental_packages_v3_${targetCorporateForRates}`)
+    : contextPackagesKey;
+
+
   // Enquiry State
   const [enquiryCategory, setEnquiryCategory] = useState<EnquiryCategory>('Transport');
 
@@ -271,13 +283,65 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [enquiries, setEnquiries] = useState<Enquiry[]>(getInitialEnquiries);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
+  // Reload rates when effective keys change (for Super Admin switching context)
   useEffect(() => {
-    localStorage.setItem(contextPackagesKey, JSON.stringify(rentalPackages));
-  }, [rentalPackages, contextPackagesKey]);
+    if (!isSuperAdmin && targetCorporateForRates === 'admin') return; // Default behavior for non-admins
+
+    const pSaved = localStorage.getItem(effectivePricingKey) || localStorage.getItem(ADMIN_PRICING_KEY);
+    const pkgSaved = localStorage.getItem(effectivePackagesKey) || localStorage.getItem(ADMIN_PACKAGES_KEY);
+
+    const defaults = { 
+        Sedan: DEFAULT_PRICING_SEDAN, 
+        SUV: DEFAULT_PRICING_SUV,
+        '3 Wheeler Auto': DEFAULT_PRICING_AUTO,
+        'Tata Ace': DEFAULT_PRICING_ACE,
+        'Pickup': DEFAULT_PRICING_PICKUP,
+        'BADA DOST': DEFAULT_PRICING_BADA_DOST
+    };
+
+    if (pSaved) {
+        try {
+            const parsed = JSON.parse(pSaved);
+            const merged = { ...defaults };
+            Object.keys(parsed).forEach((key) => {
+                const vKey = key as VehicleType;
+                if (merged[vKey]) {
+                    merged[vKey] = { ...merged[vKey], ...parsed[vKey] };
+                }
+            });
+            setPricing(merged);
+        } catch (e) {
+            console.error("Error parsing pricing rules:", e);
+        }
+    } else {
+        setPricing(defaults);
+    }
+
+    if (pkgSaved) {
+        try {
+            const parsed = JSON.parse(pkgSaved);
+            setRentalPackages((parsed as RentalPackage[]).map((pkg) => ({
+                ...pkg,
+                priceAuto: pkg.priceAuto ?? 0,
+                priceAce: pkg.priceAce ?? 0,
+                pricePickup: pkg.pricePickup ?? 0,
+                priceBadaDost: pkg.priceBadaDost ?? 0
+            })));
+        } catch (e) {
+            console.error("Error parsing rental packages:", e);
+        }
+    } else {
+        setRentalPackages(DEFAULT_RENTAL_PACKAGES);
+    }
+  }, [effectivePricingKey, effectivePackagesKey, isSuperAdmin, targetCorporateForRates]);
 
   useEffect(() => {
-    localStorage.setItem(contextPricingKey, JSON.stringify(pricing));
-  }, [pricing, contextPricingKey]);
+    localStorage.setItem(effectivePackagesKey, JSON.stringify(rentalPackages));
+  }, [rentalPackages, effectivePackagesKey]);
+
+  useEffect(() => {
+    localStorage.setItem(effectivePricingKey, JSON.stringify(pricing));
+  }, [pricing, effectivePricingKey]);
 
 
 
@@ -843,6 +907,30 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                 <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
             </div>
             <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+              {isSuperAdmin && (
+                <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h4 className="font-black text-indigo-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                             <Building2 className="w-4 h-4" /> Account Scope
+                        </h4>
+                        <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mt-1">Configure global rates or select a franchise panel override</p>
+                    </div>
+                    <div className="relative min-w-[280px]">
+                        <select 
+                            value={targetCorporateForRates} 
+                            onChange={(e) => setTargetCorporateForRates(e.target.value)}
+                            className="w-full pl-6 pr-12 py-3 bg-white border border-indigo-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-700 outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-sm appearance-none cursor-pointer"
+                        >
+                            <option value="admin">Global Admin Panel</option>
+                            {JSON.parse(localStorage.getItem('corporate_accounts') || '[]').map((corp: CorporateAccount) => (
+                                <option key={corp.email} value={corp.email}>{corp.companyName} ({corp.email})</option>
+                            ))}
+                        </select>
+                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                    </div>
+                </div>
+              )}
+
               <div className="space-y-4 mb-8">
                  <div className="space-y-2">
                     <p className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.2em] ml-1">TAXI FLEET</p>
@@ -976,11 +1064,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Common Allowances</p>
                             <div className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra KM Rate (₹/km)</label>
-                                        <input type="number" name="outstationExtraKmRate" value={pricing[settingsVehicleType].outstationExtraKmRate || 0} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
-                                    </div>
-                                    <div>
+                                    <div className="col-span-2">
                                         <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Extra Hr Rate (₹/hr)</label>
                                         <input type="number" name="outstationExtraHrRate" value={pricing[settingsVehicleType].outstationExtraHrRate || 0} onChange={handlePricingChange} className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner" />
                                     </div>
