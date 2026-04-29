@@ -81,44 +81,54 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     }
 
     if (setNewPlace) {
-      try {
-        // Method 1: Try Standard Geocoding (Requires Geocoding API)
-        const results = await getGeocode({ address });
-        const { lat, lng } = await getLatLng(results[0]);
-        setNewPlace({ lat, lng });
-      } catch (error: unknown) {
-        console.warn("Geocoding failed, attempting PlacesService fallback...", error);
-        
-        // Method 2: Fallback to Places Details (Requires Places API, often enabled when Geocoding isn't)
+      // Strategy: Favor Places Service over Geocoding API to avoid "Geocoding API not activated" errors
+      // Most users have Places enabled for Autocomplete, but may forget Geocoding.
+      const usePlacesDetails = (pId: string) => {
         if (window.google && window.google.maps && window.google.maps.places) {
-            try {
-                const mapDiv = document.createElement('div');
-                const service = new window.google.maps.places.PlacesService(mapDiv);
-                
-                service.getDetails({ placeId: placeId, fields: ['geometry'] }, (place, status) => {
-                    if (status === window.google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
-                        setNewPlace({
-                            lat: place.geometry.location.lat(),
-                            lng: place.geometry.location.lng()
-                        });
-                        setErrorMsg(null);
-                    } else {
-        // If both fail, show specific error
-        console.error("Places Details fallback failed:", status);
-        const errString = String(error);
-        if (errString.includes("REQUEST_DENIED") || errString === "REQUEST_DENIED" || errString.includes("not activated")) {
-             setErrorMsg("API Error: Enable 'Geocoding API' & 'Places API' in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
+          try {
+            const mapDiv = document.createElement('div');
+            const service = new window.google.maps.places.PlacesService(mapDiv);
+            service.getDetails({ placeId: pId, fields: ['geometry'] }, (place, status) => {
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
+                    setNewPlace({
+                        lat: place.geometry.location.lat(),
+                        lng: place.geometry.location.lng()
+                    });
+                    setErrorMsg(null);
+                } else {
+                    console.warn("Places Details failed, trying geocoding...", status);
+                    attemptGeocode(address);
+                }
+            });
+          } catch {
+            attemptGeocode(address);
+          }
         } else {
-             setErrorMsg("Failed to fetch location coordinates.");
+          attemptGeocode(address);
         }
-                    }
-                });
-            } catch (fallbackError) {
-                console.error("Fallback error", fallbackError);
+      };
+
+      const attemptGeocode = async (addr: string) => {
+        try {
+            const results = await getGeocode({ address: addr });
+            const { lat, lng } = await getLatLng(results[0]);
+            setNewPlace({ lat, lng });
+            setErrorMsg(null);
+        } catch (error: unknown) {
+            console.error("Geocoding failed:", error);
+            const errString = String(error);
+            if (errString.includes("REQUEST_DENIED") || errString.includes("not activated") || errString.includes("Geocoding Service")) {
+                 setErrorMsg("API Not Activated: Enable 'Geocoding API' in Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps");
+            } else {
+                 setErrorMsg("Failed to fetch location coordinates.");
             }
-        } else {
-             setErrorMsg("Maps services unavailable.");
         }
+      };
+
+      if (placeId) {
+          usePlacesDetails(placeId);
+      } else {
+          attemptGeocode(address);
       }
     }
   };

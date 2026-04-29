@@ -45,7 +45,9 @@ const GLOBAL_KEYS = [
   'dashboard_stats',
   'google_sheet_script_url', // Added for Trip Booking Integration
   'global_transaction_counter', // ADDED: Rolling Transaction Number for Finance
-  'google_sop_folder_url' // NEW: Google Drive SOPs Folder URL
+  'google_sop_folder_url', // NEW: Google Drive SOPs Folder URL
+  'transport_pricing_rules_v3',
+  'transport_rental_packages_v3'
 ];
 
 // 🏢 Franchise-Specific Data (Suffix applied automatically)
@@ -66,7 +68,9 @@ const NAMESPACED_KEYS = [
   'company_payout_dates',
   'corporate_profit_overview', // Added for Profit & Expense Report Sync
   'analytics_cache', // Added for Full Reports Page Sync
-  'office_expenses' // ADDED: Ensures Franchise expenses are synced
+  'office_expenses', // ADDED: Ensures Franchise expenses are synced
+  'transport_pricing_rules_v3',
+  'transport_rental_packages_v3'
 ];
 
 // ⚡ Real-time Dynamic Logs

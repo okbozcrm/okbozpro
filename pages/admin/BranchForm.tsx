@@ -274,7 +274,7 @@ const BranchForm: React.FC = () => {
         setLoadingAddress(false);
         if (status === "OK" && results[0]) {
           setAddress(results[0].formatted_address);
-        } else if (status === 'REQUEST_DENIED' || status === 'ERROR' || String(status).includes("not activated")) {
+        } else if (status === 'REQUEST_DENIED' || status === 'ERROR' || status === 'INVALID_REQUEST' || String(status).includes("not activated")) {
           console.error("Geocoding API Error:", status);
           const msg = "Geocoding API is not enabled. Please enable 'Geocoding API' in your Google Cloud Console: https://console.cloud.google.com/apis/library?filter=category:maps";
           setMapError(msg);
