@@ -326,7 +326,7 @@ export const TripBooking: React.FC = () => {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(tripData)
+            body: safeStringify(tripData)
         });
         console.log("Trip data sent to Google Sheet");
     } catch (error) {

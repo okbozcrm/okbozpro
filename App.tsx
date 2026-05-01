@@ -23,10 +23,8 @@ import Reports from './pages/admin/Reports';
 import EmailMarketing from './pages/admin/EmailMarketing';
 import { TripBooking } from './pages/admin/TripBooking';
 import { CustomerCare } from './pages/admin/CustomerCare';
-import AutoDialer from './pages/admin/AutoDialer';
 import { DriverPayments } from './pages/admin/DriverPayments';
 import DataExport from './pages/admin/DataExport'; 
-import Messenger from './pages/admin/Messenger'; 
 import UserAttendance from './pages/user/UserAttendance';
 import UserSalary from './pages/user/UserSalary';
 import ApplyLeave from './pages/user/ApplyLeave';
@@ -154,7 +152,6 @@ const App: React.FC = () => {
                         <Route path="/admin/reports" element={<Reports />} />
                         <Route path="/admin/marketing" element={userRole === UserRole.ADMIN || userRole === UserRole.SUB_ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
                         <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
-                        <Route path="/admin/auto-dialer" element={<AutoDialer />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
                         <Route path="/admin/tracking" element={<LiveTracking />} />
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
@@ -172,7 +169,6 @@ const App: React.FC = () => {
                         <Route path="/admin/finance-and-expenses" element={<Expenses />} />
                         <Route path="/admin/corporate" element={<Corporate />} />
                         <Route path="/admin/data-export" element={<DataExport />} />
-                        <Route path="/admin/chat" element={<Messenger role={userRole} />} />
                         <Route path="/admin/gen-ai-tools" element={<GenAITools />} />
                         <Route path="/admin/sop" element={<SOPDocuments />} /> 
                         {userRole === UserRole.ADMIN && (
@@ -198,7 +194,6 @@ const App: React.FC = () => {
                         <Route path="/user/documents" element={<Documents role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/apply-leave" element={<ApplyLeave />} />
                         <Route path="/user/profile" element={<UserProfile />} />
-                        <Route path="/user/chat" element={<Messenger role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/reports" element={<Reports />} />
                         <Route path="/user/trips" element={<TripBooking />} />
                         <Route path="/user/tracking" element={<LiveTracking />} />
@@ -207,7 +202,6 @@ const App: React.FC = () => {
                         <Route path="/user/staff" element={<StaffList />} />
                         <Route path="/user/payroll" element={<Payroll />} />
                         <Route path="/user/expenses" element={<Expenses />} />
-                        <Route path="/user/auto-dialer" element={<AutoDialer />} />
                         <Route path="/user/leads" element={<Leads />} />
                         <Route path="/user/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, PhoneForwarded, Database, Sun as SunIcon, Moon as MoonIcon, MessageSquareText, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical } from 'lucide-react';
 import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,11 +16,9 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'chat', path: '/admin/chat', label: 'Boz Chat', icon: MessageSquareText },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
-  { id: 'auto-dialer', path: '/admin/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
   { id: 'customer-care', path: '/admin/customer-care', label: 'Customer Care', icon: Headset },
   { id: 'trips', path: '/admin/trips', label: 'Trip Booking', icon: Map },
   { id: 'tracking', path: '/admin/tracking', label: 'Live Tracking', icon: Navigation },
@@ -349,11 +347,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           const permKeyMap: Record<string, string> = {
               'dashboard': 'Dashboard',
               'tracking': 'Live Tracking',
-              'chat': 'Boz Chat',
               'employee-settings': 'Employee Setting',
               'reports': 'Reports',
               'marketing': 'Email Marketing',
-              'auto-dialer': 'Auto Dialer',
               'customer-care': 'Customer Care',
               'trips': 'Trip Booking',
               'driver-payments': 'Driver Payments',
@@ -380,10 +376,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       }
 
       const corporateAllowed = [
-        'dashboard', 'reports', 'chat', 'customer-care', 'trips', 'tracking',
+        'dashboard', 'reports', 'customer-care', 'trips', 'tracking',
         'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
         'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
-        'auto-dialer', 'sop-documents' // NEW: SOP Documents for Corporate
+        'sop-documents' // NEW: SOP Documents for Corporate
       ];
       if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
       return false;
@@ -393,14 +389,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const userLinks = useMemo(() => {
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
-        { id: 'auto-dialer', path: '/user/auto-dialer', label: 'Auto Dialer', icon: PhoneForwarded },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
         { id: 'my-km-claims', path: '/user/km-claims', label: 'My KM Claims (TA)', icon: Bike },
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
-        { id: 'chat-employee', path: '/user/chat', label: 'Boz Chat', icon: MessageSquareText },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
     ];

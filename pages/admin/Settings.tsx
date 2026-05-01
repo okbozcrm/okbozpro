@@ -4,9 +4,9 @@ import {
   Settings as SettingsIcon, Lock as LockIcon, 
   Cloud, Database, Globe, Save,
   UploadCloud, DownloadCloud, Loader2, RefreshCw, Eye,
-  PhoneForwarded, Headset, ClipboardList,
+  Headset, ClipboardList,
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
-  MapPin, MessageSquare, Clock, Megaphone, Target, Users, Car,
+  MapPin, Clock, Megaphone, Target, Users, Car,
   DollarSign, HardDrive, Building2, Bike, X, EyeOff, Plane, TrendingUp,
   FileSpreadsheet, BookOpen, AlertTriangle
 } from 'lucide-react';
@@ -111,11 +111,9 @@ const Settings: React.FC = () => {
     const collections = [
         { key: 'dashboard_stats', label: 'Dashboard', icon: LayoutDashboard },
         { key: 'active_staff_locations', label: 'Live Tracking', icon: MapPin },
-        { key: 'internal_messages_data', label: 'Boz Chat', icon: MessageSquare },
         { key: 'company_shifts', label: 'Employee Setting', icon: Clock },
         { key: 'analytics_cache', label: 'Reports (Full)', icon: FileText },
         { key: 'campaign_history', label: 'Email Marketing', icon: Megaphone },
-        { key: 'auto_dialer_data', label: 'Auto Dialer', icon: PhoneForwarded },
         { key: 'global_enquiries_data', label: 'Customer Care', icon: Headset },
         { key: 'trips_data', label: 'Trip Booking', icon: Map },
         { key: 'driver_payment_records', label: 'Driver Payments', icon: ReceiptIndianRupee },

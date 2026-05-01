@@ -36,7 +36,6 @@ const GLOBAL_KEYS = [
   'global_enquiries_data',
   'global_travel_requests', // KM Claims
   'global_leave_requests',
-  'internal_messages_data', // Boz Chat
   'office_expenses', // Root Admin Expenses
   'campaign_history', // Email Marketing
   'app_branding',
@@ -60,7 +59,6 @@ const NAMESPACED_KEYS = [
   'trips_data',
   'driver_payment_records',
   'driver_wallet_data',
-  'auto_dialer_data',
   'payroll_history',
   'company_departments',
   'company_roles',

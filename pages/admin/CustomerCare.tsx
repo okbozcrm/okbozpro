@@ -88,6 +88,7 @@ interface PricingRules {
   outstationExtraKmRate: number;
   outstationOneWayExtraKmRate: number; // Added for One Way Extra Km Rate
   outstationExtraHrRate: number; // Added for Extra Hr Rate
+  outstationRoundTripFreeHours: number; // Added for round trip free hours
   outstationDriverAllowance: number;
   outstationNightAllowance: number;
   outstationHillsAllowance: number;
@@ -172,6 +173,7 @@ const DEFAULT_PRICING_SEDAN: PricingRules = {
   outstationExtraKmRate: 13,
   outstationOneWayExtraKmRate: 13,
   outstationExtraHrRate: 100,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 400,
   outstationNightAllowance: 300,
   outstationHillsAllowance: 500,
@@ -190,6 +192,7 @@ const DEFAULT_PRICING_SUV: PricingRules = {
   outstationExtraKmRate: 17,
   outstationOneWayExtraKmRate: 17,
   outstationExtraHrRate: 150,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 500,
   outstationNightAllowance: 400,
   outstationHillsAllowance: 700,
@@ -208,6 +211,7 @@ const DEFAULT_PRICING_AUTO: PricingRules = {
   outstationExtraKmRate: 12,
   outstationOneWayExtraKmRate: 12,
   outstationExtraHrRate: 80,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 300,
   outstationNightAllowance: 200,
   outstationHillsAllowance: 400,
@@ -226,6 +230,7 @@ const DEFAULT_PRICING_ACE: PricingRules = {
   outstationExtraKmRate: 18,
   outstationOneWayExtraKmRate: 18,
   outstationExtraHrRate: 200,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 500,
   outstationNightAllowance: 400,
   outstationHillsAllowance: 600,
@@ -244,6 +249,7 @@ const DEFAULT_PRICING_PICKUP: PricingRules = {
   outstationExtraKmRate: 22,
   outstationOneWayExtraKmRate: 22,
   outstationExtraHrRate: 250,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 600,
   outstationNightAllowance: 500,
   outstationHillsAllowance: 800,
@@ -262,6 +268,7 @@ const DEFAULT_PRICING_BADA_DOST: PricingRules = {
   outstationExtraKmRate: 25,
   outstationOneWayExtraKmRate: 25,
   outstationExtraHrRate: 300,
+  outstationRoundTripFreeHours: 0,
   outstationDriverAllowance: 700,
   outstationNightAllowance: 600,
   outstationHillsAllowance: 900,
@@ -281,6 +288,20 @@ interface DropPoint {
   coords: { lat: number; lng: number } | null;
   date?: string;
 }
+
+// Utility to safely stringify objects with potential circular references
+const safeStringify = (obj: unknown) => {
+  const cache = new Set();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (cache.has(value)) {
+        return "[Circular]";
+      }
+      cache.add(value);
+    }
+    return value;
+  });
+};
 
 export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [showInvoice, setShowInvoice] = useState(false);
@@ -351,6 +372,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     estTotalKm: "",
     nights: "0",
     isHillsTrip: false,
+    totalTripHrs: "",
     legDistances: [] as number[],
   });
 
@@ -556,11 +578,11 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   ]);
 
   useEffect(() => {
-    localStorage.setItem(effectivePackagesKey, JSON.stringify(rentalPackages));
+    localStorage.setItem(effectivePackagesKey, safeStringify(rentalPackages));
   }, [rentalPackages, effectivePackagesKey]);
 
   useEffect(() => {
-    localStorage.setItem(effectivePricingKey, JSON.stringify(pricing));
+    localStorage.setItem(effectivePricingKey, safeStringify(pricing));
   }, [pricing, effectivePricingKey]);
 
   // Listen for storage changes to sync across tabs or after manual refresh from cloud
@@ -779,6 +801,9 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
     tripType,
     outstationSubType,
   ]);
+
+
+  const rules = pricing[vehicleType];
 
   const handlePricingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -1110,7 +1135,17 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
           : 0;
 
         const extraKm = parseFloat(transportDetails.extraKm) || 0;
-        const extraHr = parseFloat(transportDetails.extraHr) || 0;
+        let extraHr = parseFloat(transportDetails.extraHr) || 0;
+
+        // Auto-calculate extraHr for Round Trip if totalTripHrs is provided
+        if (outstationSubType === "RoundTrip" && transportDetails.totalTripHrs) {
+          const totalHrs = parseFloat(transportDetails.totalTripHrs) || 0;
+          const freeHrs = rules.outstationRoundTripFreeHours || 0;
+          if (totalHrs > freeHrs && (extraHr === 0 || extraHr === null)) {
+            extraHr = totalHrs - freeHrs;
+          }
+        }
+
         const extraKmCost = extraKm * perKmRate;
         const extraHrCost = extraHr * rules.outstationExtraHrRate;
         const tollCharge = parseFloat(transportDetails.tollCharge) || 0;
@@ -1157,13 +1192,16 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             description: `${extraKm} KM`,
             type: "extra",
           });
-        if (extraHrCost > 0)
+        if (extraHrCost > 0) {
+          const totalHrs = parseFloat(transportDetails.totalTripHrs) || 0;
+          const freeHrs = rules.outstationRoundTripFreeHours || 0;
           breakup.push({
             label: "Extra Hours",
             value: extraHrCost,
-            description: `${extraHr} Hr`,
+            description: `${extraHr} Hr${totalHrs > 0 && freeHrs > 0 ? ` (${totalHrs}h - ${freeHrs}h free)` : ""}`,
             type: "extra",
           });
+        }
         if (tollCharge > 0)
           breakup.push({
             label: "Toll & Parking",
@@ -1270,7 +1308,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             ? `• Extra KM: ₹${extraKmCost.toFixed(2)} (${extraKm} KM)\n`
             : "") +
           (extraHrCost > 0
-            ? `• Extra Hours: ₹${extraHrCost.toFixed(2)} (${extraHr} Hr)\n`
+            ? `• Extra Hours: ₹${extraHrCost.toFixed(2)} (${extraHr} Hr${parseFloat(transportDetails.totalTripHrs) > 0 && rules.outstationRoundTripFreeHours > 0 ? ` [${transportDetails.totalTripHrs}h - ${rules.outstationRoundTripFreeHours}h free]` : ""})\n`
             : "") +
           (tollCharge > 0
             ? `• Toll & Parking: ₹${tollCharge.toFixed(2)}\n`
@@ -1447,7 +1485,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             ? `• Extra KM: ₹${extraKmCost.toFixed(2)} (${extraKm} KM)\n`
             : "") +
           (extraHrCost > 0
-            ? `• Extra Hours: ₹${extraHrCost.toFixed(2)} (${extraHr} Hr)\n`
+            ? `• Extra Hours: ₹${extraHrCost.toFixed(2)} (${extraHr} Hr${rules.outstationRoundTripFreeHours > 0 ? ` [after ${rules.outstationRoundTripFreeHours}h free]` : ""})\n`
             : "") +
           (tollCharge > 0
             ? `• Toll & Parking: ₹${tollCharge.toFixed(2)}\n`
@@ -1592,7 +1630,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
       ? enquiries.map((e) => (e.id === editingOrderId ? newEnquiry : e))
       : [newEnquiry, ...enquiries];
     setEnquiries(updatedList);
-    localStorage.setItem("global_enquiries_data", JSON.stringify(updatedList));
+    localStorage.setItem("global_enquiries_data", safeStringify(updatedList));
     syncToCloud();
     alert(`Success: ${status}`);
     handleCancelForm();
@@ -2098,6 +2136,21 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                               value={
                                 pricing[settingsVehicleType]
                                   .outstationExtraHrRate || 0
+                              }
+                              onChange={handlePricingChange}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">
+                              Round Trip Free Hours
+                            </label>
+                            <input
+                              type="number"
+                              name="outstationRoundTripFreeHours"
+                              value={
+                                pricing[settingsVehicleType]
+                                  .outstationRoundTripFreeHours || 0
                               }
                               onChange={handlePricingChange}
                               className="w-full p-2.5 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-orange-500 outline-none text-xs shadow-inner"
@@ -2967,7 +3020,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                   {idx + 1}
                                 </div>
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                  {wp.address || `Waypoint ${idx + 1}`}
+                                  {wp.address || (transportDetails.outstationWaypoints[idx]?.address ? getCityName(transportDetails.outstationWaypoints[idx].address) : `Waypoint ${idx + 1}`)}
                                 </span>
                               </div>
                               <button
@@ -3115,18 +3168,18 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                 transportDetails.outstationWaypoints.length;
                               let label = `Leg ${i + 1}`;
                               if (i === 0)
-                                label = "Pickup City ➔ Waypoint 1 City";
+                                label = `${getCityName(customerDetails.pickup) || "Pickup City"} ➔ ${getCityName(transportDetails.outstationWaypoints[0]?.address) || "Waypoint 1 City"}`;
                               if (numWaypoints === 0 && i === 0)
-                                label = "Pickup City ➔ Destination City";
+                                label = `${getCityName(customerDetails.pickup) || "Pickup City"} ➔ ${getCityName(transportDetails.destination) || "Destination City"}`;
                               if (i > 0 && i < numWaypoints)
-                                label = `Waypoint ${i} City ➔ Waypoint ${i + 1} City`;
+                                label = `${getCityName(transportDetails.outstationWaypoints[i - 1]?.address) || `Waypoint ${i} City`} ➔ ${getCityName(transportDetails.outstationWaypoints[i]?.address) || `Waypoint ${i + 1} City`}`;
                               if (i === numWaypoints && numWaypoints > 0)
-                                label = `Waypoint ${i} City ➔ Destination City`;
+                                label = `${getCityName(transportDetails.outstationWaypoints[i - 1]?.address) || `Waypoint ${i} City`} ➔ ${getCityName(transportDetails.destination) || "Destination City"}`;
                               if (
                                 outstationSubType === "RoundTrip" &&
                                 i === transportDetails.legDistances.length - 1
                               )
-                                label = "Return ➔ Pickup City";
+                                label = `Return ➔ ${getCityName(customerDetails.pickup) || "Pickup City"}`;
 
                               return (
                                 <div
@@ -3163,11 +3216,34 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
+                          Total Trip Hrs
+                        </label>
+                        <input
+                          type="number"
+                          className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          value={transportDetails.totalTripHrs}
+                          onChange={(e) =>
+                            setTransportDetails({
+                              ...transportDetails,
+                              totalTripHrs: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-gray-400 uppercase ml-1">
                           Extra Hours
                         </label>
                         <input
                           type="number"
                           className="p-4 bg-gray-50 border-none rounded-2xl w-full text-sm font-black shadow-inner outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder={
+                            outstationSubType === "RoundTrip" &&
+                            transportDetails.totalTripHrs &&
+                            rules.outstationRoundTripFreeHours > 0
+                              ? `Auto-calc after ${rules.outstationRoundTripFreeHours}h`
+                              : ""
+                          }
                           value={transportDetails.extraHr}
                           onChange={(e) =>
                             setTransportDetails({

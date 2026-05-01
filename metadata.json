@@ -1,6 +1,6 @@
 {
-  "name": "OK BOZ Attendance & Payroll",
-  "description": "Enterprise-grade attendance management and payroll system with advanced filtering for joining and termination dates.",
+  "name": "OK BOZ Attendance, Payroll & Transport Pricing",
+  "description": "Enterprise-grade attendance management, payroll, and transport pricing terminal. Features advanced workforce tracking, finance management, and outstation/local fare configuration with automated customer outreach messaging.",
   "requestFramePermissions": [
     "camera",
     "geolocation",
