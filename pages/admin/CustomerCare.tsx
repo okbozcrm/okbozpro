@@ -303,6 +303,8 @@ const safeStringify = (obj: unknown) => {
   });
 };
 
+const getCityName = (addr: string) => (addr ? addr.split(",")[0].trim() : "");
+
 export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [showInvoice, setShowInvoice] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1114,8 +1116,6 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             : "");
       }
     } else {
-      const getCityName = (addr: string) =>
-        addr ? addr.split(",")[0].trim() : "";
       const days = parseFloat(transportDetails.days) || 1;
       const km = parseFloat(transportDetails.estTotalKm) || 0;
       const driverAllowance = rules.outstationDriverAllowance * days;
