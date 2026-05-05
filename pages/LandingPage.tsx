@@ -616,6 +616,7 @@ const LandingPage: React.FC = () => {
             <div className="space-y-8">
               <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Quick Links</h4>
               <ul className="space-y-5 text-sm font-bold text-gray-400">
+                <li><button onClick={() => navigate('/login')} className="hover:text-emerald-500 transition-colors uppercase tracking-widest text-left">Login</button></li>
                 <li><a href="#" className="hover:text-emerald-500 transition-colors uppercase tracking-widest">Our Fleet</a></li>
                 <li><a href="#" className="hover:text-emerald-500 transition-colors uppercase tracking-widest">Special Services</a></li>
                 <li><a href="#" className="hover:text-emerald-500 transition-colors uppercase tracking-widest">Corporate Login</a></li>
