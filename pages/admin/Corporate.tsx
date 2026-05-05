@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Building2, Mail, Phone, Lock, Trash2, X, MapPin, Eye, EyeOff, Download, Upload, AlertTriangle, Edit2, Percent, Users } from 'lucide-react';
+import { Plus, Search, Building2, Mail, Phone, Lock, Trash2, X, MapPin, Eye, EyeOff, Download, Upload, AlertTriangle, Edit2, Percent, Users, CarFront, Zap } from 'lucide-react';
 import { CorporateAccount, Partner, UserRole } from '../../types';
 
 const Corporate: React.FC = () => {
@@ -37,6 +37,7 @@ const Corporate: React.FC = () => {
     phone: '',
     city: '',
     status: 'Active',
+    serviceTypes: ['Transport'] as string[],
     partners: [] as { name: string; share: string }[] // string for input handling
   };
   const [formData, setFormData] = useState(initialFormState);
@@ -126,6 +127,7 @@ const Corporate: React.FC = () => {
         phone: account.phone,
         city: account.city,
         status: account.status,
+        serviceTypes: account.serviceTypes || (account.serviceType ? [account.serviceType] : ['Transport']),
         partners: partners
     });
     setIsModalOpen(true);
@@ -184,6 +186,7 @@ const Corporate: React.FC = () => {
                     phone: formData.phone,
                     city: formData.city,
                     status: formData.status as 'Active' | 'Inactive',
+                    serviceTypes: formData.serviceTypes as ('Transport' | 'On-Demand Service')[],
                     profitSharingPercentage: totalShare, // Update main percentage based on partners
                     partners: partnersPayload
                 };
@@ -205,6 +208,7 @@ const Corporate: React.FC = () => {
           phone: formData.phone,
           city: formData.city,
           status: formData.status as 'Active' | 'Inactive',
+          serviceTypes: formData.serviceTypes as ('Transport' | 'On-Demand Service')[],
           createdAt: new Date().toISOString().split('T')[0],
           profitSharingPercentage: totalShare,
           partners: partnersPayload
@@ -372,6 +376,15 @@ const Corporate: React.FC = () => {
               </div>
               
               <h3 className="text-lg font-bold text-gray-900 mb-1">{account.companyName}</h3>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(account.serviceTypes || [account.serviceType || 'Transport']).map(type => (
+                    <span key={type} className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md tracking-wider ${
+                        type === 'On-Demand Service' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                        {type}
+                    </span>
+                ))}
+              </div>
               <p className="text-xs text-gray-500 mb-4 font-mono">ID: {account.id}</p>
               
               <div className="space-y-3 border-t border-gray-50 pt-4">
@@ -529,18 +542,63 @@ const Corporate: React.FC = () => {
                    </div>
                  </div>
 
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <select 
-                        name="status" 
-                        value={formData.status} 
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option>Active</option>
-                        <option>Inactive</option>
-                    </select>
-                 </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select 
+                            name="status" 
+                            value={formData.status} 
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option>Active</option>
+                            <option>Inactive</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Type (Multiple Select)</label>
+                        <div className="flex flex-wrap gap-2">
+                            <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${
+                                formData.serviceTypes.includes('Transport') 
+                                ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100' 
+                                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}>
+                                <input 
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={formData.serviceTypes.includes('Transport')}
+                                    onChange={(e) => {
+                                        const types = e.target.checked 
+                                            ? [...formData.serviceTypes, 'Transport']
+                                            : formData.serviceTypes.filter(t => t !== 'Transport');
+                                        setFormData({ ...formData, serviceTypes: types });
+                                    }}
+                                />
+                                <CarFront className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">Transport</span>
+                            </label>
+                            <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${
+                                formData.serviceTypes.includes('On-Demand Service') 
+                                ? 'bg-amber-50 border-amber-200 text-amber-700 ring-2 ring-amber-100' 
+                                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}>
+                                <input 
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={formData.serviceTypes.includes('On-Demand Service')}
+                                    onChange={(e) => {
+                                        const types = e.target.checked 
+                                            ? [...formData.serviceTypes, 'On-Demand Service']
+                                            : formData.serviceTypes.filter(t => t !== 'On-Demand Service');
+                                        setFormData({ ...formData, serviceTypes: types });
+                                    }}
+                                />
+                                <Zap className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">On-Demand</span>
+                            </label>
+                        </div>
+                    </div>
+                  </div>
 
                  {/* Partnership Configuration Section */}
                  <div className="border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">

@@ -116,6 +116,7 @@ const StaffList: React.FC = () => {
     dob: '', gender: '', bloodGroup: '', maritalStatus: '', address: '',
     emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
     department: '', role: '', branch: '', status: 'Active', shift: '', weekOff: 'Sunday',
+    serviceTypes: ['Transport'] as string[],
     salary: '', accountNumber: '', ifsc: '', pan: '', aadhar: '', upiId: '',
     joiningDate: new Date().toISOString().split('T')[0],
     relievingDate: '',
@@ -292,7 +293,16 @@ const StaffList: React.FC = () => {
                 </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900 truncate">{emp.name}</h3>
-              <p className="text-emerald-600 font-bold text-xs uppercase tracking-widest mb-2">{emp.role}</p>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <p className="text-emerald-600 font-bold text-xs uppercase tracking-widest">{emp.role}</p>
+                {(emp.serviceTypes || (emp.serviceType ? [emp.serviceType] : ['Transport'])).map(type => (
+                    <span key={type} className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded border ${
+                        type === 'On-Demand Service' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+                    }`}>
+                        {type}
+                    </span>
+                ))}
+              </div>
               
               <div className="space-y-2 mt-4 pt-4 border-t border-gray-50">
                   <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -431,6 +441,43 @@ const StaffList: React.FC = () => {
                         <section>
                             <SectionTitle icon={Briefcase} title="Employment Details" color="text-blue-500" />
                             <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 ml-1 mb-1 block">Service Type (Multiple) *</label>
+                                    <div className="flex gap-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                const current = formData.serviceTypes || [];
+                                                const updated = current.includes('Transport')
+                                                    ? current.filter(t => t !== 'Transport')
+                                                    : [...current, 'Transport'];
+                                                setFormData(prev => ({ ...prev, serviceTypes: updated }));
+                                            }}
+                                            className={`flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${formData.serviceTypes?.includes('Transport') ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center">
+                                                {formData.serviceTypes?.includes('Transport') && <div className="w-2 h-2 bg-current rounded-full" />}
+                                            </div>
+                                            <span className="text-xs font-bold uppercase tracking-wider">Transport</span>
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                const current = formData.serviceTypes || [];
+                                                const updated = current.includes('On-Demand Service')
+                                                    ? current.filter(t => t !== 'On-Demand Service')
+                                                    : [...current, 'On-Demand Service'];
+                                                setFormData(prev => ({ ...prev, serviceTypes: updated }));
+                                            }}
+                                            className={`flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${formData.serviceTypes?.includes('On-Demand Service') ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center">
+                                                {formData.serviceTypes?.includes('On-Demand Service') && <div className="w-2 h-2 bg-current rounded-full" />}
+                                            </div>
+                                            <span className="text-xs font-bold uppercase tracking-wider">On-Demand</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div>
                                     <select name="department" value={formData.department} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white text-sm">
                                         <option value="">Select Dept</option>

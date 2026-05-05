@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Car, AlertTriangle, Loader2
+  AlertTriangle, Loader2, Zap
 } from 'lucide-react';
 import Autocomplete from '../../components/Autocomplete';
 import { HARDCODED_MAPS_API_KEY } from '../../services/cloudService';
 
 // ... (Keep existing types and constants) ...
 type TripType = 'Local' | 'Rental' | 'Outstation';
-type VehicleType = 'Sedan' | 'SUV';
 
 interface RentalPackage {
   id: string;
@@ -39,20 +38,6 @@ const DEFAULT_RENTAL_PACKAGES: RentalPackage[] = [
   { id: '4hr', name: '4 Hr / 40 km', hours: 4, km: 40, priceSedan: 800, priceSuv: 1100 },
   { id: '8hr', name: '8 Hr / 80 km', hours: 8, km: 80, priceSedan: 1600, priceSuv: 2200 },
 ];
-
-const DEFAULT_PRICING_SEDAN: PricingRules = {
-  localBaseFare: 200, localBaseKm: 5, localPerKmRate: 20, localWaitingRate: 2,
-  rentalExtraKmRate: 15, rentalExtraHrRate: 100,
-  outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 13,
-  outstationDriverAllowance: 400, outstationNightAllowance: 300 
-};
-
-const DEFAULT_PRICING_SUV: PricingRules = {
-  localBaseFare: 300, localBaseKm: 5, localPerKmRate: 25, localWaitingRate: 3,
-  rentalExtraKmRate: 18, rentalExtraHrRate: 150,
-  outstationMinKmPerDay: 300, outstationBaseRate: 0, outstationExtraKmRate: 17,
-  outstationDriverAllowance: 500, outstationNightAllowance: 400 
-};
 
 const Transport: React.FC = () => {
   // ... (State setup) ...
@@ -116,13 +101,6 @@ const Transport: React.FC = () => {
     }
   }, []);
 
-  // ... (Rest of component state and logic: pricing, packages, customers, effects) ...
-  const [rentalPackages] = useState<RentalPackage[]>(() => {
-    const key = getSessionKey('transport_rental_packages_v2'); 
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : DEFAULT_RENTAL_PACKAGES;
-  });
-
   // State for form fields
   const [customer, setCustomer] = useState({ name: '', phone: '', pickup: '' });
   const [localDetails, setLocalDetails] = useState({ drop: '', estKm: '', waitingMins: '' });
@@ -138,7 +116,7 @@ const Transport: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <Car className="w-8 h-8 text-emerald-600" /> Transport Enquiry
+              <Zap className="w-8 h-8 text-emerald-600" /> On demand SERVICE
           </h2>
           <p className="text-gray-500">Calculate fares for Local, Rental & Outstation trips</p>
         </div>

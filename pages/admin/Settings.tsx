@@ -8,7 +8,7 @@ import {
   FileText, Activity, Map, ReceiptIndianRupee, Building, LayoutDashboard, ShieldCheck,
   MapPin, Clock, Megaphone, Target, Users, Car,
   DollarSign, HardDrive, Building2, Bike, X, EyeOff, Plane, TrendingUp,
-  FileSpreadsheet, BookOpen, AlertTriangle
+  FileSpreadsheet, BookOpen, AlertTriangle, Zap
 } from 'lucide-react';
 import { 
   HARDCODED_FIREBASE_CONFIG, getCloudDatabaseStats,
@@ -131,7 +131,8 @@ const Settings: React.FC = () => {
         { key: 'global_leave_requests', label: 'Apply Leave', icon: Plane },
         { key: 'corporate_profit_overview', label: 'Profit Overview', icon: TrendingUp },
         { key: 'sub_admins_data', label: 'Sub Admin Mgt', icon: ShieldCheck },
-        { key: 'google_sop_folder_url', label: 'SOP Documents URL', icon: BookOpen } // NEW: SOP Documents entry
+        { key: 'google_sop_folder_url', label: 'SOP Documents URL', icon: BookOpen }, // NEW: SOP Documents entry
+        { key: 'on_demand_history', label: 'On Demand Service', icon: Zap }
     ];
 
     return collections.map(col => {

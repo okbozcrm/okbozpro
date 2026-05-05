@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap } from 'lucide-react';
 import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,6 +16,7 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'on-demand', path: '/admin/on-demand', label: 'On Demand Service', icon: Zap },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
@@ -70,19 +71,20 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     return MASTER_ADMIN_LINKS;
   });
 
-  const franchiseName = useMemo(() => {
+  const activeCorporate = useMemo(() => {
     if (role === UserRole.CORPORATE) {
         try {
             const corps = JSON.parse(localStorage.getItem('corporate_accounts') || '[]');
             const sessionId = localStorage.getItem('app_session_id');
-            const found = corps.find((c: CorporateAccount) => c.email === sessionId);
-            return found ? found.companyName : '';
+            return corps.find((c: CorporateAccount) => c.email === sessionId) || null;
         } catch {
-            return '';
+            return null;
         }
     }
-    return '';
+    return null;
   }, [role]);
+
+  const franchiseName = useMemo(() => activeCorporate?.companyName || '', [activeCorporate]);
 
   const userName = useMemo(() => {
     if (role === UserRole.ADMIN) {
@@ -107,6 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   
   const themeRef = useRef<HTMLDivElement>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+  const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
@@ -148,8 +151,11 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
       }
 
-      if (foundEmp && foundEmp.moduleAccess) {
-        setEmployeePermissions(foundEmp.moduleAccess);
+      if (foundEmp) {
+        setActiveEmployee(foundEmp);
+        if (foundEmp.moduleAccess) {
+          setEmployeePermissions(foundEmp.moduleAccess);
+        }
       }
     }
   }, [role]);
@@ -346,6 +352,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           // Map link IDs to Module Names used in SubAdminManagement.tsx
           const permKeyMap: Record<string, string> = {
               'dashboard': 'Dashboard',
+              'on-demand': 'Customer Care', // Sharing permission with Customer Care or can be its own
               'tracking': 'Live Tracking',
               'employee-settings': 'Employee Setting',
               'reports': 'Reports',
@@ -375,18 +382,40 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           return false;
       }
 
-      const corporateAllowed = [
-        'dashboard', 'reports', 'customer-care', 'trips', 'tracking',
-        'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
-        'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
-        'sop-documents' // NEW: SOP Documents for Corporate
-      ];
-      if (role === UserRole.CORPORATE && corporateAllowed.includes(link.id)) return true;
+      if (role === UserRole.CORPORATE) {
+        const serviceTypes = activeCorporate?.serviceTypes || (activeCorporate?.serviceType ? [activeCorporate.serviceType] : ['Transport']);
+        
+        const hasTransport = serviceTypes.includes('Transport');
+        const hasOnDemand = serviceTypes.includes('On-Demand Service');
+
+        // Items to hide based on service type
+        if (!hasTransport) {
+             // If NO transport, hide transport related
+             const transportOnly = ['customer-care', 'trips', 'driver-payments', 'vendors', 'sub-admins', 'km-claims', 'sop-documents'];
+             if (transportOnly.includes(link.id)) return false;
+        }
+
+        if (!hasOnDemand) {
+            if (link.id === 'on-demand') return false;
+        }
+
+        const corporateAllowed = [
+          'dashboard', 'on-demand', 'reports', 'customer-care', 'trips', 'tracking',
+          'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
+          'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
+          'sop-documents'
+        ];
+        return corporateAllowed.includes(link.id);
+      }
       return false;
     });
-  }, [role, orderedLinks]);
+  }, [role, orderedLinks, activeCorporate]);
 
   const userLinks = useMemo(() => {
+    const serviceTypes = activeEmployee?.serviceTypes || (activeEmployee?.serviceType ? [activeEmployee.serviceType] : ['Transport']);
+    const hasTransport = serviceTypes.includes('Transport');
+    const hasOnDemand = serviceTypes.includes('On-Demand Service');
+
     const baseLinks = [
         { id: 'my-attendance', path: '/user', label: 'My Attendance', icon: Calendar },
         { id: 'my-salary', path: '/user/salary', label: 'My Salary', icon: DollarSign },
@@ -394,10 +423,18 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
+        { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: Zap },
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
-    ];
+    ].filter(link => {
+        if (!hasTransport) {
+            const transportOnly = ['customer-care-employee', 'vendors-employee', 'my-km-claims'];
+            if (transportOnly.includes(link.id)) return false;
+        }
+        if (link.id === 'on-demand-employee' && !hasOnDemand) return false;
+        return true;
+    });
     
     // UPDATED: Correct key mapping to match StaffList.tsx permissions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -423,7 +460,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     // Add custom links at index 6 (before Profile)
     finalLinks.splice(6, 0, ...addedLinks);
     return finalLinks;
-  }, [employeePermissions]);
+  }, [employeePermissions, activeEmployee]);
 
   const sidebarLinks = role === UserRole.EMPLOYEE ? userLinks : visibleAdminLinks;
   const currentPath = location.pathname;

@@ -23,6 +23,7 @@ import Reports from './pages/admin/Reports';
 import EmailMarketing from './pages/admin/EmailMarketing';
 import { TripBooking } from './pages/admin/TripBooking';
 import { CustomerCare } from './pages/admin/CustomerCare';
+import OnDemandService from './pages/admin/OnDemandService';
 import { DriverPayments } from './pages/admin/DriverPayments';
 import DataExport from './pages/admin/DataExport'; 
 import UserAttendance from './pages/user/UserAttendance';
@@ -151,6 +152,7 @@ const App: React.FC = () => {
                         <Route path="/admin/price-management" element={<AdminDashboard />} />
                         <Route path="/admin/reports" element={<Reports />} />
                         <Route path="/admin/marketing" element={userRole === UserRole.ADMIN || userRole === UserRole.SUB_ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
+                        <Route path="/admin/on-demand" element={<OnDemandService />} />
                         <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
                         <Route path="/admin/tracking" element={<LiveTracking />} />

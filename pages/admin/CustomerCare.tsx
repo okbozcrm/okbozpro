@@ -303,7 +303,12 @@ const safeStringify = (obj: unknown) => {
   });
 };
 
-const getCityName = (addr: string) => (addr ? addr.split(",")[0].trim() : "");
+const getCityName = (addr: string) => {
+  if (!addr) return "";
+  const city = addr.split(",")[0].trim();
+  if (!city) return "";
+  return city.toLowerCase().endsWith("city") ? city : `${city} City`;
+};
 
 export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [showInvoice, setShowInvoice] = useState(false);
@@ -1285,7 +1290,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             .filter((w) => w.address)
             .map(
               (w) =>
-                `📍 ${getCityName(w.address) || "Waypoint"} City: ${w.address}${w.date ? ` (on ${w.date})` : ""}`,
+                `📍 ${getCityName(w.address) || "Waypoint City"}: ${w.address}${w.date ? ` (on ${w.date})` : ""}`,
             )
             .join("\n")}\n` +
           `🌍 Final Destination City: ${transportDetails.destination}${transportDetails.destinationDate ? ` (on ${transportDetails.destinationDate})` : ""}\n\n` +
@@ -1463,7 +1468,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
             .filter((w) => w.address)
             .map(
               (w) =>
-                `📍 ${getCityName(w.address) || "Waypoint"} City: ${w.address}${w.date ? ` (on ${w.date})` : ""}`,
+                `📍 ${getCityName(w.address) || "Waypoint City"}: ${w.address}${w.date ? ` (on ${w.date})` : ""}`,
             )
             .join("\n")}\n` +
           `🌍 Final Destination City: ${transportDetails.destination}${transportDetails.destinationDate ? ` (on ${transportDetails.destinationDate})` : ""}\n\n` +
@@ -2736,7 +2741,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
 
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">
-                    Pickup Origin
+                    {getCityName(customerDetails.pickup) || "Pickup Origin"}
                   </label>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-[2]">
@@ -3020,7 +3025,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                                   {idx + 1}
                                 </div>
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                  {wp.address || (transportDetails.outstationWaypoints[idx]?.address ? getCityName(transportDetails.outstationWaypoints[idx].address) : `Waypoint ${idx + 1}`)}
+                                  {getCityName(wp.address) || `Waypoint ${idx + 1}`}
                                 </span>
                               </div>
                               <button
@@ -3089,7 +3094,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">
-                        Final Destination City
+                        {getCityName(transportDetails.destination) || "Final Destination City"}
                       </label>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <div className="flex-[2]">

@@ -107,6 +107,7 @@ export interface Employee {
   };
   moduleAccess: string[]; 
   corporateId?: string;
+  serviceTypes?: ('Transport' | 'On-Demand Service')[];
 }
 
 export interface LeaveRequest {
@@ -175,6 +176,7 @@ export interface CorporateAccount {
   createdAt: string;
   profitSharingPercentage?: number; 
   partners?: Partner[]; 
+  serviceTypes?: ('Transport' | 'On-Demand Service')[]; 
 }
 
 export interface HistoryLog {
