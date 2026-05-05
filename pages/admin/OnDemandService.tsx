@@ -1090,6 +1090,28 @@ const OnDemandService: React.FC = () => {
                   {generateSummary()}
                 </pre>
               </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    const summary = generateSummary();
+                    window.open(`https://wa.me/${state.customerContact.replace(/\D/g, '')}?text=${encodeURIComponent(summary)}`, '_blank');
+                  }}
+                  className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white py-3 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-green-500/10 transition-all active:scale-[0.95]"
+                >
+                  <MessageSquare className="w-4 h-4 fill-white" /> WhatsApp
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const summary = generateSummary();
+                    window.open(`mailto:${state.customerEmail}?subject=Service Booking Summary&body=${encodeURIComponent(summary)}`, '_blank');
+                  }}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-500/10 transition-all active:scale-[0.95]"
+                >
+                  <Mail className="w-4 h-4" /> Email
+                </button>
+              </div>
               
               <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                 <Info className="w-3 h-3" />
