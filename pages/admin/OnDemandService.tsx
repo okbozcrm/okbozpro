@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Trash2, Zap, User, Phone, Store, Home, 
+  Plus, Trash2, Zap as ZapIcon, User, Phone, Store, Home, 
   Clock, Percent, Tag, ShieldCheck, ChevronRight,
   Receipt, Info, Layers, CheckCircle2, X, Calendar,
   MessageSquare, Mail, History, ExternalLink, Search, Settings, Filter, Pencil
@@ -180,7 +180,8 @@ const OnDemandService: React.FC = () => {
 
   const totalItemPrice = state.items.reduce((sum, item) => sum + (item.pricePerQty * item.quantity), 0);
   const totalTax = (totalItemPrice * state.taxPercent) / 100;
-  const totalPrice = totalItemPrice + state.visitationCharge + state.technicianTip + totalTax - state.vendorDiscount - state.promoDiscount;
+  const visitationAmt = state.serviceType === 'Doorstep' ? state.visitationCharge : 0;
+  const totalPrice = totalItemPrice + visitationAmt + state.technicianTip + totalTax - state.vendorDiscount - state.promoDiscount;
 
   const deleteHistory = (id: string) => {
     if (window.confirm("Are you sure you want to delete this booking record?")) {
@@ -220,7 +221,7 @@ const OnDemandService: React.FC = () => {
            `🛠 *Services:*\n${itemsText}\n\n` +
            `-------------------\n` +
            `📦 *Sub Total*\n₹${totalItemPrice.toFixed(2)}\n\n` +
-           `🚚 *Visitation Fee*\n₹${state.visitationCharge.toFixed(2)}\n\n` +
+           (state.serviceType === 'Doorstep' ? `🚚 *Visitation Fee*\n₹${state.visitationCharge.toFixed(2)}\n\n` : '') +
            `🎁 *Technician Tip*\n₹${state.technicianTip.toFixed(2)}\n\n` +
            `🧾 *Taxes (CGST/SGST ${state.taxPercent}%)*\n₹${totalTax.toFixed(2)}\n\n` +
            (state.vendorDiscount > 0 ? `🧧 *Vendor Discount*\n-₹${state.vendorDiscount.toFixed(2)}\n\n` : '') +
@@ -250,7 +251,7 @@ const OnDemandService: React.FC = () => {
       adminCommissionAmount: (totalItemPrice * state.adminCommission) / 100,
       adminCommissionPercent: state.adminCommission,
       serviceCategory: state.serviceCategory,
-      visitationCharge: state.visitationCharge,
+      visitationCharge: state.serviceType === 'Doorstep' ? state.visitationCharge : 0,
       technicianTip: state.technicianTip,
       taxPercent: state.taxPercent
     };
@@ -294,6 +295,22 @@ const OnDemandService: React.FC = () => {
     setAppliedPromo(null);
   };
 
+  const userRole = localStorage.getItem('user_role');
+  const userEmail = localStorage.getItem('userEmail');
+  const employeeCorpId = localStorage.getItem('logged_in_employee_corporate_id');
+
+  const isHOAdmin = userRole === 'ADMIN' || (userRole === 'EMPLOYEE' && employeeCorpId === 'admin');
+
+  // Set default franchise for employee if not already set to avoid HO flicker
+  useEffect(() => {
+    if ((userRole === 'EMPLOYEE' || userRole === 'CORPORATE' || userRole === 'SUB_ADMIN') && employeeCorpId && state.franchise === 'HO') {
+      const targetContext = (userRole === 'CORPORATE' ? userEmail : employeeCorpId) || 'admin';
+      if (targetContext !== 'admin') {
+          setState(prev => ({ ...prev, franchise: targetContext }));
+      }
+    }
+  }, [userRole, employeeCorpId, state.franchise, userEmail]);
+
   return (
     <div className="min-h-screen bg-[#F8F9FB] p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -302,7 +319,7 @@ const OnDemandService: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
-              <Zap className="text-white w-6 h-6 fill-white" />
+              <ZapIcon className="text-white w-6 h-6 fill-white" />
             </div>
             <div>
               <div className="flex items-center gap-3">
@@ -331,14 +348,18 @@ const OnDemandService: React.FC = () => {
             <div className="flex flex-col gap-1 w-full sm:w-auto">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign to Franchise/HO</label>
               <select 
-                className="bg-slate-50 border-0 text-sm font-bold text-slate-700 px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer"
+                className="bg-slate-50 border-0 text-sm font-bold text-slate-700 px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer disabled:opacity-50"
                 value={state.franchise}
+                disabled={!isHOAdmin && (userRole === 'EMPLOYEE' || userRole === 'CORPORATE' || userRole === 'SUB_ADMIN')}
                 onChange={(e) => setState(prev => ({ ...prev, franchise: e.target.value, branch: '' }))}
               >
-                <option value="HO">HEAD OFFICE (HO)</option>
-                {corporates.map(corp => (
-                  <option key={corp.id} value={corp.email}>{corp.companyName}</option>
-                ))}
+                {isHOAdmin && <option value="HO">HEAD OFFICE (HO)</option>}
+                {corporates
+                  .filter(corp => isHOAdmin || corp.email === userEmail || corp.email === employeeCorpId)
+                  .map(corp => (
+                    <option key={corp.id} value={corp.email}>{corp.companyName}</option>
+                  ))
+                }
               </select>
             </div>
             <div className="flex flex-col gap-1 w-full sm:w-auto">
@@ -494,7 +515,7 @@ const OnDemandService: React.FC = () => {
 
             <div className="bg-orange-500 p-4 rounded-3xl shadow-lg shadow-orange-200 text-white group hover:-translate-y-1 transition-all">
             <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                <Zap className="w-4 h-4 text-white" />
+                <ZapIcon className="w-4 h-4 text-white" />
             </div>
             <div className="text-[9px] font-black text-orange-100 uppercase tracking-widest leading-tight">Immediate</div>
             <div className="text-lg font-black mt-1 italic">{filteredHistory.filter(b => b.status === 'Now').length}</div>
@@ -530,7 +551,7 @@ const OnDemandService: React.FC = () => {
                       <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all group">
                          <div className="flex gap-4">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.status === 'Schedule' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                              {item.status === 'Schedule' ? <Calendar className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                              {item.status === 'Schedule' ? <Calendar className="w-5 h-5" /> : <ZapIcon className="w-5 h-5" />}
                             </div>
                             <div>
                                <h4 className="text-sm font-black text-slate-800">{item.customerName}</h4>
@@ -834,7 +855,7 @@ const OnDemandService: React.FC = () => {
                             <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
                               booking.status === 'Now' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-blue-50 text-blue-600 border border-blue-100'
                             }`}>
-                              {booking.status === 'Now' ? <Zap className="w-3 h-3 fill-emerald-600" /> : <Calendar className="w-3 h-3" />}
+                              {booking.status === 'Now' ? <ZapIcon className="w-3 h-3 fill-emerald-600" /> : <Calendar className="w-3 h-3" />}
                               {booking.status}
                             </span>
                           </td>
@@ -896,18 +917,20 @@ const OnDemandService: React.FC = () => {
                     <span className="font-bold text-slate-700">₹{totalItemPrice.toFixed(2)}</span>
                   </div>
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Visitation Fee</span>
-                    <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
-                       <span className="text-[10px] text-slate-400 font-bold mr-1">₹</span>
-                       <input 
-                         type="number"
-                         className="w-16 bg-transparent border-0 text-slate-700 text-sm font-bold focus:ring-0 outline-none"
-                         value={state.visitationCharge}
-                         onChange={(e) => setState(prev => ({ ...prev, visitationCharge: parseFloat(e.target.value) || 0 }))}
-                       />
+                  {state.serviceType === 'Doorstep' && (
+                    <div className="flex justify-between items-center animate-in fade-in slide-in-from-top-1 duration-200">
+                      <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Visitation Fee</span>
+                      <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
+                         <span className="text-[10px] text-slate-400 font-bold mr-1">₹</span>
+                         <input 
+                           type="number"
+                           className="w-16 bg-transparent border-0 text-slate-700 text-sm font-bold focus:ring-0 outline-none"
+                           value={state.visitationCharge}
+                           onChange={(e) => setState(prev => ({ ...prev, visitationCharge: parseFloat(e.target.value) || 0 }))}
+                         />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Technician Tip</span>
@@ -975,7 +998,7 @@ const OnDemandService: React.FC = () => {
                       onClick={handleBookService}
                       className="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white py-5 rounded-[2.5rem] font-black uppercase tracking-widest text-sm shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3"
                     >
-                      {state.bookingMode === 'Now' ? <Zap className="w-5 h-5 fill-white" /> : <Calendar className="w-5 h-5" />}
+                      {state.bookingMode === 'Now' ? <ZapIcon className="w-5 h-5 fill-white" /> : <Calendar className="w-5 h-5" />}
                       {state.bookingMode === 'Now' ? 'Book Service Now' : 'Schedule Service'}
                     </button>
                     
@@ -1116,6 +1139,50 @@ const OnDemandService: React.FC = () => {
               <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                 <Info className="w-3 h-3" />
                 <span>This message will be sent to {state.customerName || 'Customer'}</span>
+              </div>
+            </div>
+
+            {/* Detailed History Log */}
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
+                  <History className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Detailed History Log</h3>
+              </div>
+              
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                {history.length === 0 ? (
+                  <div className="py-8 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-50 rounded-2xl">
+                    <History className="w-8 h-8 mb-2 opacity-20" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No history logs yet</p>
+                  </div>
+                ) : (
+                  [...history].reverse().map((log) => (
+                    <div key={log.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all group">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[11px] font-black text-slate-800 line-clamp-1">{log.customerName}</span>
+                        <span className="text-[10px] font-black text-emerald-600">₹{log.totalPrice.toFixed(0)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-2">
+                        <Calendar className="w-3 h-3" />
+                        {log.date}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {log.items.slice(0, 3).map((item, idx) => (
+                          <span key={idx} className="text-[8px] px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-500 font-black uppercase tracking-tighter">
+                            {item}
+                          </span>
+                        ))}
+                        {log.items.length > 3 && (
+                          <span className="text-[8px] px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-400 font-black">
+                            +{log.items.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

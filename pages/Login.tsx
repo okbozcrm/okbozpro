@@ -93,6 +93,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 success = true;
                 role = UserRole.ADMIN;
                 sessionId = 'admin';
+                localStorage.setItem('userEmail', email.toLowerCase()); // ADDED
             } else {
                 // Check Sub Admins
                 try {
@@ -102,6 +103,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                     if (foundSub) {
                         success = true;
                         role = UserRole.SUB_ADMIN;
+                        localStorage.setItem('userEmail', foundSub.email.toLowerCase()); // ADDED
                         // For data scoping, we set sessionId to the context (admin or corporate email)
                         // This allows the sub-admin to see the data of the entity they manage
                         sessionId = foundSub.context === 'Head Office' ? 'admin' : foundSub.context;
@@ -124,6 +126,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 success = true;
                 role = UserRole.CORPORATE;
                 sessionId = foundCorp.email;
+                localStorage.setItem('userEmail', foundCorp.email.toLowerCase()); // ADDED
             }
         } 
         else if (activeTab === 'employee') {
@@ -169,6 +172,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 sessionId = foundEmp.id;
                 employeeName = foundEmp.name;
                 employeeId = foundEmp.id;
+                localStorage.setItem('userEmail', foundEmp.email?.toLowerCase() || email.toLowerCase());
             }
         }
 
@@ -187,6 +191,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, initialTab = 'admin' }) => {
                 localStorage.setItem('logged_in_employee_name', employeeName);
                 localStorage.setItem('logged_in_employee_id', employeeId);
                 localStorage.setItem('logged_in_employee_corporate_id', corporateOwnerId);
+                localStorage.setItem('logged_in_employee_service_types', JSON.stringify(foundEmp.serviceTypes || (foundEmp.serviceType ? [foundEmp.serviceType] : ['Transport'])));
+                localStorage.setItem('logged_in_employee_permissions', JSON.stringify(foundEmp.moduleAccess || []));
 
                 // Send login notification
                 const loginNotification: Omit<BozNotification, 'id' | 'timestamp' | 'read'> = {

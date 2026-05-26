@@ -22,6 +22,8 @@ import {
   AlertCircle,
   RefreshCcw,
   Mountain,
+  Cloud,
+  Loader2,
   List as ListIcon,
   Building2,
   Package,
@@ -323,9 +325,7 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   // Determine corporate context
   const corporateEmail = isEmployee
     ? localStorage.getItem("logged_in_employee_corporate_id") || "admin"
-    : role === UserRole.CORPORATE
-      ? sessionId
-      : "admin";
+    : sessionId;
 
   const ADMIN_PRICING_KEY = "transport_pricing_rules_v3";
   const ADMIN_PACKAGES_KEY = "transport_rental_packages_v3";
@@ -481,6 +481,24 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [fareBreakup, setFareBreakup] = useState<FareItem[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncToCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await syncToCloud();
+      if (result.success) {
+        alert("Fares & Packages synced to Live Cloud Repository successfully!");
+      } else {
+        alert(`Cloud Sync Error: ${result.message}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An unexpected error occurred during cloud synchronization.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const messageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1825,43 +1843,72 @@ export const CustomerCare: React.FC<CustomerCareProps> = ({ role }) => {
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <Edit2 className="w-4 h-4" /> Fare Configuration
               </h3>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSyncToCloud}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50"
+                  title="Synchronize all rates and packages with high-availability cloud repository"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Cloud className="w-3.5 h-3.5" />
+                  )}
+                  CLOUD CONNECTED
+                </button>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
-              {isSuperAdmin && (
-                <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="font-black text-indigo-900 text-sm uppercase tracking-widest flex items-center gap-2">
-                      <Building2 className="w-4 h-4" /> Account Scope
-                    </h4>
-                    <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mt-1">
-                      Configure global rates or select a franchise panel
-                      override
-                    </p>
+            <div className="p-8 overflow-y-auto flex-1 custom-scrollbar bg-gray-50/30">
+              {isSuperAdmin ? (
+                <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-indigo-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        Account Scope Control
+                      </h4>
+                      <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mt-1">
+                        Editing rates for: {targetCorporateForRates === "admin" ? "Master Global Admin" : "Specific Franchise Panel"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="relative min-w-[280px]">
+                  <div className="relative min-w-[320px]">
                     <select
                       value={targetCorporateForRates}
                       onChange={(e) =>
                         setTargetCorporateForRates(e.target.value)
                       }
-                      className="w-full pl-6 pr-12 py-3 bg-white border border-indigo-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-700 outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-sm appearance-none cursor-pointer"
+                      className="w-full pl-6 pr-12 py-4 bg-white border-2 border-indigo-100 rounded-2xl text-[11px] font-black uppercase tracking-widest text-indigo-700 outline-none focus:ring-4 focus:ring-indigo-500/10 shadow-sm appearance-none cursor-pointer hover:border-indigo-200 transition-all"
                     >
-                      <option value="admin">Global Admin Panel</option>
+                      <option value="admin">GLOBAL MASTER PANEL (Default)</option>
                       {JSON.parse(
                         localStorage.getItem("corporate_accounts") || "[]",
                       ).map((corp: CorporateAccount) => (
                         <option key={corp.email} value={corp.email}>
-                          {corp.companyName} ({corp.email})
+                          FRANCHISE: {corp.companyName} ({corp.email})
                         </option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-8 p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-4 shadow-sm">
+                  <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-emerald-900 text-sm uppercase tracking-widest">Franchise Cloud Scoped</h4>
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Logged as: {corporateName} ({corporateEmail})</p>
                   </div>
                 </div>
               )}
@@ -3767,12 +3814,6 @@ const InvoiceModal = ({
                 <h1 className="text-2xl font-black text-gray-900 tracking-tighter uppercase">
                   OK BOZ SUPER APP
                 </h1>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  operated by Jkrish private limited.
-                </p>
-                <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mt-2">
-                  GST : 33AAFCJ1772N1ZB
-                </p>
               </div>
               <div className="text-right space-y-1">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">

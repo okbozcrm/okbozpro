@@ -3,7 +3,8 @@ import {
   Search, Phone, X, User, Upload, CreditCard, Briefcase, 
   Pencil, Trash2, Building2, Eye, EyeOff, Heart, 
   PhoneCall, ShieldCheck, Layers, DollarSign, Building, Check, Users, Landmark, CheckCircle,
-  Save, UserPlus, Activity
+  Save, UserPlus, Activity,
+  Zap as ZapIcon
 } from 'lucide-react'; 
 import { Employee, CorporateAccount, Branch } from '../../types';
 
@@ -27,7 +28,8 @@ const MODULE_PERMISSIONS = [
   { id: 'live_tracking', label: 'Live Tracking', icon: Phone },
   { id: 'leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'attendance', label: 'Attendance Dashboard', icon: Activity },
-  { id: 'payroll', label: 'Payroll Access', icon: DollarSign }
+  { id: 'payroll', label: 'Payroll Access', icon: DollarSign },
+  { id: 'on_demand', label: 'On Demand Service', icon: ZapIcon }
 ];
 
 const StaffList: React.FC = () => {
@@ -464,10 +466,22 @@ const StaffList: React.FC = () => {
                                             type="button" 
                                             onClick={() => {
                                                 const current = formData.serviceTypes || [];
-                                                const updated = current.includes('On-Demand Service')
+                                                const hasOnDemand = current.includes('On-Demand Service');
+                                                const updated = hasOnDemand
                                                     ? current.filter(t => t !== 'On-Demand Service')
                                                     : [...current, 'On-Demand Service'];
-                                                setFormData(prev => ({ ...prev, serviceTypes: updated }));
+                                                
+                                                // Automatically sync moduleAccess
+                                                let updatedModules = formData.moduleAccess || [];
+                                                if (!hasOnDemand) {
+                                                    if (!updatedModules.includes('on_demand')) {
+                                                        updatedModules = [...updatedModules, 'on_demand'];
+                                                    }
+                                                } else {
+                                                    updatedModules = updatedModules.filter(m => m !== 'on_demand');
+                                                }
+                                                
+                                                setFormData(prev => ({ ...prev, serviceTypes: updated, moduleAccess: updatedModules }));
                                             }}
                                             className={`flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${formData.serviceTypes?.includes('On-Demand Service') ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
                                         >

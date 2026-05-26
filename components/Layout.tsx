@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap as ZapIcon } from 'lucide-react';
 import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,7 +16,7 @@ interface LayoutProps {
 
 const MASTER_ADMIN_LINKS = [
   { id: 'dashboard', path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'on-demand', path: '/admin/on-demand', label: 'On Demand Service', icon: Zap },
+  { id: 'on-demand', path: '/admin/on-demand', label: 'On Demand Service', icon: ZapIcon },
   { id: 'reports', path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
@@ -108,7 +108,12 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   const notificationRef = useRef<HTMLDivElement>(null);
   
   const themeRef = useRef<HTMLDivElement>(null);
-  const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+  const [employeePermissions, setEmployeePermissions] = useState<string[]>(() => {
+    try {
+        const stored = localStorage.getItem('logged_in_employee_permissions');
+        return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -412,7 +417,15 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
   }, [role, orderedLinks, activeCorporate]);
 
   const userLinks = useMemo(() => {
-    const serviceTypes = activeEmployee?.serviceTypes || (activeEmployee?.serviceType ? [activeEmployee.serviceType] : ['Transport']);
+    let serviceTypes: string[] = ['Transport'];
+    try {
+        const stored = localStorage.getItem('logged_in_employee_service_types');
+        if (stored) serviceTypes = JSON.parse(stored);
+        else if (activeEmployee) serviceTypes = activeEmployee.serviceTypes || (activeEmployee.serviceType ? [activeEmployee.serviceType] : ['Transport']);
+    } catch {
+        if (activeEmployee) serviceTypes = activeEmployee.serviceTypes || (activeEmployee.serviceType ? [activeEmployee.serviceType] : ['Transport']);
+    }
+
     const hasTransport = serviceTypes.includes('Transport');
     const hasOnDemand = serviceTypes.includes('On-Demand Service');
 
@@ -423,7 +436,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
-        { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: Zap },
         { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
         { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
         { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
@@ -447,7 +459,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
         'live_tracking': { id: 'tracking', path: '/user/tracking', label: 'Live Tracking', icon: Navigation },
         'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers },
-        'attendance': { id: 'attendance-admin', path: '/user/attendance-admin', label: 'Attendance Dashboard', icon: Activity }
+        'attendance': { id: 'attendance-admin', path: '/user/attendance-admin', label: 'Attendance Dashboard', icon: Activity },
+        'on_demand': { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: ZapIcon }
     };
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
