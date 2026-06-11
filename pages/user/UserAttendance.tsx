@@ -99,6 +99,8 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
   const [refreshToggle, setRefreshToggle] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DailyAttendance & { empId?: string }>({ date: '', status: AttendanceStatus.NOT_MARKED });
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [filterSearch] = useState('');
   const todayDateStr = new Date().toISOString().split('T')[0];
   const [filterCorporate, setFilterCorporate] = useState('All');
@@ -185,16 +187,28 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
           }
           localStorage.setItem('active_staff_locations', JSON.stringify(allActive));
           window.dispatchEvent(new Event('storage'));
+          setTrackingError(null);
+          setRetryCount(0);
         },
         (error) => {
           console.error("Tracking error:", error);
-          setIsTracking(false);
-          if (watchId.current) {
-            navigator.geolocation.clearWatch(watchId.current);
-            watchId.current = null;
+          setTrackingError(error.message || "Failed to get location");
+          
+          // Auto-retry once or twice
+          if (retryCount < 2) {
+            setRetryCount(prev => prev + 1);
+            setTimeout(() => {
+                if (isTracking) handleTrackingToggle(true); 
+            }, 3000);
+          } else {
+            setIsTracking(false);
+            if (watchId.current) {
+                navigator.geolocation.clearWatch(watchId.current);
+                watchId.current = null;
+            }
           }
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
       watchId.current = id;
 
@@ -1219,21 +1233,30 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                                             <div className="flex flex-col gap-1 md:gap-2">
                                                 <div>
                                                     <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] md:tracking-[0.3em] mb-1">Live Tracking</p>
-                                                    <span className={`text-[10px] md:text-sm font-black uppercase tracking-widest ${isTracking ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                                        {isTracking ? 'ACTIVE' : 'INACTIVE'}
+                                                    <span className={`text-[10px] md:text-sm font-black uppercase tracking-widest ${isTracking ? 'text-indigo-600' : trackingError ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                        {isTracking ? 'ACTIVE' : trackingError ? 'ERROR' : 'INACTIVE'}
                                                     </span>
                                                 </div>
-                                                <button 
-                                                    onClick={() => handleTrackingToggle()}
-                                                    className={`flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all transform active:scale-95 ${
-                                                        isTracking 
-                                                        ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
-                                                        : 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-                                                    }`}
-                                                >
-                                                    <Power className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                                    {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-                                                </button>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setTrackingError(null);
+                                                            setRetryCount(0);
+                                                            handleTrackingToggle();
+                                                        }}
+                                                        className={`flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all transform active:scale-95 ${
+                                                            isTracking 
+                                                            ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
+                                                            : 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                                                        }`}
+                                                    >
+                                                        <Power className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                                        {isTracking ? 'Stop Tracking' : trackingError ? 'Retry Tracking' : 'Start Tracking'}
+                                                    </button>
+                                                    {trackingError && !isTracking && (
+                                                        <p className="text-[7px] text-rose-500 font-bold uppercase truncate max-w-[120px]">{trackingError}</p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

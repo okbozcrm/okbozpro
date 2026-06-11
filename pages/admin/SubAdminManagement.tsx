@@ -14,6 +14,7 @@ const MODULES = [
   'Reports',
   'Email Marketing',
   'Customer Care',
+  'Load Xpress',
   'Trip Booking',
   'Driver Payments',
   'Franchisee Leads',

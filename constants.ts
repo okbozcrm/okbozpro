@@ -76,8 +76,9 @@ export const generateMockAttendance = (employee: Employee, year: number, month: 
     if (dayOfWeek === 0 || employee.weekOff === new Date(year, month, i).toLocaleDateString('en-US', { weekday: 'long' })) { 
       status = AttendanceStatus.WEEK_OFF;
     } else {
-        // Default to present for generated history unless overridden by real data storage
-        status = AttendanceStatus.PRESENT;
+        // Default to absent for generated history unless overridden by real data storage
+        // This ensures absent days are counted properly by default
+        status = AttendanceStatus.ABSENT;
     }
 
     const punches = status === AttendanceStatus.PRESENT ? [{ in: '09:30 AM', out: '06:30 PM' }] : [];

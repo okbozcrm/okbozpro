@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap as ZapIcon } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap as ZapIcon, Package } from 'lucide-react';
 import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -21,6 +21,7 @@ const MASTER_ADMIN_LINKS = [
   { id: 'sub-admins', path: '/admin/sub-admins', label: 'Sub Admin Mgt', icon: ShieldCheck }, // Added
   { id: 'marketing', path: '/admin/marketing', label: 'Email Marketing', icon: Mail },
   { id: 'customer-care', path: '/admin/customer-care', label: 'Customer Care', icon: Headset },
+  { id: 'load-xpress', path: '/admin/load-xpress', label: 'Load Xpress', icon: Package },
   { id: 'trips', path: '/admin/trips', label: 'Trip Booking', icon: Map },
   { id: 'tracking', path: '/admin/tracking', label: 'Live Tracking', icon: Navigation },
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
@@ -363,6 +364,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'reports': 'Reports',
               'marketing': 'Email Marketing',
               'customer-care': 'Customer Care',
+              'load-xpress': 'Load Xpress',
               'trips': 'Trip Booking',
               'driver-payments': 'Driver Payments',
               'leads': 'Franchisee Leads',
@@ -405,7 +407,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
 
         const corporateAllowed = [
-          'dashboard', 'on-demand', 'reports', 'customer-care', 'trips', 'tracking',
+          'dashboard', 'on-demand', 'reports', 'customer-care', 'load-xpress', 'trips', 'tracking',
           'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
           'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
           'sop-documents'
@@ -460,7 +462,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'live_tracking': { id: 'tracking', path: '/user/tracking', label: 'Live Tracking', icon: Navigation },
         'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers },
         'attendance': { id: 'attendance-admin', path: '/user/attendance-admin', label: 'Attendance Dashboard', icon: Activity },
-        'on_demand': { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: ZapIcon }
+        'on_demand': { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: ZapIcon },
+        'load_xpress': { id: 'load-xpress-employee', path: '/admin/load-xpress', label: 'Load Xpress', icon: Package }
     };
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

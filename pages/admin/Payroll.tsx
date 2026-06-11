@@ -343,7 +343,7 @@ export const Payroll: React.FC = () => {
           else if (day.status === AttendanceStatus.PAID_LEAVE) counts.leave++;
           else if (day.status === AttendanceStatus.HALF_DAY) counts.half++;
           else if (day.status === AttendanceStatus.ALTERNATE_DAY) counts.alternate++;
-          else if (day.status === AttendanceStatus.ABSENT) counts.absent++;
+          else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && !isImplicitWeekOff)) counts.absent++;
       });
       return counts;
   };

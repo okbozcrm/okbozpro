@@ -4,7 +4,7 @@ import {
   Pencil, Trash2, Building2, Eye, EyeOff, Heart, 
   PhoneCall, ShieldCheck, Layers, DollarSign, Building, Check, Users, Landmark, CheckCircle,
   Save, UserPlus, Activity,
-  Zap as ZapIcon
+  Zap as ZapIcon, Package
 } from 'lucide-react'; 
 import { Employee, CorporateAccount, Branch } from '../../types';
 
@@ -29,7 +29,8 @@ const MODULE_PERMISSIONS = [
   { id: 'leads', label: 'Franchisee Leads', icon: Layers },
   { id: 'attendance', label: 'Attendance Dashboard', icon: Activity },
   { id: 'payroll', label: 'Payroll Access', icon: DollarSign },
-  { id: 'on_demand', label: 'On Demand Service', icon: ZapIcon }
+  { id: 'on_demand', label: 'On Demand Service', icon: ZapIcon },
+  { id: 'load_xpress', label: 'Load Xpress', icon: Package }
 ];
 
 const StaffList: React.FC = () => {

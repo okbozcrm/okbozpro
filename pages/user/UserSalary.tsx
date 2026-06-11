@@ -200,7 +200,7 @@ const UserSalary: React.FC = () => {
         } else if (day.status === AttendanceStatus.HALF_DAY) {
             payableDays += 0.5;
             counts.half++;
-        } else if (day.status === AttendanceStatus.ABSENT) {
+        } else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && !isImplicitWeekOff)) {
             counts.absent++;
         }
 
@@ -344,7 +344,7 @@ const UserSalary: React.FC = () => {
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 text-right">Attendance Summary</p>
                             <div className="text-[10px] space-y-1.5 font-bold text-gray-600">
                                 <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Present Days</span>
+                                    <span className="text-gray-400 uppercase font-bold">Working Days (Pres.)</span>
                                     <span className="text-gray-900 font-black">{salaryData.counts.present + salaryData.counts.alternate}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">

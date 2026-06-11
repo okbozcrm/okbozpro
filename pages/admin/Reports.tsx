@@ -329,38 +329,47 @@ const Reports: React.FC = () => {
               startDate = new Date(customStartDate);
               endDate = new Date(customEndDate);
           } else {
-              // Default to current month if something is wrong
               const now = new Date();
               startDate = new Date(now.getFullYear(), now.getMonth(), 1);
               endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           }
 
-          // Iterate through months in range (simplified for Monthly filter mostly)
-          const startYear = startDate.getFullYear();
-          const startMonth = startDate.getMonth();
-          const key = `attendance_data_${emp.id}_${startYear}_${startMonth}`;
-          const monthlyData: DailyAttendance[] = JSON.parse(localStorage.getItem(key) || '[]');
+          // Iterate through all months in the range
+          const current = new Date(startDate);
+          while (current <= endDate) {
+              const year = current.getFullYear();
+              const month = current.getMonth();
+              const key = `attendance_data_${emp.id}_${year}_${month}`;
+              const monthlyData: DailyAttendance[] = JSON.parse(localStorage.getItem(key) || '[]');
 
-          monthlyData.forEach(d => {
-             const recordDate = new Date(d.date);
-             if (recordDate >= startDate && recordDate <= endDate) {
-                 if (d.status === AttendanceStatus.PRESENT || d.status === AttendanceStatus.HALF_DAY) {
-                     stats.present++;
-                     empPresent++;
-                     if (d.isLate) {
-                         stats.late++;
-                         empLate++;
-                     }
-                 } else if (d.status === AttendanceStatus.ABSENT) {
-                     stats.absent++;
-                     empAbsent++;
-                 } else if (d.status === AttendanceStatus.PAID_LEAVE) {
-                     stats.leave++;
-                     empLeave++;
-                 }
-                 stats.totalDays++;
-             }
-          });
+              monthlyData.forEach(d => {
+                  const recordDate = new Date(d.date);
+                  if (recordDate >= startDate && recordDate <= endDate) {
+                      const isPast = recordDate < new Date(new Date().setHours(0,0,0,0));
+                      const isWeekend = recordDate.getDay() === 0 || emp.weekOff === recordDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+                      if (d.status === AttendanceStatus.PRESENT || d.status === AttendanceStatus.HALF_DAY) {
+                          stats.present++;
+                          empPresent++;
+                          if (d.isLate) {
+                              stats.late++;
+                              empLate++;
+                          }
+                      } else if (d.status === AttendanceStatus.ABSENT || (d.status === AttendanceStatus.NOT_MARKED && isPast && !isWeekend)) {
+                          stats.absent++;
+                          empAbsent++;
+                      } else if (d.status === AttendanceStatus.PAID_LEAVE) {
+                          stats.leave++;
+                          empLeave++;
+                      }
+                      stats.totalDays++;
+                  }
+              });
+              
+              // Move to next month
+              current.setMonth(current.getMonth() + 1);
+              current.setDate(1); // Ensure we start at beginning of month
+          }
 
           stats.employeeStats.push({
               id: emp.id,
