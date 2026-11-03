@@ -333,17 +333,15 @@ export const Payroll: React.FC = () => {
           if (dayDate > today) return;
 
           const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
-          const isSunday = dayDate.getDay() === 0;
-          const isCustomWeekOff = emp.weekOff === dayOfWeek;
-          const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
-
+          const isWeekend = isSunday || isCustomWeekOff;
+          
           if (day.status === AttendanceStatus.PRESENT) counts.present++;
-          else if (day.status === AttendanceStatus.WEEK_OFF || isImplicitWeekOff) counts.off++;
+          else if (day.status === AttendanceStatus.WEEK_OFF || (day.status === AttendanceStatus.NOT_MARKED && isWeekend)) counts.off++;
           else if (day.status === AttendanceStatus.HOLIDAY) counts.holiday++;
           else if (day.status === AttendanceStatus.PAID_LEAVE) counts.leave++;
           else if (day.status === AttendanceStatus.HALF_DAY) counts.half++;
           else if (day.status === AttendanceStatus.ALTERNATE_DAY) counts.alternate++;
-          else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && !isImplicitWeekOff)) counts.absent++;
+          else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && day.date < today.toISOString().split('T')[0] && !isWeekend)) counts.absent++;
       });
       return counts;
   };

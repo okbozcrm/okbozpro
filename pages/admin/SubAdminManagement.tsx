@@ -17,7 +17,7 @@ const MODULES = [
   'Load Xpress',
   'Trip Booking',
   'Driver Payments',
-  'Franchisee Leads',
+  'Lead Management',
   'Attendance Dashboard',
   'Tasks',
   'Staff Management',
@@ -29,7 +29,8 @@ const MODULES = [
   'Corporate',
   'Data & Backup',
   'Settings',
-  'KM Claims (TA)'
+  'KM Claims (TA)',
+  'Follow-ups'
 ];
 
 const SubAdminManagement: React.FC = () => {

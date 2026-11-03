@@ -430,7 +430,6 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
         const isFieldStaff = selectedEmployee?.attendanceConfig?.locationRestriction === 'Anywhere';
         
         const joiningDate = selectedEmployee?.joiningDate ? new Date(selectedEmployee.joiningDate + 'T12:00:00') : new Date('2000-01-01');
-        const terminationDate = (selectedEmployee?.status === 'Terminated' && selectedEmployee?.terminationDate) ? new Date(selectedEmployee.terminationDate + 'T12:00:00') : null;
         const today = new Date();
         today.setHours(12, 0, 0, 0);
 
@@ -440,16 +439,17 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             // Skip days before joining
             if (dayDate < joiningDate) return;
 
-            // Skip days after termination
-            if (terminationDate && dayDate > terminationDate) return;
-
             // Skip future dates
-            if (dayDate > today) return;
+            if (dayDate > today && day.date !== todayDateStr) return;
 
             const dayOfWeek = dayDate.getDay();
             const isSunday = dayOfWeek === 0;
             const isCustomWeekOff = selectedEmployee?.weekOff === dayDate.toLocaleDateString('en-US', { weekday: 'long' });
-            const isImplicitWeekOff = (isSunday || isCustomWeekOff) && day.status === AttendanceStatus.NOT_MARKED;
+            const isWeekend = isSunday || isCustomWeekOff;
+            
+            // Critical: Align count logic with visual render logic
+            const isExplicitAbsent = day.status === AttendanceStatus.ABSENT;
+            const isUnmarkedPast = day.status === AttendanceStatus.NOT_MARKED && day.date < todayDateStr && !isWeekend;
 
             const isPresent = day.status === AttendanceStatus.PRESENT || day.status === AttendanceStatus.ALTERNATE_DAY;
             if (isPresent) { 
@@ -457,7 +457,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 if (day.isLate) late++; 
                 if (isFieldStaff) onField++;
             }
-            else if (day.status === AttendanceStatus.ABSENT || (day.status === AttendanceStatus.NOT_MARKED && day.date <= todayDateStr && !isImplicitWeekOff)) {
+            else if (isExplicitAbsent || isUnmarkedPast) {
                 absent++;
             }
             else if (day.status === AttendanceStatus.HALF_DAY) {
@@ -466,7 +466,7 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
             }
             else if (day.status === AttendanceStatus.PAID_LEAVE) leave++;
             else if (day.status === AttendanceStatus.HOLIDAY) holidays++;
-            else if (day.status === AttendanceStatus.WEEK_OFF || isImplicitWeekOff) weekOff++;
+            else if (day.status === AttendanceStatus.WEEK_OFF || (day.status === AttendanceStatus.NOT_MARKED && isWeekend)) weekOff++;
         });
         return { 
             total: attendanceData.length, 
@@ -1025,9 +1025,10 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                 ))}
                 {Array.from({ length: new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getDay() }).map((_, i) => <div key={`pad-${i}`} className="min-h-[60px] md:min-h-[180px] opacity-0"></div>)}
                 {attendanceData.map((day, idx) => {
-                    const dayOfWeek = new Date(day.date).getDay();
+                    const dayDate = new Date(day.date + 'T12:00:00');
+                    const dayOfWeek = dayDate.getDay();
                     const isSunday = dayOfWeek === 0;
-                    const isCustomWeekOff = selectedEmployee?.weekOff === new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' });
+                    const isCustomWeekOff = selectedEmployee?.weekOff === dayDate.toLocaleDateString('en-US', { weekday: 'long' });
                     const isWeekend = isSunday || isCustomWeekOff;
                     
                     const isToday = day.date === todayDateStr;
@@ -1119,28 +1120,42 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
       </div>
 
       <div className="space-y-6 md:space-y-8 animate-in zoom-in-95 duration-500">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
               {[
                   { 
-                      label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS', 
-                      val: dashboardStats.total, 
+                      label: isAdmin && activeTab !== 'Dashboard' ? 'TOTAL STAFF' : 'WORKING DAYS (PRES.)', 
+                      val: dashboardStats.present + (activeTab === 'Dashboard' ? 0 : 0), // Base present
                       icon: Users, 
                       gradient: 'from-indigo-600 to-indigo-800',
                       shadow: 'shadow-indigo-900/20'
                   },
                   { 
-                      label: 'PRESENT', 
-                      val: dashboardStats.present, 
-                      icon: UserCheck, 
-                      gradient: 'from-emerald-500 to-emerald-700',
-                      shadow: 'shadow-emerald-900/20'
+                      label: 'WEEK OFFS', 
+                      val: dashboardStats.weekOff, 
+                      icon: Coffee, 
+                      gradient: 'from-cyan-500 to-cyan-700',
+                      shadow: 'shadow-cyan-900/20'
                   },
                   { 
-                      label: 'ABSENT', 
+                      label: 'ABSENT DAYS', 
                       val: dashboardStats.absent, 
                       icon: UserX, 
                       gradient: 'from-rose-500 to-rose-700',
                       shadow: 'shadow-rose-900/20'
+                  },
+                  { 
+                      label: 'HOLIDAYS/PAID LVE', 
+                      val: dashboardStats.holidays + dashboardStats.leave, 
+                      icon: CalendarDays, 
+                      gradient: 'from-violet-500 to-violet-700',
+                      shadow: 'shadow-violet-900/20'
+                  },
+                  { 
+                      label: 'HALF DAYS (0.5X)', 
+                      val: dashboardStats.halfDay, 
+                      icon: Activity, 
+                      gradient: 'from-amber-500 to-amber-700',
+                      shadow: 'shadow-amber-900/20'
                   },
                   { 
                       label: 'ON FIELD', 
@@ -1156,34 +1171,13 @@ const UserAttendance: React.FC<UserAttendanceProps> = ({ isAdmin = false }) => {
                       gradient: 'from-orange-500 to-orange-700',
                       shadow: 'shadow-orange-900/20'
                   },
-                  { 
-                      label: 'HALF DAY', 
-                      val: dashboardStats.halfDay, 
-                      icon: Activity, 
-                      gradient: 'from-amber-500 to-amber-700',
-                      shadow: 'shadow-amber-900/20'
-                  },
-                  { 
-                      label: 'HOLIDAY', 
-                      val: dashboardStats.holidays, 
-                      icon: CalendarDays, 
-                      gradient: 'from-violet-500 to-violet-700',
-                      shadow: 'shadow-violet-900/20'
-                  },
-                  { 
-                      label: 'WEEK OFF', 
-                      val: dashboardStats.weekOff, 
-                      icon: Coffee, 
-                      gradient: 'from-cyan-500 to-cyan-700',
-                      shadow: 'shadow-cyan-900/20'
-                  },
-                  { 
-                      label: 'LEAVE', 
-                      val: dashboardStats.leave, 
-                      icon: UserMinus, 
-                      gradient: 'from-slate-500 to-slate-700',
+                  {
+                      label: 'TOTAL MONTH DAYS',
+                      val: dashboardStats.total,
+                      icon: Calendar,
+                      gradient: 'from-slate-600 to-slate-800',
                       shadow: 'shadow-slate-900/20'
-                  },
+                  }
               ].map((kpi, i) => (
                   <div key={i} className={`bg-gradient-to-br ${kpi.gradient} p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] text-white shadow-xl ${kpi.shadow} relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 h-32 md:h-40 flex flex-col justify-between`}>
                       <div className="relative z-10 flex justify-between items-start">

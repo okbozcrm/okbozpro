@@ -1,12 +1,27 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Layers, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap as ZapIcon, Package } from 'lucide-react';
-import { UserRole, Enquiry, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, LogOut, UserCircle, Building, Settings, CreditCard, ClipboardList, ReceiptIndianRupee, Navigation, Building2, Edit2, FileText, Mail, UserCog, CarFront, BarChart3, Map, Headset, BellDot, Plane, Download, Database, Sun as SunIcon, Moon as MoonIcon, Activity, Bike, RefreshCw, ShieldCheck, BookOpen, Sun, Moon, Monitor, GripVertical, Zap as ZapIcon, Package, ChevronDown } from 'lucide-react';
+import { UserRole, Employee, TravelAllowanceRequest, CorporateAccount, SubAdmin, Task } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 import { restoreFromCloud } from '../services/cloudService';
+
+interface SidebarSubLink {
+  id: string;
+  path: string;
+  label: string;
+  subLinks?: SidebarSubLink[];
+}
+
+interface SidebarLinkItem {
+  id: string;
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  subLinks?: SidebarSubLink[];
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,7 +40,16 @@ const MASTER_ADMIN_LINKS = [
   { id: 'trips', path: '/admin/trips', label: 'Trip Booking', icon: Map },
   { id: 'tracking', path: '/admin/tracking', label: 'Live Tracking', icon: Navigation },
   { id: 'driver-payments', path: '/admin/driver-payments', label: 'Driver Payments', icon: ReceiptIndianRupee }, 
-  { id: 'leads', path: '/admin/leads', label: 'Franchisee Leads', icon: Layers },
+  { id: 'leads', path: '/admin/leads', label: 'Lead Management', icon: Users, subLinks: [
+    { id: 'follow-ups', path: '/admin/follow-ups', label: 'Follow-ups', subLinks: [
+      { id: 'today-follow-ups', path: '/admin/follow-ups/today', label: "Today's Follow-ups" },
+      { id: 'upcoming-follow-ups', path: '/admin/follow-ups/upcoming', label: 'Upcoming Follow-ups' },
+      { id: 'missed-follow-ups', path: '/admin/follow-ups/missed', label: 'Missed Follow-ups' },
+      { id: 'completed-follow-ups', path: '/admin/follow-ups/completed', label: 'Completed Follow-ups' },
+      { id: 'all-follow-ups', path: '/admin/follow-ups/all', label: 'All Follow-ups' },
+      { id: 'follow-up-calendar', path: '/admin/follow-ups/calendar', label: 'Follow-up Calendar' },
+    ]},
+  ]},
   { id: 'tasks', path: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
   { id: 'km-claims', path: '/admin/km-claims', label: 'KM Claims (TA)', icon: Bike },
   { id: 'attendance', path: '/admin/attendance', label: 'Attendance Dashboard', icon: Activity },
@@ -277,37 +301,6 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     }
   };
 
-  const [newTaskCount, setNewTaskCount] = useState(0);
-
-  const calculateNewTaskCount = () => {
-    try {
-        const enquiriesJson = localStorage.getItem('global_enquiries_data');
-        if (!enquiriesJson) {
-            setNewTaskCount(0);
-            return;
-        }
-        const allEnquiries: Enquiry[] = JSON.parse(enquiriesJson);
-        const sessionId = localStorage.getItem('app_session_id');
-        let relevantNewEnquiries: Enquiry[] = [];
-        if (role === UserRole.ADMIN) {
-            relevantNewEnquiries = allEnquiries.filter(e => e.status === 'New');
-        } else if (role === UserRole.CORPORATE) {
-            relevantNewEnquiries = allEnquiries.filter(e => e.status === 'New' && e.assignedCorporate === sessionId);
-        } else if (role === UserRole.EMPLOYEE) {
-            relevantNewEnquiries = allEnquiries.filter(e => e.status === 'New' && e.assignedTo === sessionId);
-        }
-        setNewTaskCount(relevantNewEnquiries.length);
-    } catch {
-        setNewTaskCount(0);
-    }
-  };
-
-  useEffect(() => {
-      calculateNewTaskCount();
-      window.addEventListener('storage', calculateNewTaskCount);
-      return () => window.removeEventListener('storage', calculateNewTaskCount);
-  }, [role]);
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) setNotificationsOpen(false);
@@ -367,7 +360,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'load-xpress': 'Load Xpress',
               'trips': 'Trip Booking',
               'driver-payments': 'Driver Payments',
-              'leads': 'Franchisee Leads',
+              'leads': 'Lead Management',
               'attendance': 'Attendance Dashboard',
               'tasks': 'Tasks',
               'staff': 'Staff Management',
@@ -381,7 +374,8 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
               'settings': 'Settings',
               'km-claims': 'KM Claims (TA)',
               'sub-admins': 'Sub Admin Mgt',
-              'sop-documents': 'SOP Documents' // NEW: Added SOP Document permission check
+              'sop-documents': 'SOP Documents',
+              'follow-ups': 'Follow-ups'
           };
           
           const moduleName = permKeyMap[link.id];
@@ -460,7 +454,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         'payroll': { id: 'payroll', path: '/user/payroll', label: 'Payroll (Admin)', icon: DollarSign },
         'finance': { id: 'finance', path: '/user/expenses', label: 'Finance & Expenses', icon: CreditCard },
         'live_tracking': { id: 'tracking', path: '/user/tracking', label: 'Live Tracking', icon: Navigation },
-        'leads': { id: 'leads', path: '/user/leads', label: 'Franchisee Leads', icon: Layers },
+        'leads': { id: 'leads', path: '/user/leads', label: 'Lead Management', icon: Users },
         'attendance': { id: 'attendance-admin', path: '/user/attendance-admin', label: 'Attendance Dashboard', icon: Activity },
         'on_demand': { id: 'on-demand-employee', path: '/admin/on-demand', label: 'On Demand Service', icon: ZapIcon },
         'load_xpress': { id: 'load-xpress-employee', path: '/admin/load-xpress', label: 'Load Xpress', icon: Package }
@@ -480,6 +474,32 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
   const sidebarLinks = role === UserRole.EMPLOYEE ? userLinks : visibleAdminLinks;
   const currentPath = location.pathname;
+
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+
+  const toggleMenu = (id: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+    );
+  };
+
+  useEffect(() => {
+    // Auto-expand menus based on current path
+    const activeMenuIds: string[] = [];
+    sidebarLinks.forEach(link => {
+       if (link.subLinks) {
+          if (currentPath.startsWith(link.path) || link.subLinks.some((sl: any) => currentPath.startsWith(sl.path) || (sl.subLinks && sl.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path))))) {
+             activeMenuIds.push(link.id);
+             link.subLinks.forEach((sl: any) => {
+                if (sl.subLinks && (currentPath.startsWith(sl.path) || sl.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path)))) {
+                   activeMenuIds.push(sl.id);
+                }
+             });
+          }
+       }
+    });
+    setExpandedMenus(prev => Array.from(new Set([...prev, ...activeMenuIds])));
+  }, [currentPath, sidebarLinks]);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
@@ -506,25 +526,88 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         </div>
         <nav className="flex-1 overflow-y-auto custom-scrollbar p-3 pt-0">
           <div className="space-y-1">
-            {sidebarLinks.map((link, index) => (
-              <Link
-                key={link.id}
-                to={link.path}
-                className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${currentPath === link.path ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750'}`}
-                draggable={(role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar}
-                onDragStart={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragStart(e, index)}
-                onDragOver={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragOver(e)}
-                onDrop={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDrop(e, index)}
-              >
-                <link.icon className={`w-5 h-5 ${currentPath === link.path ? 'text-white' : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`} />
-                <span className={`text-sm font-medium ${currentPath === link.path ? 'text-white' : ''}`}>{link.label}</span>
-                {(link.id === 'chat' || link.id === 'chat-employee') && chatUnreadCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">{chatUnreadCount}</span>}
-                {(link.id === 'tasks' || link.id === 'my-tasks') && pendingTasksCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTasksCount}</span>}
-                {link.id === 'reception' && newTaskCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{newTaskCount}</span>}
-                {(link.id === 'km-claims' || link.id === 'my-km-claims') && pendingTaCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTaCount}</span>}
-                {isEditingSidebar && (role === UserRole.ADMIN || role === UserRole.CORPORATE) && <GripVertical className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-grab" />}
-              </Link>
-            ))}
+            {sidebarLinks.map((link, index) => {
+              const isExpanded = expandedMenus.includes(link.id);
+              const isActive = currentPath === link.path || (link.subLinks && link.subLinks.some((sl: any) => currentPath.startsWith(sl.path)));
+              
+              return (
+                <div key={link.id} className="space-y-1">
+                  {link.subLinks ? (
+                    <button
+                      onClick={() => toggleMenu(link.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive && !isExpanded ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750'}`}
+                    >
+                      <link.icon className={`w-5 h-5 ${isActive && !isExpanded ? 'text-white' : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`} />
+                      <span className="text-sm font-medium">{link.label}</span>
+                      <ChevronDown className={`ml-auto w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                  ) : (
+                    <Link
+                      to={link.path}
+                      className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${currentPath === link.path ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750'}`}
+                      draggable={(role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar}
+                      onDragStart={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragStart(e, index)}
+                      onDragOver={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDragOver(e)}
+                      onDrop={(e) => (role === UserRole.ADMIN || role === UserRole.CORPORATE) && isEditingSidebar && handleDrop(e, index)}
+                    >
+                      <link.icon className={`w-5 h-5 ${currentPath === link.path ? 'text-white' : 'text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`} />
+                      <span className={`text-sm font-medium ${currentPath === link.path ? 'text-white' : ''}`}>{link.label}</span>
+                      {link.id === 'chat' || link.id === 'chat-employee' && chatUnreadCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-sm">{chatUnreadCount}</span>}
+                      {(link.id === 'tasks' || link.id === 'my-tasks') && pendingTasksCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTasksCount}</span>}
+                      {(link.id === 'km-claims' || link.id === 'my-km-claims') && pendingTaCount > 0 && <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">{pendingTaCount}</span>}
+                      {isEditingSidebar && (role === UserRole.ADMIN || role === UserRole.CORPORATE) && <GripVertical className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 cursor-grab" />}
+                    </Link>
+                  )}
+
+                  {link.subLinks && isExpanded && (
+                    <div className="ml-4 pl-4 border-l border-gray-100 dark:border-gray-800 space-y-1 mt-1">
+                      {link.subLinks.map((subLink: any) => {
+                        const isSubExpanded = expandedMenus.includes(subLink.id);
+                        const isSubActive = currentPath === subLink.path || (subLink.subLinks && subLink.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path)));
+
+                        return (
+                          <div key={subLink.id} className="space-y-1">
+                            {subLink.subLinks ? (
+                              <button
+                                onClick={() => toggleMenu(subLink.id)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isSubActive ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                              >
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>{subLink.label}</span>
+                                <ChevronDown className={`ml-auto w-3 h-3 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                            ) : (
+                              <Link
+                                to={subLink.path}
+                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentPath === subLink.path ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                              >
+                                <div className={`w-1.5 h-1.5 rounded-full ${currentPath === subLink.path ? 'bg-emerald-600' : 'bg-gray-300'}`} />
+                                <span>{subLink.label}</span>
+                              </Link>
+                            )}
+
+                            {subLink.subLinks && isSubExpanded && (
+                              <div className="ml-3 pl-3 border-l border-gray-100 dark:border-gray-800 space-y-1 mt-1">
+                                {subLink.subLinks.map((deepLink: any) => (
+                                  <Link
+                                    key={deepLink.id}
+                                    to={deepLink.path}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${currentPath === deepLink.path ? 'text-emerald-600 font-bold' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900'}`}
+                                  >
+                                    <div className={`w-1 h-1 rounded-full ${currentPath === deepLink.path ? 'bg-emerald-600' : 'bg-gray-300'}`} />
+                                    <span>{deepLink.label}</span>
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {(role === UserRole.ADMIN || role === UserRole.CORPORATE) && (
              <div className="mt-4 p-2 border-t border-gray-100 dark:border-gray-700">

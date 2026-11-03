@@ -18,7 +18,8 @@ import { VendorAttachment } from './pages/admin/VendorAttachment';
 import Corporate from './pages/admin/Corporate';
 import SubAdminManagement from './pages/admin/SubAdminManagement'; 
 import Documents from './pages/Documents';
-import Leads from './pages/admin/Leads';
+import LeadManagement from './pages/admin/LeadManagement';
+import AddNewLead from './pages/admin/AddNewLead';
 import Reports from './pages/admin/Reports'; 
 import EmailMarketing from './pages/admin/EmailMarketing';
 import { TripBooking } from './pages/admin/TripBooking';
@@ -37,6 +38,7 @@ import KmClaims from './pages/KmClaims';
 import GenAITools from './pages/admin/GenAITools';
 import SOPDocuments from './pages/admin/SOPDocuments'; 
 import CallOverlay from './components/CallOverlay'; // Import CallOverlay
+import FollowUps from './pages/admin/FollowUps';
 import { UserRole } from './types';
 import { BrandingProvider } from './context/BrandingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -159,7 +161,15 @@ const App: React.FC = () => {
                         <Route path="/admin/trips" element={<TripBooking />} /> 
                         <Route path="/admin/tracking" element={<LiveTracking />} />
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
-                        <Route path="/admin/leads" element={<Leads />} />
+                        <Route path="/admin/leads" element={<LeadManagement />} />
+                        <Route path="/admin/leads/add" element={<AddNewLead />} />
+                        <Route path="/admin/follow-ups" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/today" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/upcoming" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/missed" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/completed" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/all" element={<FollowUps />} />
+                        <Route path="/admin/follow-ups/calendar" element={<FollowUps />} />
                         <Route path="/admin/tasks" element={<TaskManagement role={userRole} />} />
                         <Route path="/admin/km-claims" element={<KmClaims role={userRole} />} />
                         <Route path="/admin/attendance" element={<UserAttendance isAdmin={true} />} />
@@ -206,7 +216,8 @@ const App: React.FC = () => {
                         <Route path="/user/staff" element={<StaffList />} />
                         <Route path="/user/payroll" element={<Payroll />} />
                         <Route path="/user/expenses" element={<Expenses />} />
-                        <Route path="/user/leads" element={<Leads />} />
+                        <Route path="/user/leads" element={<LeadManagement />} />
+                        <Route path="/user/follow-ups" element={<FollowUps />} />
                         <Route path="/user/*" element={<div className="p-8 text-center text-gray-500">Page under construction</div>} />
                       </>
                     )}

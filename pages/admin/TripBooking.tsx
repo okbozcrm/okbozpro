@@ -119,7 +119,7 @@ export const TripBooking: React.FC = () => {
     date: new Date().toISOString().split('T')[0],
     bookingType: 'Online',
     orderType: 'Scheduled',
-    transportType: 'Sedan',
+    transportType: '',
     tripCategory: 'Local',
     bookingStatus: 'Completed',
     cancelBy: '-',
@@ -268,6 +268,12 @@ export const TripBooking: React.FC = () => {
     });
   }, [trips, searchTerm, statusFilter, originFilter, fleetFilter, categoryFilter, corporateFilter, branchFilter, minCommission, minTax, isSuperAdmin]);
 
+  const availableFleetCategories = useMemo(() => {
+    const defaults = ['Sedan', 'SUV', 'Auto', 'Prime Luxury', 'Hatchback', 'Mini', 'Innova', 'Tempo Traveller'];
+    const fromTrips = trips.map(t => t.transportType).filter(Boolean);
+    return Array.from(new Set([...defaults, ...fromTrips]));
+  }, [trips]);
+
   // --- Stats Memo moved after filteredTrips ---
   const stats = useMemo(() => {
     return {
@@ -336,7 +342,7 @@ export const TripBooking: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.tripId || !formData.date || !formData.userName) {
+    if (!formData.tripId || !formData.date || !formData.userName || !formData.transportType?.trim()) {
       alert("Please fill all required fields (*)");
       return;
     }
@@ -726,10 +732,9 @@ export const TripBooking: React.FC = () => {
               <div className="relative group">
                   <select value={fleetFilter} onChange={(e) => setFleetFilter(e.target.value)} className="w-full pl-4 pr-8 py-3 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-600 outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer">
                       <option value="All">All Fleets</option>
-                      <option value="Sedan">Sedan</option>
-                      <option value="SUV">SUV</option>
-                      <option value="Auto">Auto</option>
-                      <option value="Prime Luxury">Prime Luxury</option>
+                      {availableFleetCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                      ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
@@ -1049,13 +1054,32 @@ export const TripBooking: React.FC = () => {
                                       </div>
                                   </div>
                                   <div className="space-y-2">
-                                      <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Fleet Category *</label>
-                                      <select name="transportType" value={formData.transportType} onChange={handleInputChange} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl outline-none font-black text-gray-800 shadow-inner appearance-none text-sm">
-                                          <option>Sedan</option>
-                                          <option>SUV</option>
-                                          <option>Auto</option>
-                                          <option>Prime Luxury</option>
-                                      </select>
+                                      <div className="flex justify-between items-center ml-2">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase">Fleet Category *</label>
+                                          <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">Manual Entry</span>
+                                      </div>
+                                      <input 
+                                          type="text"
+                                          name="transportType" 
+                                          list="fleet-category-options"
+                                          placeholder="Enter fleet category (e.g. Sedan, SUV, Auto, Innova...)" 
+                                          value={formData.transportType} 
+                                          onChange={handleInputChange} 
+                                          className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-4 focus:ring-emerald-500/10 font-black text-gray-800 shadow-inner text-sm" 
+                                          required
+                                      />
+                                      <datalist id="fleet-category-options">
+                                          <option value="Sedan" />
+                                          <option value="SUV" />
+                                          <option value="Auto" />
+                                          <option value="Prime Luxury" />
+                                          <option value="Hatchback" />
+                                          <option value="Mini" />
+                                          <option value="Innova" />
+                                          <option value="Innova Crysta" />
+                                          <option value="Tempo Traveller" />
+                                          <option value="Bike" />
+                                      </datalist>
                                   </div>
                                   <div className="space-y-2">
                                       <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Trip Classification *</label>

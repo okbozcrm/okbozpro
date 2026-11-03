@@ -341,38 +341,38 @@ const UserSalary: React.FC = () => {
                     </div>
                     <div className="space-y-4 text-right">
                         <div>
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 text-right">Attendance Summary</p>
-                            <div className="text-[10px] space-y-1.5 font-bold text-gray-600">
-                                <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Working Days (Pres.)</span>
-                                    <span className="text-gray-900 font-black">{salaryData.counts.present + salaryData.counts.alternate}</span>
-                                </div>
-                                <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Week Offs</span>
-                                    <span className="text-gray-900 font-black">{salaryData.counts.off}</span>
-                                </div>
-                                <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Holidays / Paid Lve</span>
-                                    <span className="text-gray-900 font-black">{salaryData.counts.holiday + salaryData.counts.leave}</span>
-                                </div>
-                                <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Half Days (0.5x)</span>
-                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.HALF_DAY].text} font-black`}>{salaryData.counts.half}</span>
-                                </div>
-                                <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
-                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} uppercase font-bold`}>Absent Days</span>
-                                    <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} font-black`}>{salaryData.counts.absent}</span>
-                                </div>
-                                <div className="h-px bg-indigo-50 my-1"></div>
-                                <div className="flex justify-between gap-4">
-                                    <span className="text-gray-400 uppercase font-bold">Total Month Days</span>
-                                    <span className="text-gray-900 font-black">{salaryData.workingDays}</span>
-                                </div>
-                                <div className="flex justify-between gap-4 text-indigo-600 text-[11px]">
-                                    <span className="uppercase font-black">Net Payable Days</span>
-                                    <span className="font-black">{salaryData.paidDays}</span>
-                                </div>
-                            </div>
+                            <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-2 text-right">Attendance Detailed Breakup</p>
+                             <div className="text-[10px] space-y-1.5 font-bold text-gray-600">
+                                 <div className="flex justify-between gap-4">
+                                     <span className="text-gray-400 uppercase font-bold">Working Days (Pres.)</span>
+                                     <span className="text-gray-900 font-black">{salaryData.counts.present + salaryData.counts.alternate}</span>
+                                 </div>
+                                 <div className="flex justify-between gap-4">
+                                     <span className="text-gray-400 uppercase font-bold">Week Offs</span>
+                                     <span className="text-gray-900 font-black">{salaryData.counts.off}</span>
+                                 </div>
+                                 <div className="flex justify-between gap-4">
+                                     <span className="text-gray-400 uppercase font-bold">Holidays/Paid Lve</span>
+                                     <span className="text-gray-900 font-black">{salaryData.counts.holiday + salaryData.counts.leave}</span>
+                                 </div>
+                                 <div className="flex justify-between gap-4">
+                                     <span className="text-gray-400 uppercase font-bold">Half Days (0.5x)</span>
+                                     <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.HALF_DAY].text} font-black`}>{salaryData.counts.half}</span>
+                                 </div>
+                                 <div className="flex justify-between gap-4 border-t border-gray-100 pt-1">
+                                     <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} uppercase font-bold`}>Absent Days</span>
+                                     <span className={`${ATTENDANCE_STATUS_COLORS[AttendanceStatus.ABSENT].text} font-black`}>{salaryData.counts.absent}</span>
+                                 </div>
+                                 <div className="h-px bg-indigo-50 my-1"></div>
+                                 <div className="flex justify-between gap-4">
+                                     <span className="text-gray-400 uppercase font-bold">Total Month Days</span>
+                                     <span className="text-gray-900 font-black">{salaryData.workingDays}</span>
+                                 </div>
+                                 <div className="flex justify-between gap-4 text-indigo-600 text-[11px]">
+                                     <span className="uppercase font-black">Net Payable Days</span>
+                                     <span className="font-black">{salaryData.paidDays}</span>
+                                 </div>
+                             </div>
                         </div>
                     </div>
                 </div>
