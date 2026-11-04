@@ -156,10 +156,10 @@ const App: React.FC = () => {
                         <Route path="/admin/reports" element={<Reports />} />
                         <Route path="/admin/marketing" element={userRole === UserRole.ADMIN || userRole === UserRole.SUB_ADMIN ? <EmailMarketing /> : <Navigate to="/admin" replace />} />
                         <Route path="/admin/on-demand" element={<OnDemandService />} />
-                        <Route path="/admin/customer-care" element={<CustomerCare role={userRole} />} />
+                        <Route path="/admin/customer-care" element={userRole === UserRole.CORPORATE ? <Navigate to="/admin" replace /> : <CustomerCare role={userRole} />} />
                         <Route path="/admin/load-xpress" element={<LoadXpress />} />
                         <Route path="/admin/trips" element={<TripBooking />} /> 
-                        <Route path="/admin/tracking" element={<LiveTracking />} />
+                        <Route path="/admin/tracking" element={userRole === UserRole.CORPORATE ? <Navigate to="/admin" replace /> : <LiveTracking />} />
                         <Route path="/admin/driver-payments" element={<DriverPayments />} />
                         <Route path="/admin/leads" element={<LeadManagement />} />
                         <Route path="/admin/leads/add" element={<AddNewLead />} />
@@ -170,14 +170,14 @@ const App: React.FC = () => {
                         <Route path="/admin/follow-ups/completed" element={<FollowUps />} />
                         <Route path="/admin/follow-ups/all" element={<FollowUps />} />
                         <Route path="/admin/follow-ups/calendar" element={<FollowUps />} />
-                        <Route path="/admin/tasks" element={<TaskManagement role={userRole} />} />
+                        <Route path="/admin/tasks" element={userRole === UserRole.CORPORATE ? <Navigate to="/admin" replace /> : <TaskManagement role={userRole} />} />
                         <Route path="/admin/km-claims" element={<KmClaims role={userRole} />} />
                         <Route path="/admin/attendance" element={<UserAttendance isAdmin={true} />} />
                         <Route path="/admin/branches" element={<BranchForm />} />
                         <Route path="/admin/staff" element={<StaffList />} />
                         <Route path="/admin/sub-admins" element={<SubAdminManagement />} /> 
                         <Route path="/admin/documents" element={<Documents role={userRole} />} />
-                        <Route path="/admin/vendors" element={<VendorAttachment />} />
+                        <Route path="/admin/vendors" element={userRole === UserRole.CORPORATE ? <Navigate to="/admin" replace /> : <VendorAttachment />} />
                         <Route path="/admin/payroll" element={<Payroll />} />
                         <Route path="/admin/expenses" element={<Expenses />} />
                         <Route path="/admin/finance-and-expenses" element={<Expenses />} />
@@ -200,9 +200,9 @@ const App: React.FC = () => {
                       <>
                         <Route path="/user" element={<UserAttendance />} />
                         <Route path="/user/price-management" element={<FranchiseDashboard />} />
-                        <Route path="/user/tasks" element={<TaskManagement role={UserRole.EMPLOYEE} />} />
-                        <Route path="/user/customer-care" element={<CustomerCare role={UserRole.EMPLOYEE} />} />
-                        <Route path="/user/vendors" element={<VendorAttachment />} />
+                        <Route path="/user/tasks" element={<Navigate to="/user" replace />} />
+                        <Route path="/user/customer-care" element={<Navigate to="/user" replace />} />
+                        <Route path="/user/vendors" element={<Navigate to="/user" replace />} />
                         <Route path="/user/salary" element={<UserSalary />} />
                         <Route path="/user/km-claims" element={<KmClaims role={UserRole.EMPLOYEE} />} />
                         <Route path="/user/documents" element={<Documents role={UserRole.EMPLOYEE} />} />

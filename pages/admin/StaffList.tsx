@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Phone, X, User, Upload, CreditCard, Briefcase, 
   Pencil, Trash2, Building2, Eye, EyeOff, Heart, 
-  PhoneCall, ShieldCheck, Layers, DollarSign, Building, Check, Users, Landmark, CheckCircle,
-  Save, UserPlus, Activity,
-  Zap as ZapIcon, Package
+  PhoneCall, ShieldCheck, DollarSign, Building, Check, Users, CheckCircle,
+  Save, UserPlus
 } from 'lucide-react'; 
 import { Employee, CorporateAccount, Branch } from '../../types';
 
@@ -18,20 +17,6 @@ const GENDERS = ['Select Gender', 'Male', 'Female', 'Other'];
 const MARITAL_STATUS = ['Select Status', 'Single', 'Married', 'Divorced', 'Widowed'];
 const SHIFT_OPTIONS = ['Select Shift', 'General Shift (09:30 - 18:30)', 'Night Shift (22:00 - 07:00)', 'Afternoon Shift (14:00 - 23:00)'];
 const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-const MODULE_PERMISSIONS = [
-  { id: 'trips', label: 'Trip Earning (Bookings)', icon: Building },
-  { id: 'reports', label: 'Reports & Analytics', icon: Landmark },
-  { id: 'driver_payments', label: 'Driver Payments', icon: CreditCard },
-  { id: 'staff_mgt', label: 'Staff Management', icon: Users },
-  { id: 'finance', label: 'Finance & Expenses', icon: Landmark },
-  { id: 'live_tracking', label: 'Live Tracking', icon: Phone },
-  { id: 'leads', label: 'Franchisee Leads', icon: Layers },
-  { id: 'attendance', label: 'Attendance Dashboard', icon: Activity },
-  { id: 'payroll', label: 'Payroll Access', icon: DollarSign },
-  { id: 'on_demand', label: 'On Demand Service', icon: ZapIcon },
-  { id: 'load_xpress', label: 'Load Xpress', icon: Package }
-];
 
 const StaffList: React.FC = () => {
   const sessionId = localStorage.getItem('app_session_id') || 'admin';
@@ -150,14 +135,6 @@ const StaffList: React.FC = () => {
     }
   };
 
-  const togglePermission = (id: string) => {
-    setFormData(prev => ({ 
-        ...prev, 
-        moduleAccess: prev.moduleAccess?.includes(id) 
-            ? prev.moduleAccess.filter((m: string) => m !== id) 
-            : [...(prev.moduleAccess || []), id] 
-    }));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,22 +444,11 @@ const StaffList: React.FC = () => {
                                             type="button" 
                                             onClick={() => {
                                                 const current = formData.serviceTypes || [];
-                                                const hasOnDemand = current.includes('On-Demand Service');
-                                                const updated = hasOnDemand
+                                                const updated = current.includes('On-Demand Service')
                                                     ? current.filter(t => t !== 'On-Demand Service')
                                                     : [...current, 'On-Demand Service'];
                                                 
-                                                // Automatically sync moduleAccess
-                                                let updatedModules = formData.moduleAccess || [];
-                                                if (!hasOnDemand) {
-                                                    if (!updatedModules.includes('on_demand')) {
-                                                        updatedModules = [...updatedModules, 'on_demand'];
-                                                    }
-                                                } else {
-                                                    updatedModules = updatedModules.filter(m => m !== 'on_demand');
-                                                }
-                                                
-                                                setFormData(prev => ({ ...prev, serviceTypes: updated, moduleAccess: updatedModules }));
+                                                setFormData(prev => ({ ...prev, serviceTypes: updated }));
                                             }}
                                             className={`flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${formData.serviceTypes?.includes('On-Demand Service') ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
                                         >
@@ -637,26 +603,6 @@ const StaffList: React.FC = () => {
                             </div>
                         </section>
 
-                        {/* Module Permissions */}
-                        <section>
-                            <SectionTitle icon={Layers} title="Module Access Permissions" color="text-indigo-600" />
-                            <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 max-h-60 overflow-y-auto custom-scrollbar">
-                                {MODULE_PERMISSIONS.map(perm => (
-                                    <label key={perm.id} className="flex items-center gap-3 group cursor-pointer">
-                                        <div 
-                                            onClick={() => togglePermission(perm.id)}
-                                            className={`w-5 h-5 rounded flex items-center justify-center transition-all ${formData.moduleAccess?.includes(perm.id) ? 'bg-emerald-500 border-emerald-500 shadow-sm' : 'bg-white border border-gray-300 group-hover:border-emerald-400'}`}
-                                        >
-                                            {formData.moduleAccess?.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <perm.icon className={`w-3.5 h-3.5 ${formData.moduleAccess?.includes(perm.id) ? 'text-emerald-600' : 'text-gray-400'}`} />
-                                            <span className={`text-xs font-bold ${formData.moduleAccess?.includes(perm.id) ? 'text-gray-800' : 'text-gray-500'}`}>{perm.label}</span>
-                                        </div>
-                                    </label>
-                                ))}
-                            </div>
-                        </section>
                     </div>
                 </div>
             </form>

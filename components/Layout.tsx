@@ -8,20 +8,13 @@ import { useTheme } from '../context/ThemeContext';
 import { useNotification } from '../context/NotificationContext';
 import { restoreFromCloud } from '../services/cloudService';
 
-interface SidebarSubLink {
+export interface SidebarSubLink {
   id: string;
   path: string;
   label: string;
   subLinks?: SidebarSubLink[];
 }
 
-interface SidebarLinkItem {
-  id: string;
-  path: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  subLinks?: SidebarSubLink[];
-}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -384,6 +377,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
       }
 
       if (role === UserRole.CORPORATE) {
+        // Explicitly removed from Franchise (Corporate) Panel:
+        // Live Tracking ('tracking'), Vendor Attachment ('vendors'), Customer Care ('customer-care'), Task Management ('tasks')
+        const excludedFranchiseModules = ['tracking', 'vendors', 'customer-care', 'tasks'];
+        if (excludedFranchiseModules.includes(link.id)) {
+          return false;
+        }
+
         const serviceTypes = activeCorporate?.serviceTypes || (activeCorporate?.serviceType ? [activeCorporate.serviceType] : ['Transport']);
         
         const hasTransport = serviceTypes.includes('Transport');
@@ -392,7 +392,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         // Items to hide based on service type
         if (!hasTransport) {
              // If NO transport, hide transport related
-             const transportOnly = ['customer-care', 'trips', 'driver-payments', 'vendors', 'sub-admins', 'km-claims', 'sop-documents'];
+             const transportOnly = ['trips', 'driver-payments', 'sub-admins', 'km-claims', 'sop-documents'];
              if (transportOnly.includes(link.id)) return false;
         }
 
@@ -401,9 +401,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         }
 
         const corporateAllowed = [
-          'dashboard', 'on-demand', 'reports', 'customer-care', 'load-xpress', 'trips', 'tracking',
-          'tasks', 'attendance', 'branches', 'staff', 'sub-admins',
-          'documents', 'vendors', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
+          'dashboard', 'on-demand', 'reports', 'load-xpress', 'trips',
+          'attendance', 'branches', 'staff', 'sub-admins',
+          'documents', 'payroll', 'finance-and-expenses', 'driver-payments', 'km-claims',
           'sop-documents'
         ];
         return corporateAllowed.includes(link.id);
@@ -432,12 +432,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
         { id: 'my-documents', path: '/user/documents', label: 'My Documents', icon: FileText },
         { id: 'apply-leave', path: '/user/apply-leave', label: 'Apply Leave', icon: Plane },
         { id: 'my-profile', path: '/user/profile', label: 'My Profile', icon: UserCircle },
-        { id: 'customer-care-employee', path: '/user/customer-care', label: 'Customer Care', icon: Headset },
-        { id: 'my-tasks', path: '/user/tasks', label: 'My Tasks', icon: ClipboardList },
-        { id: 'vendors-employee', path: '/user/vendors', label: 'Vendor Attachment', icon: CarFront },
     ].filter(link => {
         if (!hasTransport) {
-            const transportOnly = ['customer-care-employee', 'vendors-employee', 'my-km-claims'];
+            const transportOnly = ['my-km-claims'];
             if (transportOnly.includes(link.id)) return false;
         }
         if (link.id === 'on-demand-employee' && !hasOnDemand) return false;
@@ -467,8 +464,13 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     });
     
     const finalLinks = [...baseLinks];
-    // Add custom links at index 6 (before Profile)
-    finalLinks.splice(6, 0, ...addedLinks);
+    // Add custom links before Profile
+    const profileIdx = finalLinks.findIndex(l => l.id === 'my-profile');
+    if (profileIdx !== -1) {
+        finalLinks.splice(profileIdx, 0, ...addedLinks);
+    } else {
+        finalLinks.push(...addedLinks);
+    }
     return finalLinks;
   }, [employeePermissions, activeEmployee]);
 
@@ -488,10 +490,10 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
     const activeMenuIds: string[] = [];
     sidebarLinks.forEach(link => {
        if (link.subLinks) {
-          if (currentPath.startsWith(link.path) || link.subLinks.some((sl: any) => currentPath.startsWith(sl.path) || (sl.subLinks && sl.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path))))) {
+          if (currentPath.startsWith(link.path) || link.subLinks.some((sl: SidebarSubLink) => currentPath.startsWith(sl.path) || (sl.subLinks && sl.subLinks.some((ssl: SidebarSubLink) => currentPath.startsWith(ssl.path))))) {
              activeMenuIds.push(link.id);
-             link.subLinks.forEach((sl: any) => {
-                if (sl.subLinks && (currentPath.startsWith(sl.path) || sl.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path)))) {
+             link.subLinks.forEach((sl: SidebarSubLink) => {
+                if (sl.subLinks && (currentPath.startsWith(sl.path) || sl.subLinks.some((ssl: SidebarSubLink) => currentPath.startsWith(ssl.path)))) {
                    activeMenuIds.push(sl.id);
                 }
              });
@@ -528,7 +530,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
           <div className="space-y-1">
             {sidebarLinks.map((link, index) => {
               const isExpanded = expandedMenus.includes(link.id);
-              const isActive = currentPath === link.path || (link.subLinks && link.subLinks.some((sl: any) => currentPath.startsWith(sl.path)));
+              const isActive = currentPath === link.path || (link.subLinks && link.subLinks.some((sl: SidebarSubLink) => currentPath.startsWith(sl.path)));
               
               return (
                 <div key={link.id} className="space-y-1">
@@ -561,9 +563,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
                   {link.subLinks && isExpanded && (
                     <div className="ml-4 pl-4 border-l border-gray-100 dark:border-gray-800 space-y-1 mt-1">
-                      {link.subLinks.map((subLink: any) => {
+                      {link.subLinks.map((subLink: SidebarSubLink) => {
                         const isSubExpanded = expandedMenus.includes(subLink.id);
-                        const isSubActive = currentPath === subLink.path || (subLink.subLinks && subLink.subLinks.some((ssl: any) => currentPath.startsWith(ssl.path)));
+                        const isSubActive = currentPath === subLink.path || (subLink.subLinks && subLink.subLinks.some((ssl: SidebarSubLink) => currentPath.startsWith(ssl.path)));
 
                         return (
                           <div key={subLink.id} className="space-y-1">
@@ -588,7 +590,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role, onLogout }) => {
 
                             {subLink.subLinks && isSubExpanded && (
                               <div className="ml-3 pl-3 border-l border-gray-100 dark:border-gray-800 space-y-1 mt-1">
-                                {subLink.subLinks.map((deepLink: any) => (
+                                {subLink.subLinks.map((deepLink: SidebarSubLink) => (
                                   <Link
                                     key={deepLink.id}
                                     to={deepLink.path}

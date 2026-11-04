@@ -3,7 +3,7 @@ import {
   TrendingUp, TrendingDown, 
   Download, DollarSign, 
   CreditCard, Briefcase,
-  Users, Calendar, Truck, PhoneCall, LayoutGrid,
+  Users, Calendar, Truck, LayoutGrid,
   CheckCircle, XCircle, Clock
 } from 'lucide-react';
 import { 
@@ -410,7 +410,6 @@ const Reports: React.FC = () => {
     { id: 'Payroll Management', icon: Users },
     { id: 'Attendance Management', icon: Calendar },
     { id: 'Trip Earning', icon: Truck },
-    { id: 'Customer Care', icon: PhoneCall },
   ];
 
   return (
@@ -975,15 +974,7 @@ const Reports: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'Customer Care' && (
-          <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-2xl border border-gray-200 border-dashed">
-              <div className="p-4 bg-white rounded-full shadow-sm mb-4">
-                  <PhoneCall className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-800">Coming Soon</h3>
-              <p className="text-gray-500">The Customer Care analytics module is under development.</p>
-          </div>
-      )}
+
 
     </div>
   );

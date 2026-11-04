@@ -2,10 +2,9 @@
 import React, { useState } from 'react';
 import { 
   Users, Search, Filter, Plus, Phone, 
-  MessageSquare, Calendar, ChevronLeft, ChevronRight,
-  Clock, CheckCircle2, AlertCircle, TrendingUp,
-  MapPin, MoreHorizontal, MessageCircle, Edit2, 
-  LayoutDashboard, List, CheckCircle, X, Mail
+  Calendar, ChevronLeft, ChevronRight,
+  CheckCircle2, AlertCircle, TrendingUp,
+  MapPin, MoreHorizontal, MessageCircle, Edit2
 } from 'lucide-react';
 
 const MOCK_FOLLOW_UPS = [
@@ -21,7 +20,6 @@ const MOCK_FOLLOW_UPS = [
 
 const FollowUps = () => {
   const [activeTab, setActiveTab] = useState('Today');
-  const [searchTerm, setSearchTerm] = useState('');
 
   const stats = [
     { label: "Today's Follow-up", value: '28', change: '12%', trend: 'up', icon: Phone, color: 'text-emerald-600', bg: 'bg-emerald-50' },
