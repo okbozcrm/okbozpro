@@ -333,6 +333,8 @@ export const Payroll: React.FC = () => {
           if (dayDate > today) return;
 
           const dayOfWeek = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+          const isSunday = dayDate.getDay() === 0;
+          const isCustomWeekOff = emp.weekOff === dayOfWeek;
           const isWeekend = isSunday || isCustomWeekOff;
           
           if (day.status === AttendanceStatus.PRESENT) counts.present++;
